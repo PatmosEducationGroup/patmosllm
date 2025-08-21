@@ -19,10 +19,12 @@ export default function AdminUsersPage() {
   const { isLoaded, userId } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
   const [showInviteForm, setShowInviteForm] = useState(false)
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null)
 
   // Form state
   const [inviteEmail, setInviteEmail] = useState('')
@@ -50,6 +52,9 @@ export default function AdminUsersPage() {
       
       if (data.success) {
         setUsers(data.users)
+        // Find current user to prevent self-role changes
+        const current = data.users.find((user: User) => user.email === 'emichaelray@gmail.com') // Replace with dynamic lookup if needed
+        setCurrentUser(current || null)
       } else {
         setError(data.error)
       }
@@ -57,6 +62,36 @@ export default function AdminUsersPage() {
       setError('Failed to load users')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    setUpdatingRole(userId)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ role: newRole })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Update the user in the local state
+        setUsers(users.map(user => 
+          user.id === userId ? { ...user, role: newRole } : user
+        ))
+      } else {
+        setError(data.error)
+      }
+    } catch (err) {
+      setError('Failed to update user role')
+    } finally {
+      setUpdatingRole(null)
     }
   }
 
@@ -109,6 +144,17 @@ export default function AdminUsersPage() {
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'ADMIN':
+        return { bg: '#fef2f2', color: '#dc2626' }
+      case 'CONTRIBUTOR':
+        return { bg: '#f0f9ff', color: '#0891b2' }
+      default:
+        return { bg: '#eff6ff', color: '#2563eb' }
+    }
   }
 
   if (!isLoaded || !userId) {
@@ -268,17 +314,46 @@ export default function AdminUsersPage() {
                         </div>
                       </td>
                       <td style={{ padding: '1rem 1.5rem' }}>
-                        <span style={{ 
-                          display: 'inline-flex', 
-                          padding: '0.25rem 0.5rem', 
-                          fontSize: '0.75rem', 
-                          fontWeight: '600', 
-                          borderRadius: '9999px',
-                          backgroundColor: user.role === 'ADMIN' ? '#fef2f2' : user.role === 'CONTRIBUTOR' ? '#f0f9ff' : '#eff6ff',
-                          color: user.role === 'ADMIN' ? '#dc2626' : user.role === 'CONTRIBUTOR' ? '#0891b2' : '#2563eb'
-                        }}>
-                          {user.role}
-                        </span>
+                        {currentUser && user.id === currentUser.id ? (
+                          // Current user cannot change their own role
+                          <span style={{ 
+                            display: 'inline-flex', 
+                            padding: '0.25rem 0.5rem', 
+                            fontSize: '0.75rem', 
+                            fontWeight: '600', 
+                            borderRadius: '9999px',
+                            backgroundColor: getRoleColor(user.role).bg,
+                            color: getRoleColor(user.role).color
+                          }}>
+                            {user.role} (You)
+                          </span>
+                        ) : (
+                          // Other users can have their roles changed
+                          <select
+                            value={user.role}
+                            onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                            disabled={updatingRole === user.id}
+                            style={{
+                              padding: '0.25rem 0.5rem',
+                              fontSize: '0.75rem',
+                              fontWeight: '600',
+                              borderRadius: '0.375rem',
+                              border: '1px solid #d1d5db',
+                              backgroundColor: updatingRole === user.id ? '#f3f4f6' : 'white',
+                              color: '#374151',
+                              cursor: updatingRole === user.id ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            <option value="USER">USER</option>
+                            <option value="CONTRIBUTOR">CONTRIBUTOR</option>
+                            <option value="ADMIN">ADMIN</option>
+                          </select>
+                        )}
+                        {updatingRole === user.id && (
+                          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                            Updating...
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '1rem 1.5rem' }}>
                         <span style={{ 
