@@ -10,27 +10,28 @@ export async function GET(
 
     if (!token) {
       return NextResponse.json(
-        { success: false, error: 'Invalid invitation token' },
+        { success: false, error: 'Token required' },
         { status: 400 }
       )
     }
 
-    // Look up invitation by token
-    const { data: user, error } = await supabaseAdmin
+    // Find invitation by token
+    const { data: invitation, error } = await supabaseAdmin
       .from('users')
       .select(`
+        id,
         email,
         name,
         role,
+        invitation_token,
         invitation_expires_at,
-        clerk_id,
         invited_by,
         inviter:invited_by(email, name)
       `)
       .eq('invitation_token', token)
       .single()
 
-    if (error || !user) {
+    if (error || !invitation) {
       return NextResponse.json(
         { success: false, error: 'Invalid invitation token' },
         { status: 404 }
@@ -39,39 +40,108 @@ export async function GET(
 
     // Check if invitation has expired
     const now = new Date()
-    const expiresAt = new Date(user.invitation_expires_at)
+    const expiresAt = new Date(invitation.invitation_expires_at)
     const expired = now > expiresAt
-
-    // Check if user has already activated their account
-    const alreadyActivated = !user.clerk_id.startsWith('invited_')
-
-    if (alreadyActivated) {
-      return NextResponse.json(
-        { success: false, error: 'This invitation has already been used' },
-        { status: 400 }
-      )
-    }
-
-    const inviterInfo = user.inviter as { email?: string; name?: string }
 
     return NextResponse.json({
       success: true,
       invitation: {
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        invitedBy: inviterInfo?.name || inviterInfo?.email || 'Administrator',
-        expired: expired
+        email: invitation.email,
+        name: invitation.name,
+        role: invitation.role,
+        invitedBy: (invitation.inviter as { email?: string; name?: string })?.name || 
+                   (invitation.inviter as { email?: string; name?: string })?.email || 
+                   'System',
+        expired
       }
     })
 
   } catch (error) {
     console.error('Invitation validation error:', error)
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to validate invitation' 
-      },
+      { success: false, error: 'Failed to validate invitation' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ token: string }> }
+) {
+  try {
+    const { token } = await context.params
+    const { clerkId, email } = await request.json()
+
+    if (!token || !clerkId || !email) {
+      return NextResponse.json(
+        { success: false, error: 'Token, Clerk ID, and email required' },
+        { status: 400 }
+      )
+    }
+
+    // Find the invitation
+    const { data: invitation, error: findError } = await supabaseAdmin
+      .from('users')
+      .select('id, email, invitation_token, invitation_expires_at')
+      .eq('invitation_token', token)
+      .single()
+
+    if (findError || !invitation) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid invitation token' },
+        { status: 404 }
+      )
+    }
+
+    // Check if invitation has expired
+    const now = new Date()
+    const expiresAt = new Date(invitation.invitation_expires_at)
+    if (now > expiresAt) {
+      return NextResponse.json(
+        { success: false, error: 'Invitation has expired' },
+        { status: 400 }
+      )
+    }
+
+    // Verify email matches
+    if (invitation.email.toLowerCase() !== email.toLowerCase()) {
+      return NextResponse.json(
+        { success: false, error: 'Email does not match invitation' },
+        { status: 400 }
+      )
+    }
+
+    // Update the user record with the real Clerk ID and clear invitation token
+    const { error: updateError } = await supabaseAdmin
+      .from('users')
+      .update({
+        clerk_id: clerkId,
+        invitation_token: null,
+        invitation_expires_at: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', invitation.id)
+
+    if (updateError) {
+      console.error('Error updating user with Clerk ID:', updateError)
+      return NextResponse.json(
+        { success: false, error: 'Failed to complete account setup' },
+        { status: 500 }
+      )
+    }
+
+    console.log(`Successfully linked Clerk account ${clerkId} to user ${email}`)
+
+    return NextResponse.json({
+      success: true,
+      message: 'Account setup completed successfully'
+    })
+
+  } catch (error) {
+    console.error('Account linking error:', error)
+    return NextResponse.json(
+      { success: false, error: 'Failed to complete account setup' },
       { status: 500 }
     )
   }
