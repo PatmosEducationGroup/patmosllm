@@ -36,7 +36,7 @@ export interface Chunk {
   content: string
   chunk_index: number
   token_count?: number
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   created_at: string
 }
 

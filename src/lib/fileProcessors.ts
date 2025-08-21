@@ -86,21 +86,35 @@ async function extractFromPDF(buffer: Buffer): Promise<{
   processorUsed: string
 }> {
   return new Promise((resolve, reject) => {
-    const pdfParser = new (pdf2json as any)()
+    const pdfParser = new (pdf2json as unknown as new () => {
+      on: (event: string, callback: (data: unknown) => void) => void;
+      parseBuffer: (buffer: Buffer) => void;
+    })()
     
-    pdfParser.on('pdfParser_dataError', (errData: any) => {
-      reject(new Error(`PDF parsing error: ${errData.parserError}`))
+    pdfParser.on('pdfParser_dataError', (errData: unknown) => {
+      const error = errData as { parserError?: string }
+      reject(new Error(`PDF parsing error: ${error.parserError || 'Unknown PDF error'}`))
     })
     
-    pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
+    pdfParser.on('pdfParser_dataReady', (pdfData: unknown) => {
       try {
+        const data = pdfData as {
+          Pages?: Array<{
+            Texts?: Array<{
+              R?: Array<{
+                T?: string;
+              }>;
+            }>;
+          }>;
+        }
+        
         let content = ''
         let pageCount = 0
         
-        if (pdfData.Pages) {
-          pageCount = pdfData.Pages.length
+        if (data.Pages) {
+          pageCount = data.Pages.length
           
-          for (const page of pdfData.Pages) {
+          for (const page of data.Pages) {
             if (page.Texts) {
               for (const text of page.Texts) {
                 if (text.R) {
