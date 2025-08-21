@@ -193,3 +193,99 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+// DELETE - Retract/remove pending invitation or delete user
+export async function DELETE(request: NextRequest) {
+  try {
+    // Check authentication
+    const { userId } = await auth()
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    // Verify admin permissions
+    const user = await getCurrentUser()
+    if (!user || user.role !== 'ADMIN') {
+      return NextResponse.json(
+        { success: false, error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
+
+    // Get user ID from request body
+    const { userId: targetUserId } = await request.json()
+
+    if (!targetUserId) {
+      return NextResponse.json(
+        { success: false, error: 'User ID required' },
+        { status: 400 }
+      )
+    }
+
+    // Prevent admin from deleting themselves
+    if (targetUserId === user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete your own account' },
+        { status: 400 }
+      )
+    }
+
+    // Get the target user info before deletion
+    const { data: targetUser, error: fetchError } = await supabaseAdmin
+      .from('users')
+      .select('id, email, clerk_id, role, invitation_token')
+      .eq('id', targetUserId)
+      .single()
+
+    if (fetchError || !targetUser) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check if this is a pending invitation vs active user
+    const isPendingInvitation = targetUser.clerk_id.startsWith('invited_')
+
+    // Delete user from database (this will cascade delete related data)
+    const { error: deleteError } = await supabaseAdmin
+      .from('users')
+      .delete()
+      .eq('id', targetUserId)
+
+    if (deleteError) {
+      console.error('Error deleting user:', deleteError)
+      return NextResponse.json(
+        { success: false, error: 'Failed to delete user' },
+        { status: 500 }
+      )
+    }
+
+    const actionType = isPendingInvitation ? 'retracted invitation for' : 'deleted user'
+    console.log(`Admin ${user.email} ${actionType} ${targetUser.email}`)
+
+    return NextResponse.json({
+      success: true,
+      message: isPendingInvitation 
+        ? `Invitation for ${targetUser.email} has been retracted`
+        : `User ${targetUser.email} has been deleted`,
+      deletedUser: {
+        email: targetUser.email,
+        id: targetUser.id,
+        wasPendingInvitation: isPendingInvitation
+      }
+    })
+
+  } catch (error) {
+    console.error('Delete user API error:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to delete user' 
+      },
+      { status: 500 }
+    )
+  }
+}
