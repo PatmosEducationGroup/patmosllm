@@ -25,6 +25,7 @@
     "pptx-parser": "^1.1.7-beta.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "resend": "^6.0.1",
     "tesseract.js": "^6.0.1",
     "uuid": "^11.1.0"
   },

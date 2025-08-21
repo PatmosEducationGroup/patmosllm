@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
+import { sendInvitationEmail } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create invitation record (we'll use a simple approach - pre-create user record)
+    // Create invitation record
     const { data: invitedUser, error: inviteError } = await supabaseAdmin
       .from('users')
       .insert({
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
         name: name || null,
         role: role,
         invited_by: user.id,
-        clerk_id: `invited_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` // Temporary placeholder
+        clerk_id: `invited_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       })
       .select()
       .single()
@@ -75,11 +76,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Send invitation email
+    const emailResult = await sendInvitationEmail(
+      email.toLowerCase(),
+      name || '',
+      role,
+      user.name || user.email
+    )
+
+    if (!emailResult.success) {
+      console.error('Failed to send invitation email:', emailResult.error)
+      // Log the error but don't fail the invitation - the user record is created
+    }
+
     console.log(`Admin ${user.email} invited ${email} as ${role}`)
 
     return NextResponse.json({
       success: true,
-      message: `User ${email} has been pre-approved. They can now sign in with Clerk.`,
+      message: emailResult.success 
+        ? `Invitation sent to ${email}. They will receive an email with setup instructions.`
+        : `User ${email} has been pre-approved but email delivery failed. They can still sign up normally.`,
+      emailSent: emailResult.success,
       user: {
         id: invitedUser.id,
         email: invitedUser.email,
@@ -149,7 +166,7 @@ export async function GET(request: NextRequest) {
       name: user.name,
       role: user.role,
       createdAt: user.created_at,
-      isActive: !user.clerk_id.startsWith('invited_'), // Check if they've actually signed in
+      isActive: !user.clerk_id.startsWith('invited_'),
       invitedBy: (user.inviter as { email?: string })?.email || 'System'
     }))
 
