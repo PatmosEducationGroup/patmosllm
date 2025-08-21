@@ -1,0 +1,129 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
+import { supabaseAdmin } from '@/lib/supabase'
+import { getCurrentUser } from '@/lib/auth'
+
+// Get all chat sessions for user
+export async function GET(request: NextRequest) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 403 }
+      )
+    }
+
+    // Get user's chat sessions with message count
+    const { data: sessions, error } = await supabaseAdmin
+      .from('chat_sessions')
+      .select(`
+        id,
+        title,
+        created_at,
+        updated_at,
+        conversations(count)
+      `)
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching chat sessions:', error)
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch chat sessions' },
+        { status: 500 }
+      )
+    }
+
+    const formattedSessions = sessions.map(session => ({
+      id: session.id,
+      title: session.title,
+      createdAt: session.created_at,
+      updatedAt: session.updated_at,
+      messageCount: session.conversations?.[0]?.count || 0
+    }))
+
+    return NextResponse.json({
+      success: true,
+      sessions: formattedSessions
+    })
+
+  } catch (error) {
+    console.error('Chat sessions API error:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to fetch sessions' 
+      },
+      { status: 500 }
+    )
+  }
+}
+
+// Create new chat session
+export async function POST(request: NextRequest) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 403 }
+      )
+    }
+
+    const { title = 'New Chat' } = await request.json()
+
+    const { data: session, error } = await supabaseAdmin
+      .from('chat_sessions')
+      .insert({
+        user_id: user.id,
+        title: title
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating chat session:', error)
+      return NextResponse.json(
+        { success: false, error: 'Failed to create chat session' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      session: {
+        id: session.id,
+        title: session.title,
+        createdAt: session.created_at,
+        updatedAt: session.updated_at
+      }
+    })
+
+  } catch (error) {
+    console.error('Create session API error:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to create session' 
+      },
+      { status: 500 }
+    )
+  }
+}
