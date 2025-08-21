@@ -132,8 +132,6 @@ export default function InvitePage() {
       card: "shadow-none border-0 p-0"
     }
   }}
-  routing="path"
-  path="/invite/[token]"
 />
         </div>
       </div>
