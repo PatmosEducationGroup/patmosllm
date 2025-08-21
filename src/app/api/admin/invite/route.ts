@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
-import { sendInvitationEmail } from '@/lib/email'
+import { sendInvitationEmail, generateInvitationToken } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,7 +55,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create invitation record
+    // Generate secure invitation token
+    const invitationToken = generateInvitationToken()
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
+
+    // Create invitation record with token
     const { data: invitedUser, error: inviteError } = await supabaseAdmin
       .from('users')
       .insert({
@@ -63,6 +67,8 @@ export async function POST(request: NextRequest) {
         name: name || null,
         role: role,
         invited_by: user.id,
+        invitation_token: invitationToken,
+        invitation_expires_at: expiresAt.toISOString(),
         clerk_id: `invited_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       })
       .select()
@@ -76,26 +82,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Send invitation email
+    // Send invitation email with token
     const emailResult = await sendInvitationEmail(
       email.toLowerCase(),
       name || '',
       role,
-      user.name || user.email
+      user.name || user.email,
+      invitationToken
     )
 
     if (!emailResult.success) {
       console.error('Failed to send invitation email:', emailResult.error)
-      // Log the error but don't fail the invitation - the user record is created
     }
 
-    console.log(`Admin ${user.email} invited ${email} as ${role}`)
+    console.log(`Admin ${user.email} invited ${email} as ${role} with token ${invitationToken}`)
 
     return NextResponse.json({
       success: true,
       message: emailResult.success 
-        ? `Invitation sent to ${email}. They will receive an email with setup instructions.`
-        : `User ${email} has been pre-approved but email delivery failed. They can still sign up normally.`,
+        ? `Invitation sent to ${email}. They will receive an email with a secure setup link.`
+        : `User ${email} has been pre-approved but email delivery failed.`,
       emailSent: emailResult.success,
       user: {
         id: invitedUser.id,

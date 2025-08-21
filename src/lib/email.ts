@@ -1,15 +1,21 @@
 import { Resend } from 'resend'
+import crypto from 'crypto'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+export function generateInvitationToken(): string {
+  return crypto.randomBytes(32).toString('hex')
+}
 
 export async function sendInvitationEmail(
   email: string,
   name: string,
   role: string,
-  invitedBy: string
+  invitedBy: string,
+  token: string
 ) {
   try {
-    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/sign-up`
+    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${token}`
     
     const { data, error } = await resend.emails.send({
       from: 'Heaven.Earth <noreply@heaven.earth>',
@@ -32,7 +38,7 @@ export async function sendInvitationEmail(
             ${role === 'CONTRIBUTOR' ? '<li>Upload documents</li><li>Chat with AI</li>' : ''}
             ${role === 'USER' ? '<li>Chat with AI</li>' : ''}
           </ul>
-          <p>Click the button above to create your account and get started.</p>
+          <p>This invitation link expires in 7 days.</p>
           <p>If you have any questions, please contact your administrator.</p>
         </div>
       `
