@@ -114,10 +114,14 @@ export default function InvitePage() {
           <p style={{ color: '#6b7280' }}>
             {invitation.invitedBy} has invited you to join as a <strong>{invitation.role}</strong>
           </p>
+          <p style={{ color: '#2563eb', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+            Please create your account using: <strong>{invitation.email}</strong>
+          </p>
         </div>
         
         <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}>
           <SignUp 
+            afterSignUpUrl={`/api/invite/${token}/complete`}
             signInUrl="/sign-in"
             appearance={{
               elements: {
