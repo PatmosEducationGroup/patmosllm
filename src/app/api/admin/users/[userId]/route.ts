@@ -26,6 +26,7 @@ export async function PATCH(
       )
     }
 
+    // Get the userId from params and request body
     const { userId } = await context.params
     const { role } = await request.json()
     
@@ -38,7 +39,7 @@ export async function PATCH(
     }
 
     // Prevent self-demotion from admin
-    if (currentUser.id === params.userId && role !== 'ADMIN') {
+    if (currentUser.id === userId && role !== 'ADMIN') {
       return NextResponse.json(
         { success: false, error: 'Cannot change your own admin role' },
         { status: 400 }
@@ -52,7 +53,7 @@ export async function PATCH(
         role,
         updated_at: new Date().toISOString()
       })
-      .eq('id', params.userId)
+      .eq('id', userId)
       .select()
       .single()
 
