@@ -150,7 +150,7 @@ export async function GET(request: NextRequest) {
       role: user.role,
       createdAt: user.created_at,
       isActive: !user.clerk_id.startsWith('invited_'), // Check if they've actually signed in
-      invitedBy: user.inviter?.email || 'System'
+      invitedBy: (user.inviter as { email?: string })?.email || 'System'
     }))
 
     return NextResponse.json({
