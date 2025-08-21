@@ -31,12 +31,10 @@ export default clerkMiddleware(async (auth, req) => {
   // Content Security Policy
   const cspDirectives = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.heaven.earth",    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.pinecone.io https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev",
-    "frame-src 'none'",
+    "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.pinecone.io https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.heaven.earth https://accounts.heaven.earth",    "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'"
   ]
