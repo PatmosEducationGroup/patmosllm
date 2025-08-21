@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/lib/auth'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  context: { params: Promise<{ userId: string }> }
 ) {
   try {
     // Check authentication
@@ -26,6 +26,7 @@ export async function PATCH(
       )
     }
 
+    const { userId } = await context.params
     const { role } = await request.json()
     
     // Validate role
