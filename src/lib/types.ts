@@ -1,6 +1,6 @@
 // Database types matching our Supabase schema
 
-export type UserRole = 'ADMIN' | 'USER'
+export type UserRole = 'ADMIN' | 'CONTRIBUTOR' | 'USER'
 
 export type IngestStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
