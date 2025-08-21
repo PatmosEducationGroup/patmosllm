@@ -120,16 +120,22 @@ export default function InvitePage() {
         </div>
         
         <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}>
-          <SignUp 
-            afterSignUpUrl={`/api/invite/${token}/complete`}
-            signInUrl="/sign-in"
-            appearance={{
-              elements: {
-                rootBox: "w-full",
-                card: "shadow-none border-0 p-0"
-              }
-            }}
-          />
+<SignUp 
+  afterSignUpUrl={`/api/invite/${token}/complete`}
+  signInUrl="/sign-in"
+  initialValues={{
+    emailAddress: invitation.email
+  }}
+  appearance={{
+    elements: {
+      rootBox: "w-full",
+      card: "shadow-none border-0 p-0"
+    }
+  }}
+  mode="signUp"
+  routing="path"
+  path="/invite/[token]"
+/>
         </div>
       </div>
     </div>
