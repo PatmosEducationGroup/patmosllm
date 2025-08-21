@@ -25,6 +25,7 @@ export default function AdminUsersPage() {
   const [inviting, setInviting] = useState(false)
   const [showInviteForm, setShowInviteForm] = useState(false)
   const [updatingRole, setUpdatingRole] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   // Form state
   const [inviteEmail, setInviteEmail] = useState('')
@@ -92,6 +93,46 @@ export default function AdminUsersPage() {
       setError('Failed to update user role')
     } finally {
       setUpdatingRole(null)
+    }
+  }
+
+  const handleDeleteUser = async (userId: string, userEmail: string, isActive: boolean) => {
+    const confirmMessage = isActive 
+      ? `Are you sure you want to delete user ${userEmail}? This will permanently remove their account and all associated data.`
+      : `Are you sure you want to retract the invitation for ${userEmail}?`
+    
+    if (!confirm(confirmMessage)) {
+      return
+    }
+
+    setDeleting(userId)
+    setError(null)
+
+    try {
+      const response = await fetch('/api/admin/invite', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Remove the user from the local state
+        setUsers(users.filter(user => user.id !== userId))
+        
+        // Show success message
+        const actionText = isActive ? 'deleted' : 'retracted'
+        alert(`Successfully ${actionText} ${userEmail}`)
+      } else {
+        setError(data.error)
+      }
+    } catch (err) {
+      setError('Failed to delete user')
+    } finally {
+      setDeleting(null)
     }
   }
 
@@ -298,6 +339,9 @@ export default function AdminUsersPage() {
                     <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
                       Created
                     </th>
+                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody style={{ backgroundColor: 'white' }}>
@@ -373,6 +417,48 @@ export default function AdminUsersPage() {
                       </td>
                       <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
                         {formatDate(user.createdAt)}
+                      </td>
+                      <td style={{ padding: '1rem 1.5rem' }}>
+                        {/* Don't allow deleting yourself */}
+                        {currentUser && user.id === currentUser.id ? (
+                          <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                            Cannot delete yourself
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleDeleteUser(user.id, user.email, user.isActive)}
+                            disabled={deleting === user.id}
+                            style={{
+                              padding: '0.25rem 0.75rem',
+                              fontSize: '0.75rem',
+                              fontWeight: '500',
+                              color: deleting === user.id ? '#9ca3af' : '#dc2626',
+                              backgroundColor: 'transparent',
+                              border: '1px solid',
+                              borderColor: deleting === user.id ? '#d1d5db' : '#dc2626',
+                              borderRadius: '0.375rem',
+                              cursor: deleting === user.id ? 'not-allowed' : 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (deleting !== user.id) {
+                                e.currentTarget.style.backgroundColor = '#fef2f2'
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (deleting !== user.id) {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                              }
+                            }}
+                          >
+                            {deleting === user.id 
+                              ? 'Deleting...' 
+                              : user.isActive 
+                                ? 'Delete User' 
+                                : 'Retract Invite'
+                            }
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
