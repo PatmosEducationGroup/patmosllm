@@ -82,13 +82,13 @@ export async function POST(request: NextRequest) {
     console.log(`Extracting text from ${fileName}...`)
     const extraction = await extractTextFromFile(buffer, mimeType, fileName)
 
-    if (!extraction.success) {
-      console.error('Text extraction failed:', extraction.error)
-      return NextResponse.json(
-        { success: false, error: extraction.error },
-        { status: 400 }
-      )
-    }
+    if (!extraction.content) {
+  console.error('Text extraction failed: No content extracted')
+  return NextResponse.json(
+    { success: false, error: 'Failed to extract text from file' },
+    { status: 400 }
+  )
+}
 
     console.log(`Extracted ${extraction.wordCount} words from ${fileName}`)
 
