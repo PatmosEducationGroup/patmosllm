@@ -3,30 +3,48 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
+import { supabaseAdmin } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import AdminNavbar from '@/components/AdminNavbar'
+
+// Initialize Supabase client for browser operations
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 interface Document {
   id: string
   title: string
   author?: string
-  mimeType: string
-  fileSize: number
-  wordCount: number
+  wordCount?: number
   pageCount?: number
+  fileSize: number
+  mimeType: string
   createdAt: string
-  ingestStatus: string
-  chunksCreated: number
-  ingestError?: string
+  processing?: boolean
+}
+
+interface IngestJob {
+  id: string
+  document_id: string
+  status: string
+  error_message?: string
+  chunks_created: number
 }
 
 export default function AdminPage() {
-  const { isLoaded, userId } = useAuth()
+  const { isLoaded, userId, getToken } = useAuth()
   const router = useRouter()
   const [documents, setDocuments] = useState<Document[]>([])
-  const [uploading, setUploading] = useState(false)
-  const [ingesting, setIngesting] = useState<Set<string>>(new Set())
+  const [ingestJobs, setIngestJobs] = useState<IngestJob[]>([])
   const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploadTitle, setUploadTitle] = useState('')
+  const [uploadAuthor, setUploadAuthor] = useState('')
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -39,6 +57,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (userId) {
       loadDocuments()
+      loadIngestJobs()
     }
   }, [userId])
 
@@ -59,54 +78,140 @@ export default function AdminPage() {
     }
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    // Get title and author
-    const title = prompt('Enter document title:', file.name.replace(/\.[^/.]+$/, ''))
-    if (!title) return
-
-    const author = prompt('Enter author (optional):') || ''
-
-    setUploading(true)
-    setError(null)
-
+  const loadIngestJobs = async () => {
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('title', title)
-      formData.append('author', author)
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-      })
-
+      const response = await fetch('/api/ingest')
       const data = await response.json()
-
+      
       if (data.success) {
-        // Automatically start ingestion
-        await startIngestion(data.document.id)
-        await loadDocuments() // Refresh list
-      } else {
-        setError(data.error)
+        setIngestJobs(data.jobs)
       }
     } catch (err) {
-      setError('Upload failed')
-    } finally {
-      setUploading(false)
-      // Reset file input
-      event.target.value = ''
+      console.error('Failed to load ingest jobs:', err)
     }
   }
 
-  const startIngestion = async (documentId: string) => {
-    setIngesting(prev => new Set([...prev, documentId]))
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+      if (!allowedTypes.includes(file.type)) {
+        setError('Please select a valid file type (PDF, TXT, MD, DOCX)')
+        return
+      }
+
+      // Validate file size (50MB limit)
+      if (file.size > 50 * 1024 * 1024) {
+        setError('File size must be less than 50MB')
+        return
+      }
+
+      setSelectedFile(file)
+      setError(null)
+      
+      // Auto-populate title from filename
+      if (!uploadTitle) {
+        setUploadTitle(file.name.replace(/\.[^/.]+$/, ''))
+      }
+    }
+  }
+
+  const handleUpload = async () => {
+    if (!selectedFile) return
+
+    setUploading(true)
+    setUploadProgress(0)
+    setError(null)
 
     try {
-      const response = await fetch('/api/ingest', {
+      // Get Clerk token for authentication
+      const token = await getToken()
+      if (!token) {
+        throw new Error('Authentication required')
+      }
+
+      // Set the auth header for Supabase client
+      supabase.auth.setSession({
+        access_token: token,
+        refresh_token: token,
+        expires_in: 3600,
+        token_type: 'bearer',
+        user: null
+      } as any)
+
+      // Generate unique filename
+      const timestamp = Date.now()
+      const cleanFileName = selectedFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+      const storagePath = `${timestamp}_${cleanFileName}`
+
+      // Upload file directly to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('docs')
+        .upload(storagePath, selectedFile, {
+          contentType: selectedFile.type,
+          upsert: false
+        })
+
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`)
+      }
+
+      setUploadProgress(50)
+
+      // Process the uploaded file via API
+      const processResponse = await fetch('/api/upload/process', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          storagePath: uploadData.path,
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          mimeType: selectedFile.type,
+          title: uploadTitle.trim() || selectedFile.name,
+          author: uploadAuthor.trim() || null
+        })
+      })
+
+      const processData = await processResponse.json()
+
+      if (!processData.success) {
+        throw new Error(processData.error || 'Processing failed')
+      }
+
+      setUploadProgress(100)
+
+      // Reset form
+      setSelectedFile(null)
+      setUploadTitle('')
+      setUploadAuthor('')
+      
+      // Clear file input
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement
+      if (fileInput) fileInput.value = ''
+
+      // Reload documents
+      await loadDocuments()
+      await loadIngestJobs()
+
+    } catch (err) {
+      console.error('Upload error:', err)
+      setError(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+      setUploadProgress(0)
+    }
+  }
+
+  const deleteDocument = async (documentId: string) => {
+    if (!confirm('Are you sure you want to delete this document?')) return
+
+    try {
+      const response = await fetch('/api/documents', {
+        method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -115,57 +220,43 @@ export default function AdminPage() {
 
       const data = await response.json()
 
-      if (!data.success) {
-        setError(data.error)
-      }
-
-      await loadDocuments() // Refresh to show updated status
-    } catch (err) {
-      setError('Ingestion failed')
-    } finally {
-      setIngesting(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(documentId)
-        return newSet
-      })
-    }
-  }
-
-  const deleteDocument = async (documentId: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return
-
-    try {
-      const response = await fetch(`/api/documents?id=${documentId}`, {
-        method: 'DELETE'
-      })
-
-      const data = await response.json()
-
       if (data.success) {
-        await loadDocuments() // Refresh list
+        setDocuments(documents.filter(doc => doc.id !== documentId))
       } else {
         setError(data.error)
       }
     } catch (err) {
-      setError('Delete failed')
+      setError('Failed to delete document')
     }
   }
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes'
-    const k = 1024
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+    if (bytes === 0) return '0 Bytes'
+    const i = Math.floor(Math.log(bytes) / Math.log(1024))
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'text-green-600 bg-green-100'
-      case 'processing': return 'text-blue-600 bg-blue-100'
-      case 'failed': return 'text-red-600 bg-red-100'
-      case 'pending': return 'text-yellow-600 bg-yellow-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'completed':
+        return { bg: '#f0fdf4', color: '#16a34a' }
+      case 'processing':
+        return { bg: '#fef3c7', color: '#d97706' }
+      case 'failed':
+        return { bg: '#fef2f2', color: '#dc2626' }
+      default:
+        return { bg: '#f3f4f6', color: '#6b7280' }
     }
   }
 
@@ -178,11 +269,12 @@ export default function AdminPage() {
       <AdminNavbar />
       
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
+        {/* Header */}
         <div style={{ marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>
             Document Management
           </h1>
-          <p style={{ color: '#6b7280' }}>Upload and manage documents for the knowledge base</p>
+          <p style={{ color: '#6b7280' }}>Upload and manage your knowledge base documents</p>
         </div>
 
         {error && (
@@ -206,29 +298,131 @@ export default function AdminPage() {
           borderRadius: '0.5rem', 
           border: '1px solid #e5e7eb' 
         }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>Upload New Document</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <input
-              type="file"
-              accept=".txt,.md,.pdf,.docx"
-              onChange={handleFileUpload}
-              disabled={uploading}
-              className="input"
-              style={{ flex: 1 }}
-            />
-            {uploading && (
-              <div style={{ color: '#2563eb' }}>Uploading and processing...</div>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>Upload Document</h2>
+          
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                Select File (PDF, TXT, MD, DOCX - Max 50MB)
+              </label>
+              <input
+                id="file-upload"
+                type="file"
+                accept=".pdf,.txt,.md,.docx"
+                onChange={handleFileSelect}
+                disabled={uploading}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  Title (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={uploadTitle}
+                  onChange={(e) => setUploadTitle(e.target.value)}
+                  disabled={uploading}
+                  placeholder="Document title..."
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  Author (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={uploadAuthor}
+                  onChange={(e) => setUploadAuthor(e.target.value)}
+                  disabled={uploading}
+                  placeholder="Author name..."
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+            </div>
+
+            {selectedFile && (
+              <div style={{ 
+                padding: '0.75rem', 
+                backgroundColor: '#f9fafb', 
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem',
+                color: '#6b7280'
+              }}>
+                Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+              </div>
             )}
+
+            {uploading && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <div style={{ 
+                  width: '100%', 
+                  backgroundColor: '#e5e7eb', 
+                  borderRadius: '0.25rem', 
+                  height: '0.5rem' 
+                }}>
+                  <div style={{ 
+                    width: `${uploadProgress}%`, 
+                    backgroundColor: '#3b82f6', 
+                    height: '100%', 
+                    borderRadius: '0.25rem',
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+                <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                  {uploadProgress < 50 ? 'Uploading...' : 'Processing...'}
+                </p>
+              </div>
+            )}
+
+            <button
+              onClick={handleUpload}
+              disabled={!selectedFile || uploading}
+              style={{
+                backgroundColor: !selectedFile || uploading ? '#9ca3af' : '#3b82f6',
+                color: 'white',
+                padding: '0.75rem 1.5rem',
+                border: 'none',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                cursor: !selectedFile || uploading ? 'not-allowed' : 'pointer',
+                width: 'fit-content'
+              }}
+            >
+              {uploading ? 'Uploading...' : 'Upload Document'}
+            </button>
           </div>
-          <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
-            Supported formats: TXT, MD, PDF, DOCX (max 50MB)
-          </p>
         </div>
 
         {/* Documents List */}
         <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
           <div style={{ padding: '1.5rem', borderBottom: '1px solid #e5e7eb' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>Documents ({documents.length})</h2>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>
+              Documents ({documents.length})
+            </h2>
           </div>
 
           {loading ? (
@@ -252,87 +446,85 @@ export default function AdminPage() {
                       Status
                     </th>
                     <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                      Created
+                    </th>
+                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody style={{ backgroundColor: 'white' }}>
-                  {documents.map((doc) => (
-                    <tr key={doc.id} style={{ borderTop: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '1rem 1.5rem' }}>
-                        <div>
-                          <div style={{ fontSize: '0.875rem', fontWeight: '500', color: '#111827' }}>
-                            {doc.title}
+                  {documents.map((doc) => {
+                    const job = ingestJobs.find(j => j.document_id === doc.id)
+                    const status = job?.status || 'completed'
+                    const statusColors = getStatusColor(status)
+                    
+                    return (
+                      <tr key={doc.id} style={{ borderTop: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '1rem 1.5rem' }}>
+                          <div>
+                            <div style={{ fontSize: '0.875rem', fontWeight: '500', color: '#111827' }}>
+                              {doc.title}
+                            </div>
+                            {doc.author && (
+                              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                                by {doc.author}
+                              </div>
+                            )}
                           </div>
-                          {doc.author && (
-                            <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                              by {doc.author}
+                        </td>
+                        <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                          <div>{formatFileSize(doc.fileSize)}</div>
+                          {doc.wordCount && <div>{doc.wordCount.toLocaleString()} words</div>}
+                          {doc.pageCount && <div>{doc.pageCount} pages</div>}
+                        </td>
+                        <td style={{ padding: '1rem 1.5rem' }}>
+                          <span style={{ 
+                            display: 'inline-flex', 
+                            padding: '0.25rem 0.5rem', 
+                            fontSize: '0.75rem', 
+                            fontWeight: '600', 
+                            borderRadius: '9999px',
+                            backgroundColor: statusColors.bg,
+                            color: statusColors.color
+                          }}>
+                            {status}
+                            {job && status === 'completed' && ` (${job.chunks_created} chunks)`}
+                          </span>
+                          {job?.error_message && (
+                            <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.25rem' }}>
+                              {job.error_message}
                             </div>
                           )}
-                        </div>
-                      </td>
-                      <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
-                        <div>{formatFileSize(doc.fileSize)}</div>
-                        <div>{doc.wordCount.toLocaleString()} words</div>
-                        {doc.pageCount && <div>{doc.pageCount} pages</div>}
-                      </td>
-                      <td style={{ padding: '1rem 1.5rem' }}>
-                        <span style={{ 
-                          display: 'inline-flex', 
-                          padding: '0.25rem 0.5rem', 
-                          fontSize: '0.75rem', 
-                          fontWeight: '600', 
-                          borderRadius: '9999px',
-                          backgroundColor: doc.ingestStatus === 'completed' ? '#f0fdf4' : doc.ingestStatus === 'processing' ? '#eff6ff' : doc.ingestStatus === 'failed' ? '#fef2f2' : '#fffbeb',
-                          color: doc.ingestStatus === 'completed' ? '#16a34a' : doc.ingestStatus === 'processing' ? '#2563eb' : doc.ingestStatus === 'failed' ? '#dc2626' : '#d97706'
-                        }}>
-                          {doc.ingestStatus === 'not_started' ? 'Ready to process' : doc.ingestStatus}
-                        </span>
-                        {doc.ingestStatus === 'completed' && (
-                          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                            {doc.chunksCreated} chunks created
-                          </div>
-                        )}
-                        {doc.ingestError && (
-                          <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.25rem' }}>
-                            Error: {doc.ingestError}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          {doc.ingestStatus === 'not_started' && (
-                            <button
-                              onClick={() => startIngestion(doc.id)}
-                              disabled={ingesting.has(doc.id)}
-                              className="btn"
-                              style={{ 
-                                color: '#2563eb', 
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                opacity: ingesting.has(doc.id) ? 0.5 : 1
-                              }}
-                            >
-                              {ingesting.has(doc.id) ? 'Processing...' : 'Process'}
-                            </button>
-                          )}
+                        </td>
+                        <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                          {formatDate(doc.createdAt)}
+                        </td>
+                        <td style={{ padding: '1rem 1.5rem' }}>
                           <button
                             onClick={() => deleteDocument(doc.id)}
-                            className="btn"
-                            style={{ 
-                              color: '#dc2626', 
+                            style={{
+                              padding: '0.25rem 0.75rem',
+                              fontSize: '0.75rem',
+                              color: '#dc2626',
                               backgroundColor: 'transparent',
-                              border: 'none',
+                              border: '1px solid #dc2626',
+                              borderRadius: '0.375rem',
                               cursor: 'pointer'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#fef2f2'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent'
                             }}
                           >
                             Delete
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
