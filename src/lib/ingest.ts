@@ -47,10 +47,22 @@ export async function processDocumentVectors(documentId: string, userId: string)
       throw new Error('No chunks created from document content')
     }
 
-    // Step 2: Create embeddings for all chunks
-    console.log('Creating embeddings...')
+    // Step 2: Create embeddings in batches
+    console.log('Creating embeddings in batches...')
+    const embeddings = []
+    const batchSize = 100 // Process 1000 chunks at a time
     const chunkContents = chunks.map(chunk => chunk.content)
-    const embeddings = await createEmbeddings(chunkContents)
+
+    for (let i = 0; i < chunkContents.length; i += batchSize) {
+      const batch = chunkContents.slice(i, i + batchSize)
+      const batchNumber = Math.floor(i/batchSize) + 1
+      const totalBatches = Math.ceil(chunkContents.length/batchSize)
+      
+      console.log(`Processing embedding batch ${batchNumber}/${totalBatches} (${batch.length} chunks)`)
+      const batchEmbeddings = await createEmbeddings(batch)
+      embeddings.push(...batchEmbeddings)
+    }
+
     console.log(`Created ${embeddings.length} embeddings`)
 
     // Step 3: Store chunks in database
@@ -84,7 +96,7 @@ export async function processDocumentVectors(documentId: string, userId: string)
       })
     }
 
-    // Step 4: Store embeddings in Pinecone
+    // Step 4: Store embeddings in Pinecone in batches
     console.log('Storing embeddings in Pinecone...')
     const pineconeChunks = chunkRecords.map(chunk => ({
       id: chunk.id,
@@ -100,7 +112,16 @@ export async function processDocumentVectors(documentId: string, userId: string)
       }
     }))
 
-    await storeChunks(pineconeChunks)
+    // Store in Pinecone in batches of 100 vectors at a time
+    const pineconeeBatchSize = 100
+    for (let i = 0; i < pineconeChunks.length; i += pineconeeBatchSize) {
+      const pineconeBatch = pineconeChunks.slice(i, i + pineconeeBatchSize)
+      const batchNumber = Math.floor(i/pineconeeBatchSize) + 1
+      const totalBatches = Math.ceil(pineconeChunks.length/pineconeeBatchSize)
+      
+      console.log(`Storing Pinecone batch ${batchNumber}/${totalBatches} (${pineconeBatch.length} vectors)`)
+      await storeChunks(pineconeBatch)
+    }
 
     // Update job status to completed
     await supabaseAdmin
