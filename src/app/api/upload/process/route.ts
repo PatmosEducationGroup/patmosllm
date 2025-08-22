@@ -132,10 +132,11 @@ export async function POST(request: NextRequest) {
       })
 
       if (!ingestResponse.ok) {
-        console.error('Failed to start ingest job')
-      } else {
-        console.log('Vector processing job started')
-      }
+  const errorText = await ingestResponse.text()
+  console.error('Failed to start ingest job:', ingestResponse.status, errorText)
+} else {
+  console.log('Vector processing job started')
+}
     } catch (ingestError) {
       console.error('Error starting ingest job:', ingestError)
       // Don't fail the upload if vector processing fails
