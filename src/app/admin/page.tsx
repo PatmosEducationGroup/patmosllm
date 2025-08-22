@@ -210,29 +210,28 @@ export default function AdminPage() {
     }
   }
 
-  const deleteDocument = async (documentId: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return
+const deleteDocument = async (documentId: string) => {
+  if (!confirm('Are you sure you want to delete this document?')) return
 
-    try {
-      const response = await fetch('/api/documents', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ documentId })
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        setDocuments(documents.filter(doc => doc.id !== documentId))
-      } else {
-        setError(data.error)
+  try {
+    const response = await fetch(`/api/documents?id=${documentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
       }
-    } catch (err) {
-      setError('Failed to delete document')
+    })
+
+    const data = await response.json()
+
+    if (data.success) {
+      setDocuments(documents.filter(doc => doc.id !== documentId))
+    } else {
+      setError(data.error)
     }
+  } catch (err) {
+    setError('Failed to delete document')
   }
+}
 
   const formatFileSize = (bytes: number) => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
