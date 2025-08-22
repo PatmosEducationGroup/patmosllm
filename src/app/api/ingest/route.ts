@@ -6,6 +6,56 @@ import { createEmbeddings } from '@/lib/openai'
 import { storeChunks } from '@/lib/pinecone'
 import { getCurrentUser } from '@/lib/auth'
 
+// GET - Load ingest jobs for admin interface
+export async function GET(request: NextRequest) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const user = await getCurrentUser()
+    if (!user || user.role !== 'ADMIN') {
+      return NextResponse.json(
+        { success: false, error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
+
+    // Get all ingest jobs
+    const { data: jobs, error } = await supabaseAdmin
+      .from('ingest_jobs')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to load ingest jobs' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      jobs: jobs || []
+    })
+
+  } catch (error) {
+    console.error('Ingest GET error:', error)
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to load jobs' 
+      },
+      { status: 500 }
+    )
+  }
+}
+
+// POST - Start new ingest job
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
