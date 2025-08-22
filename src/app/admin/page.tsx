@@ -157,7 +157,8 @@ export default function AdminPage() {
       })
 
       if (!uploadResponse.ok) {
-        throw new Error(`Upload failed: ${uploadResponse.statusText}`)
+        const errorText = await uploadResponse.text()
+        throw new Error(`Upload failed: ${uploadResponse.statusText} - ${errorText}`)
       }
 
       setUploadProgress(60)
@@ -175,8 +176,8 @@ export default function AdminPage() {
           fileSize: selectedFile.size,
           mimeType: selectedFile.type,
           title: uploadTitle.trim() || selectedFile.name,
-          author: uploadAuthor.trim() || null,
-         })
+          author: uploadAuthor.trim() || null
+        })
       })
 
       const processData = await processResponse.json()
