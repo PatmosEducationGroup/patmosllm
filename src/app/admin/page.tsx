@@ -3,15 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
-import { supabaseAdmin } from '@/lib/supabase'
-import { createClient } from '@supabase/supabase-js'
 import AdminNavbar from '@/components/AdminNavbar'
-
-// Initialize Supabase client for browser operations
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 interface Document {
   id: string
@@ -131,35 +123,46 @@ export default function AdminPage() {
         throw new Error('Authentication required')
       }
 
-      // Set the auth header for Supabase client
-      supabase.auth.setSession({
-        access_token: token,
-        refresh_token: token,
-        expires_in: 3600,
-        token_type: 'bearer',
-        user: null
-      } as { access_token: string; refresh_token: string; expires_in: number; token_type: string; user: null })
+      setUploadProgress(10)
 
-      // Generate unique filename
-      const timestamp = Date.now()
-      const cleanFileName = selectedFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-      const storagePath = `${timestamp}_${cleanFileName}`
-
-      // Upload file directly to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('docs')
-        .upload(storagePath, selectedFile, {
-          contentType: selectedFile.type,
-          upsert: false
+      // Step 1: Get presigned URL from server
+      const presignedResponse = await fetch('/api/upload/presigned', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          mimeType: selectedFile.type
         })
+      })
 
-      if (uploadError) {
-        throw new Error(`Upload failed: ${uploadError.message}`)
+      const presignedData = await presignedResponse.json()
+
+      if (!presignedData.success) {
+        throw new Error(presignedData.error || 'Failed to get upload URL')
       }
 
-      setUploadProgress(50)
+      setUploadProgress(20)
 
-      // Process the uploaded file via API
+      // Step 2: Upload file directly to Supabase using presigned URL
+      const uploadResponse = await fetch(presignedData.uploadUrl, {
+        method: 'PUT',
+        body: selectedFile,
+        headers: {
+          'Content-Type': selectedFile.type,
+        }
+      })
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed: ${uploadResponse.statusText}`)
+      }
+
+      setUploadProgress(60)
+
+      // Step 3: Process the uploaded file via API
       const processResponse = await fetch('/api/upload/process', {
         method: 'POST',
         headers: {
@@ -167,12 +170,13 @@ export default function AdminPage() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          storagePath: uploadData.path,
+          storagePath: presignedData.storagePath,
           fileName: selectedFile.name,
           fileSize: selectedFile.size,
           mimeType: selectedFile.type,
           title: uploadTitle.trim() || selectedFile.name,
-          author: uploadAuthor.trim() || null
+          author: uploadAuthor.trim() || null,
+          uploadToken: presignedData.token
         })
       })
 
@@ -274,7 +278,7 @@ export default function AdminPage() {
           <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>
             Document Management
           </h1>
-          <p style={{ color: '#6b7280' }}>Upload and manage your knowledge base documents</p>
+          <p style={{ color: '#6b7280' }}>Upload and manage your knowledge base documents (up to 50MB)</p>
         </div>
 
         {error && (
@@ -392,7 +396,8 @@ export default function AdminPage() {
                   }} />
                 </div>
                 <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                  {uploadProgress < 50 ? 'Uploading...' : 'Processing...'}
+                  {uploadProgress < 20 ? 'Getting upload URL...' : 
+                   uploadProgress < 60 ? 'Uploading file...' : 'Processing...'}
                 </p>
               </div>
             )}
