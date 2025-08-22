@@ -176,8 +176,7 @@ export default function AdminPage() {
           mimeType: selectedFile.type,
           title: uploadTitle.trim() || selectedFile.name,
           author: uploadAuthor.trim() || null,
-          uploadToken: presignedData.token
-        })
+         })
       })
 
       const processData = await processResponse.json()
