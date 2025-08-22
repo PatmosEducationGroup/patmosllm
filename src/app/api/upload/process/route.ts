@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { uploadRateLimit } from '@/lib/rate-limiter'
 import { getIdentifier } from '@/lib/get-identifier'
 import { sanitizeInput } from '@/lib/input-sanitizer'
+import { processDocumentVectors } from '@/lib/ingest'
 
 export async function POST(request: NextRequest) {
   try {
@@ -122,14 +123,13 @@ export async function POST(request: NextRequest) {
     console.log(`Document saved with ID: ${document.id}`)
 
     // Start vector processing job
-try {
-  import { processDocumentVectors } from '@/lib/ingest'
-  await processDocumentVectors(document.id, user.id)
-  console.log('Vector processing job started')
-} catch (ingestError) {
-  console.error('Error starting ingest job:', ingestError)
-  // Don't fail the upload if vector processing fails
-}
+    try {
+      await processDocumentVectors(document.id, user.id)
+      console.log('Vector processing job started')
+    } catch (ingestError) {
+      console.error('Error starting ingest job:', ingestError)
+      // Don't fail the upload if vector processing fails
+    }
 
     console.log(`Successfully processed: ${cleanTitle}`)
 
@@ -159,4 +159,3 @@ try {
     )
   }
 }
-
