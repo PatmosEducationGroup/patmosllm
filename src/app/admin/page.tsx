@@ -138,7 +138,7 @@ export default function AdminPage() {
         expires_in: 3600,
         token_type: 'bearer',
         user: null
-      } as any)
+      } as { access_token: string; refresh_token: string; expires_in: number; token_type: string; user: null })
 
       // Generate unique filename
       const timestamp = Date.now()
