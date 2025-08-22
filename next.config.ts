@@ -1,11 +1,5 @@
 import type { NextConfig } from 'next'
 
-// Import environment validation
-const { logEnvironmentStatus } = require('./lib/env-validator')
-
-// Validate environment variables at build time
-logEnvironmentStatus();
-
 const nextConfig: NextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['pdf2pic', 'mammoth']
