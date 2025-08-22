@@ -122,25 +122,14 @@ export async function POST(request: NextRequest) {
     console.log(`Document saved with ID: ${document.id}`)
 
     // Start vector processing job
-    try {
-      const ingestResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ingest`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ documentId: document.id })
-      })
-
-      if (!ingestResponse.ok) {
-  const errorText = await ingestResponse.text()
-  console.error('Failed to start ingest job:', ingestResponse.status, errorText)
-} else {
+try {
+  import { processDocumentVectors } from '@/lib/ingest'
+  await processDocumentVectors(document.id, user.id)
   console.log('Vector processing job started')
+} catch (ingestError) {
+  console.error('Error starting ingest job:', ingestError)
+  // Don't fail the upload if vector processing fails
 }
-    } catch (ingestError) {
-      console.error('Error starting ingest job:', ingestError)
-      // Don't fail the upload if vector processing fails
-    }
 
     console.log(`Successfully processed: ${cleanTitle}`)
 
@@ -170,3 +159,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
