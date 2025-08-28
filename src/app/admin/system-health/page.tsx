@@ -8,10 +8,6 @@ import {
   Users, 
   FileText, 
   MessageSquare, 
-  Server,
-  Activity,
-  HardDrive,
-  Clock,
   CheckCircle,
   AlertCircle,
   RefreshCw
@@ -131,7 +127,7 @@ export default function SystemHealthPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">System Health</h1>
             <p className="mt-2 text-gray-600">
-              Real-time monitoring of your application's health and performance
+              Real-time monitoring of your application&apos;s health and performance
             </p>
           </div>
           <div className="flex items-center space-x-4">
