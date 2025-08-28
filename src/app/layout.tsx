@@ -2,11 +2,17 @@ import { ClerkProvider } from '@clerk/nextjs'
 import { Inter } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap'
+})
 
 export const metadata = {
-  title: 'Knowledge Base Chat',
+  title: 'Heaven.Earth AI',
   description: 'AI-powered document search and chat system',
+  icons: {
+    icon: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({
@@ -15,12 +21,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <ClerkProvider
-      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      signInUrl="/sign-in"
-      afterSignInUrl="/"
-      // Removed signUpUrl - no public sign-ups allowed
-    >
+   <ClerkProvider
+  publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+  signInUrl="/sign-in"
+  fallbackRedirectUrl="/"  // ← Changed to the new prop name
+>
       <html lang="en">
         <body className={inter.className}>
           {children}
