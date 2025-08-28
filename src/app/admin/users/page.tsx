@@ -800,9 +800,9 @@ export default function AdminUsersPage() {
                             </div>
                           )}
                           
-                          {event.type === 'question' && event.metadata?.sources && (
+                         {event.type === 'question' && (event.metadata as {sources?: any[]})?.sources && (
                             <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#9ca3af' }}>
-                              Referenced {event.metadata.sources.length} document(s)
+                             Referenced {((event.metadata as {sources?: any[]})?.sources || []).length} document(s)
                             </div>
                           )}
                         </div>
