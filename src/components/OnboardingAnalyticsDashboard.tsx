@@ -26,7 +26,7 @@ interface OnboardingAnalytics {
     chat_to_success: string
     overall_completion: string
   }
-  users_by_stage: Record<string, Array<{user_id: string, email: string}>
+  users_by_stage: Record<string, Array<{user_id: string, email: string}>>
   stuck_users: Array<{
     user_id: string
     email: string
