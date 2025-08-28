@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@clerk/nextjs'
+import { useAuth, useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
 
@@ -25,11 +25,20 @@ interface IngestJob {
   chunks_created: number
 }
 
+interface UserData {
+  id: string
+  role: string
+  email: string
+  name?: string
+}
+
 export default function AdminPage() {
   const { isLoaded, userId, getToken } = useAuth()
+  const { user: clerkUser } = useUser()
   const router = useRouter()
   const [documents, setDocuments] = useState<Document[]>([])
   const [ingestJobs, setIngestJobs] = useState<IngestJob[]>([])
+  const [userData, setUserData] = useState<UserData | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -37,21 +46,66 @@ export default function AdminPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadAuthor, setUploadAuthor] = useState('')
+  const [accessDenied, setAccessDenied] = useState(false)
 
-  // Redirect if not authenticated
+  // Check authentication and permissions
   useEffect(() => {
     if (isLoaded && !userId) {
       router.push('/sign-in')
+    } else if (isLoaded && userId) {
+      fetchUserData()
     }
   }, [isLoaded, userId, router])
 
-  // Load documents on mount
-  useEffect(() => {
-    if (userId) {
+  const fetchUserData = async () => {
+    try {
+      const token = await getToken()
+      
+      // First, get current user's role from our database
+      const userResponse = await fetch('/api/auth', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (userResponse.status === 404) {
+        // User not found in database - they may not be invited
+        setAccessDenied(true)
+        setError('Access denied: Your account has not been properly set up.')
+        setLoading(false)
+        return
+      }
+      
+      const userData = await userResponse.json()
+      
+      if (!userData.success) {
+        setAccessDenied(true)
+        setError('Access denied: Unable to verify your permissions.')
+        setLoading(false)
+        return
+      }
+      
+      setUserData(userData.user)
+      
+      // Check if user has admin or contributor permissions
+      if (!['ADMIN', 'CONTRIBUTOR'].includes(userData.user.role)) {
+        setAccessDenied(true)
+        setError('Access denied: You need admin or contributor permissions to access this page.')
+        setLoading(false)
+        return
+      }
+      
+      // User has proper permissions, load the page data
       loadDocuments()
       loadIngestJobs()
+      
+    } catch (err) {
+      console.error('Error fetching user data:', err)
+      setAccessDenied(true)
+      setError('Access denied: Unable to verify your permissions.')
+      setLoading(false)
     }
-  }, [userId])
+  }
 
   const loadDocuments = async () => {
     try {
@@ -110,7 +164,7 @@ export default function AdminPage() {
   }
 
   const handleUpload = async () => {
-    if (!selectedFile) return
+    if (!selectedFile || !userData) return
 
     setUploading(true)
     setUploadProgress(0)
@@ -210,28 +264,35 @@ export default function AdminPage() {
     }
   }
 
-const deleteDocument = async (documentId: string) => {
-  if (!confirm('Are you sure you want to delete this document?')) return
+  const deleteDocument = async (documentId: string) => {
+    if (!confirm('Are you sure you want to delete this document?')) return
+    if (!userData) return
 
-  try {
-    const response = await fetch(`/api/documents?id=${documentId}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-
-    const data = await response.json()
-
-    if (data.success) {
-      setDocuments(documents.filter(doc => doc.id !== documentId))
-    } else {
-      setError(data.error)
+    // Check if user can delete this document
+    if (userData.role !== 'ADMIN') {
+      setError('Only administrators can delete documents')
+      return
     }
-  } catch (err) {
-    setError('Failed to delete document')
+
+    try {
+      const response = await fetch(`/api/documents?id=${documentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setDocuments(documents.filter(doc => doc.id !== documentId))
+      } else {
+        setError(data.error)
+      }
+    } catch (err) {
+      setError('Failed to delete document')
+    }
   }
-}
 
   const formatFileSize = (bytes: number) => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
@@ -267,17 +328,56 @@ const deleteDocument = async (documentId: string) => {
     return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading...</div>
   }
 
+  if (accessDenied) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '2rem' }}>
+        <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#dc2626', marginBottom: '1rem' }}>
+          Access Denied
+        </h1>
+        <p style={{ color: '#6b7280', textAlign: 'center', marginBottom: '2rem', maxWidth: '500px' }}>
+          {error}
+        </p>
+        <button
+          onClick={() => router.push('/')}
+          style={{
+            backgroundColor: '#2563eb',
+            color: 'white',
+            padding: '0.75rem 1.5rem',
+            border: 'none',
+            borderRadius: '0.375rem',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            fontWeight: '500'
+          }}
+        >
+          Go to Chat
+        </button>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading...</div>
+  }
+
   return (
     <div>
       <AdminNavbar />
       
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
-        {/* Header */}
+        {/* Header with user info */}
         <div style={{ marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>
             Document Management
           </h1>
-          <p style={{ color: '#6b7280' }}>Upload and manage your knowledge base documents (up to 50MB)</p>
+          <p style={{ color: '#6b7280' }}>
+            Upload and manage your knowledge base documents (up to 50MB)
+            {userData && (
+              <span style={{ marginLeft: '1rem', fontSize: '0.875rem', color: '#2563eb' }}>
+                Logged in as {userData.role}: {userData.email}
+              </span>
+            )}
+          </p>
         </div>
 
         {error && (
@@ -293,48 +393,28 @@ const deleteDocument = async (documentId: string) => {
           </div>
         )}
 
-        {/* Upload Section */}
-        <div style={{ 
-          marginBottom: '2rem', 
-          padding: '1.5rem', 
-          backgroundColor: 'white', 
-          borderRadius: '0.5rem', 
-          border: '1px solid #e5e7eb' 
-        }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>Upload Document</h2>
-          
-          <div style={{ display: 'grid', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
-                Select File (PDF, TXT, MD, DOCX - Max 50MB)
-              </label>
-              <input
-                id="file-upload"
-                type="file"
-                accept=".pdf,.txt,.md,.docx"
-                onChange={handleFileSelect}
-                disabled={uploading}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.375rem',
-                  fontSize: '0.875rem'
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        {/* Upload Section - Only show to ADMIN and CONTRIBUTOR */}
+        {userData && ['ADMIN', 'CONTRIBUTOR'].includes(userData.role) && (
+          <div style={{ 
+            marginBottom: '2rem', 
+            padding: '1.5rem', 
+            backgroundColor: 'white', 
+            borderRadius: '0.5rem', 
+            border: '1px solid #e5e7eb' 
+          }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>Upload Document</h2>
+            
+            <div style={{ display: 'grid', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
-                  Title (Optional)
+                  Select File (PDF, TXT, MD, DOCX - Max 50MB)
                 </label>
                 <input
-                  type="text"
-                  value={uploadTitle}
-                  onChange={(e) => setUploadTitle(e.target.value)}
+                  id="file-upload"
+                  type="file"
+                  accept=".pdf,.txt,.md,.docx"
+                  onChange={handleFileSelect}
                   disabled={uploading}
-                  placeholder="Document title..."
                   style={{
                     width: '100%',
                     padding: '0.5rem',
@@ -344,82 +424,104 @@ const deleteDocument = async (documentId: string) => {
                   }}
                 />
               </div>
-              
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
-                  Author (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={uploadAuthor}
-                  onChange={(e) => setUploadAuthor(e.target.value)}
-                  disabled={uploading}
-                  placeholder="Author name..."
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem'
-                  }}
-                />
-              </div>
-            </div>
 
-            {selectedFile && (
-              <div style={{ 
-                padding: '0.75rem', 
-                backgroundColor: '#f9fafb', 
-                borderRadius: '0.375rem',
-                fontSize: '0.875rem',
-                color: '#6b7280'
-              }}>
-                Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
-              </div>
-            )}
-
-            {uploading && (
-              <div style={{ marginTop: '0.5rem' }}>
-                <div style={{ 
-                  width: '100%', 
-                  backgroundColor: '#e5e7eb', 
-                  borderRadius: '0.25rem', 
-                  height: '0.5rem' 
-                }}>
-                  <div style={{ 
-                    width: `${uploadProgress}%`, 
-                    backgroundColor: '#3b82f6', 
-                    height: '100%', 
-                    borderRadius: '0.25rem',
-                    transition: 'width 0.3s ease'
-                  }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    Title (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadTitle}
+                    onChange={(e) => setUploadTitle(e.target.value)}
+                    disabled={uploading}
+                    placeholder="Document title..."
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
                 </div>
-                <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                  {uploadProgress < 20 ? 'Getting upload URL...' : 
-                   uploadProgress < 60 ? 'Uploading file...' : 'Processing...'}
-                </p>
+                
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    Author (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadAuthor}
+                    onChange={(e) => setUploadAuthor(e.target.value)}
+                    disabled={uploading}
+                    placeholder="Author name..."
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
               </div>
-            )}
 
-            <button
-              onClick={handleUpload}
-              disabled={!selectedFile || uploading}
-              style={{
-                backgroundColor: !selectedFile || uploading ? '#9ca3af' : '#3b82f6',
-                color: 'white',
-                padding: '0.75rem 1.5rem',
-                border: 'none',
-                borderRadius: '0.375rem',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                cursor: !selectedFile || uploading ? 'not-allowed' : 'pointer',
-                width: 'fit-content'
-              }}
-            >
-              {uploading ? 'Uploading...' : 'Upload Document'}
-            </button>
+              {selectedFile && (
+                <div style={{ 
+                  padding: '0.75rem', 
+                  backgroundColor: '#f9fafb', 
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem',
+                  color: '#6b7280'
+                }}>
+                  Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+                </div>
+              )}
+
+              {uploading && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <div style={{ 
+                    width: '100%', 
+                    backgroundColor: '#e5e7eb', 
+                    borderRadius: '0.25rem', 
+                    height: '0.5rem' 
+                  }}>
+                    <div style={{ 
+                      width: `${uploadProgress}%`, 
+                      backgroundColor: '#3b82f6', 
+                      height: '100%', 
+                      borderRadius: '0.25rem',
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+                  <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                    {uploadProgress < 20 ? 'Getting upload URL...' : 
+                     uploadProgress < 60 ? 'Uploading file...' : 'Processing...'}
+                  </p>
+                </div>
+              )}
+
+              <button
+                onClick={handleUpload}
+                disabled={!selectedFile || uploading}
+                style={{
+                  backgroundColor: !selectedFile || uploading ? '#9ca3af' : '#3b82f6',
+                  color: 'white',
+                  padding: '0.75rem 1.5rem',
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  cursor: !selectedFile || uploading ? 'not-allowed' : 'pointer',
+                  width: 'fit-content'
+                }}
+              >
+                {uploading ? 'Uploading...' : 'Upload Document'}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Documents List */}
         <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
@@ -429,9 +531,7 @@ const deleteDocument = async (documentId: string) => {
             </h2>
           </div>
 
-          {loading ? (
-            <div style={{ padding: '1.5rem', textAlign: 'center' }}>Loading documents...</div>
-          ) : documents.length === 0 ? (
+          {documents.length === 0 ? (
             <div style={{ padding: '1.5rem', textAlign: 'center', color: '#6b7280' }}>
               No documents uploaded yet
             </div>
@@ -452,9 +552,11 @@ const deleteDocument = async (documentId: string) => {
                     <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
                       Created
                     </th>
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
-                      Actions
-                    </th>
+                    {userData?.role === 'ADMIN' && (
+                      <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                        Actions
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody style={{ backgroundColor: 'white' }}>
@@ -504,28 +606,30 @@ const deleteDocument = async (documentId: string) => {
                         <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
                           {formatDate(doc.createdAt)}
                         </td>
-                        <td style={{ padding: '1rem 1.5rem' }}>
-                          <button
-                            onClick={() => deleteDocument(doc.id)}
-                            style={{
-                              padding: '0.25rem 0.75rem',
-                              fontSize: '0.75rem',
-                              color: '#dc2626',
-                              backgroundColor: 'transparent',
-                              border: '1px solid #dc2626',
-                              borderRadius: '0.375rem',
-                              cursor: 'pointer'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#fef2f2'
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'transparent'
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </td>
+                        {userData?.role === 'ADMIN' && (
+                          <td style={{ padding: '1rem 1.5rem' }}>
+                            <button
+                              onClick={() => deleteDocument(doc.id)}
+                              style={{
+                                padding: '0.25rem 0.75rem',
+                                fontSize: '0.75rem',
+                                color: '#dc2626',
+                                backgroundColor: 'transparent',
+                                border: '1px solid #dc2626',
+                                borderRadius: '0.375rem',
+                                cursor: 'pointer'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#fef2f2'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     )
                   })}

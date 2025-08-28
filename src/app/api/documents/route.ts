@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
         page_count,
         created_at,
         processed_at,
+        uploaded_by,
         ingest_jobs (
           id,
           status,
@@ -55,8 +56,16 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Filter documents based on user role
+    let filteredDocs = documents
+    if (user.role === 'CONTRIBUTOR') {
+      // Contributors can only see their own documents
+      filteredDocs = documents.filter(doc => doc.uploaded_by === user.id)
+    }
+    // Admins and users can see all documents
+
     // Format the response
-    const formattedDocs = documents.map(doc => ({
+    const formattedDocs = filteredDocs.map(doc => ({
       id: doc.id,
       title: doc.title,
       author: doc.author,
@@ -66,6 +75,7 @@ export async function GET(request: NextRequest) {
       pageCount: doc.page_count,
       createdAt: doc.created_at,
       processedAt: doc.processed_at,
+      uploadedBy: doc.uploaded_by,
       ingestStatus: doc.ingest_jobs?.[0]?.status || 'not_started',
       chunksCreated: doc.ingest_jobs?.[0]?.chunks_created || 0,
       ingestError: doc.ingest_jobs?.[0]?.error_message || null,
@@ -75,7 +85,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       documents: formattedDocs,
-      total: documents.length
+      total: formattedDocs.length
     })
 
   } catch (error) {
@@ -90,7 +100,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Delete a document (admin only)
+// Delete a document
 export async function DELETE(request: NextRequest) {
   try {
     // Check authentication
@@ -102,11 +112,19 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Get current user and check admin permissions
+    // Get current user and check permissions
     const user = await getCurrentUser()
-    if (!user || user.role !== 'ADMIN') {
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Admin access required' },
+        { success: false, error: 'User not found in database' },
+        { status: 403 }
+      )
+    }
+
+    // Only ADMIN and CONTRIBUTOR can delete documents
+    if (!['ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient permissions to delete documents' },
         { status: 403 }
       )
     }
@@ -121,10 +139,10 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Get document details
+    // Get document details and check ownership
     const { data: document, error: docError } = await supabaseAdmin
       .from('documents')
-      .select('storage_path')
+      .select('id, storage_path, uploaded_by, title')
       .eq('id', documentId)
       .single()
 
@@ -135,13 +153,24 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Delete from storage
-    const { error: storageError } = await supabaseAdmin.storage
-      .from(process.env.SUPABASE_BUCKET!)
-      .remove([document.storage_path])
+    // Check if user can delete this specific document
+    if (user.role === 'CONTRIBUTOR' && document.uploaded_by !== user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Contributors can only delete their own documents' },
+        { status: 403 }
+      )
+    }
 
-    if (storageError) {
-      console.error('Storage deletion error:', storageError)
+    // Delete from storage if storage_path exists
+    if (document.storage_path) {
+      const { error: storageError } = await supabaseAdmin.storage
+        .from(process.env.SUPABASE_BUCKET!)
+        .remove([document.storage_path])
+
+      if (storageError) {
+        console.error('Storage deletion error:', storageError)
+        // Continue with database deletion even if storage deletion fails
+      }
     }
 
     // Delete from database (cascades to chunks and ingest_jobs)
@@ -151,18 +180,29 @@ export async function DELETE(request: NextRequest) {
       .eq('id', documentId)
 
     if (deleteError) {
+      console.error('Database deletion error:', deleteError)
       return NextResponse.json(
-        { success: false, error: 'Failed to delete document' },
+        { success: false, error: 'Failed to delete document from database' },
         { status: 500 }
       )
     }
 
-    // TODO: Delete from Pinecone (implement later)
-    // await deleteDocumentChunks(documentId)
+    console.log(`User ${user.email} (${user.role}) deleted document: ${document.title}`)
+
+   // Delete vectors from Pinecone
+    try {
+      const { deleteDocumentChunks } = await import('@/lib/pinecone')
+      await deleteDocumentChunks(documentId)
+      console.log(`Deleted vectors from Pinecone for document: ${document.title}`)
+    } catch (pineconeError) {
+      console.error('Failed to delete vectors from Pinecone:', pineconeError)
+      // Don't fail the entire operation if Pinecone deletion fails
+      // The document is still deleted from the database
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Document deleted successfully'
+      message: `Document "${document.title}" deleted successfully`
     })
 
   } catch (error) {
@@ -170,7 +210,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Delete failed' 
+        error: error instanceof Error ? error.message : 'Delete operation failed' 
       },
       { status: 500 }
     )

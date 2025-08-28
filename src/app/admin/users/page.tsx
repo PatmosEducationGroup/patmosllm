@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@clerk/nextjs'
+import { useAuth, useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
 
@@ -15,36 +15,89 @@ interface User {
   invitedBy: string
 }
 
+interface UserData {
+  id: string
+  role: string
+  email: string
+  name?: string
+}
+
 export default function AdminUsersPage() {
-  const { isLoaded, userId } = useAuth()
+  const { isLoaded, userId, getToken } = useAuth()
+  const { user: clerkUser } = useUser()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [currentUser, setCurrentUser] = useState<UserData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
   const [showInviteForm, setShowInviteForm] = useState(false)
   const [updatingRole, setUpdatingRole] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [accessDenied, setAccessDenied] = useState(false)
 
   // Form state
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [inviteRole, setInviteRole] = useState('USER')
 
-  // Redirect if not authenticated
+  // Check authentication and permissions
   useEffect(() => {
     if (isLoaded && !userId) {
       router.push('/sign-in')
+    } else if (isLoaded && userId) {
+      fetchUserData()
     }
   }, [isLoaded, userId, router])
 
-  // Load users on mount
-  useEffect(() => {
-    if (userId) {
+  const fetchUserData = async () => {
+    try {
+      const token = await getToken()
+      
+      // First, get current user's role from our database
+      const userResponse = await fetch('/api/auth', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (userResponse.status === 404) {
+        // User not found in database - they may not be invited
+        setAccessDenied(true)
+        setError('Access denied: Your account has not been properly set up.')
+        setLoading(false)
+        return
+      }
+      
+      const userData = await userResponse.json()
+      
+      if (!userData.success) {
+        setAccessDenied(true)
+        setError('Access denied: Unable to verify your permissions.')
+        setLoading(false)
+        return
+      }
+      
+      setCurrentUser(userData.user)
+      
+      // Check if user has ADMIN permissions (only admins can manage users)
+      if (userData.user.role !== 'ADMIN') {
+        setAccessDenied(true)
+        setError('Access denied: You need admin permissions to manage users.')
+        setLoading(false)
+        return
+      }
+      
+      // User has proper permissions, load the page data
       loadUsers()
+      
+    } catch (err) {
+      console.error('Error fetching user data:', err)
+      setAccessDenied(true)
+      setError('Access denied: Unable to verify your permissions.')
+      setLoading(false)
     }
-  }, [userId])
+  }
 
   const loadUsers = async () => {
     try {
@@ -53,9 +106,6 @@ export default function AdminUsersPage() {
       
       if (data.success) {
         setUsers(data.users)
-        // Find current user to prevent self-role changes
-        const current = data.users.find((user: User) => user.email === 'emichaelray@gmail.com') // Replace with dynamic lookup if needed
-        setCurrentUser(current || null)
       } else {
         setError(data.error)
       }
@@ -202,17 +252,56 @@ export default function AdminUsersPage() {
     return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading...</div>
   }
 
+  if (accessDenied) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '2rem' }}>
+        <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#dc2626', marginBottom: '1rem' }}>
+          Access Denied
+        </h1>
+        <p style={{ color: '#6b7280', textAlign: 'center', marginBottom: '2rem', maxWidth: '500px' }}>
+          {error}
+        </p>
+        <button
+          onClick={() => router.push('/')}
+          style={{
+            backgroundColor: '#2563eb',
+            color: 'white',
+            padding: '0.75rem 1.5rem',
+            border: 'none',
+            borderRadius: '0.375rem',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            fontWeight: '500'
+          }}
+        >
+          Go to Chat
+        </button>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading...</div>
+  }
+
   return (
     <div>
       <AdminNavbar />
       
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
-        {/* Header */}
+        {/* Header with user info */}
         <div style={{ marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>
             User Management
           </h1>
-          <p style={{ color: '#6b7280' }}>Manage user invitations and permissions</p>
+          <p style={{ color: '#6b7280' }}>
+            Manage user invitations and permissions
+            {currentUser && (
+              <span style={{ marginLeft: '1rem', fontSize: '0.875rem', color: '#2563eb' }}>
+                Logged in as {currentUser.role}: {currentUser.email}
+              </span>
+            )}
+          </p>
         </div>
 
         {error && (
@@ -240,8 +329,16 @@ export default function AdminUsersPage() {
             <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>Invite New User</h2>
             <button
               onClick={() => setShowInviteForm(!showInviteForm)}
-              className="btn btn-primary"
-              style={{ fontSize: '0.875rem' }}
+              style={{
+                backgroundColor: showInviteForm ? '#dc2626' : '#2563eb',
+                color: 'white',
+                padding: '0.5rem 1rem',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '500'
+              }}
             >
               {showInviteForm ? 'Cancel' : 'Invite User'}
             </button>
@@ -259,8 +356,14 @@ export default function AdminUsersPage() {
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     required
-                    className="input"
                     placeholder="user@example.com"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
                   />
                 </div>
                 <div>
@@ -271,8 +374,14 @@ export default function AdminUsersPage() {
                     type="text"
                     value={inviteName}
                     onChange={(e) => setInviteName(e.target.value)}
-                    className="input"
                     placeholder="Full Name"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
                   />
                 </div>
               </div>
@@ -284,7 +393,13 @@ export default function AdminUsersPage() {
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
-                  className="input"
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem'
+                  }}
                 >
                   <option value="USER">User (Chat only)</option>
                   <option value="CONTRIBUTOR">Contributor (Chat + Upload)</option>
@@ -296,7 +411,16 @@ export default function AdminUsersPage() {
                 <button
                   type="submit"
                   disabled={inviting || !inviteEmail.trim()}
-                  className="btn btn-primary"
+                  style={{
+                    backgroundColor: inviting || !inviteEmail.trim() ? '#9ca3af' : '#2563eb',
+                    color: 'white',
+                    padding: '0.75rem 1.5rem',
+                    border: 'none',
+                    borderRadius: '0.375rem',
+                    cursor: inviting || !inviteEmail.trim() ? 'not-allowed' : 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: '500'
+                  }}
                 >
                   {inviting ? 'Sending Invitation...' : 'Invite User'}
                 </button>
@@ -313,9 +437,7 @@ export default function AdminUsersPage() {
             </h2>
           </div>
 
-          {loading ? (
-            <div style={{ padding: '1.5rem', textAlign: 'center' }}>Loading users...</div>
-          ) : users.length === 0 ? (
+          {users.length === 0 ? (
             <div style={{ padding: '1.5rem', textAlign: 'center', color: '#6b7280' }}>
               No users found
             </div>

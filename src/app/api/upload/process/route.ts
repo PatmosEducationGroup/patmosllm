@@ -32,12 +32,12 @@ export async function POST(request: NextRequest) {
 
     // Get current user
     const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'User not found' },
-        { status: 404 }
-      )
-    }
+  if (!user || !['ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
+  return NextResponse.json(
+    { success: false, error: 'Upload access denied' },
+    { status: 403 }
+  )
+}
 
     // Get request data
     const { storagePath, fileName, fileSize, mimeType, title, author } = await request.json()
