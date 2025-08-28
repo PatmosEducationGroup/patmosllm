@@ -91,7 +91,7 @@ export async function trackMilestoneAPI(milestone: MilestoneType, metadata?: Rec
  */
 export async function getUserOnboardingStatus(clerkUserId: string) {
   try {
-    const supabase = createClient()
+   const supabase = supabaseAdmin
 
     const { data: user, error: userError } = await supabase
       .from('users')
