@@ -4,7 +4,9 @@ import './globals.css'
 
 const inter = Inter({ 
   subsets: ['latin'],
-  display: 'swap'
+  display: 'swap',
+  preload: true,
+  variable: '--font-inter'
 })
 
 export const metadata = {
@@ -12,6 +14,14 @@ export const metadata = {
   description: 'AI-powered document search and chat system',
   icons: {
     icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
+  manifest: '/manifest.json',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
   },
 }
 
@@ -21,13 +31,16 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-   <ClerkProvider
-  publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-  signInUrl="/sign-in"
-  signInFallbackRedirectUrl="/"  // ← Changed to the new prop name
->
-      <html lang="en">
-        <body className={inter.className}>
+    <ClerkProvider
+      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      signInUrl="/sign-in"
+      signInFallbackRedirectUrl="/"
+    >
+      <html lang="en" className={inter.variable}>
+        <head>
+          <meta name="theme-color" content="#000000" />
+        </head>
+        <body className={`font-sans antialiased ${inter.className}`}>
           {children}
         </body>
       </html>
