@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     // Most popular search terms (extract from questions)
     const searchTerms = conversations?.map(conv => conv.question.toLowerCase()) || []
     const termFrequency = searchTerms.reduce((acc, question) => {
-      const words = question.split(/\W+/).filter(word => word.length > 3)
+     const words = question.split(/\W+/).filter((word: string) => word.length > 3)
       words.forEach(word => {
         acc[word] = (acc[word] || 0) + 1
       })
