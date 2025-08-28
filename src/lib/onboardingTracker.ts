@@ -14,7 +14,7 @@ export type MilestoneType =
 interface TrackMilestoneParams {
   clerkUserId: string
   milestone: MilestoneType
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -66,7 +66,7 @@ const supabase = supabaseAdmin
 /**
  * Track milestone via API endpoint (for client-side calls)
  */
-export async function trackMilestoneAPI(milestone: MilestoneType, metadata?: Record<string, any>) {
+export async function trackMilestoneAPI(milestone: MilestoneType, metadata?: Record<string, unknown>) {
   try {
     const response = await fetch('/api/onboarding/track', {
       method: 'POST',

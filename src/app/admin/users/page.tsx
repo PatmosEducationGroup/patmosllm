@@ -43,7 +43,7 @@ interface TimelineEvent {
   title: string
   description: string
   timestamp: string
-  metadata: any
+  metadata: user[]
 }
 
 interface UserTimeline {
