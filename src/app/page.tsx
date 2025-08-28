@@ -1,10 +1,16 @@
 'use client'
 
+// =================================================================
+// IMPORTS - All necessary dependencies for the chat interface
+// =================================================================
 import { useState, useRef, useEffect } from 'react'
 import { useAuth, UserButton } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+// =================================================================
+// TYPE DEFINITIONS - Interface definitions for data structures
+// =================================================================
 interface Source {
   title: string
   author?: string
@@ -35,43 +41,64 @@ interface Conversation {
   created_at: string
 }
 
+// =================================================================
+// MAIN CHAT COMPONENT - The primary chat interface
+// =================================================================
 export default function ChatPage() {
+  // =================================================================
+  // AUTHENTICATION HOOKS - Handle user authentication state
+  // =================================================================
   const { isLoaded, userId } = useAuth()
   const router = useRouter()
   
-  // Chat state
+  // =================================================================
+  // CHAT STATE MANAGEMENT - Core chat functionality state
+  // =================================================================
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  // Session state
+  // =================================================================
+  // SESSION STATE MANAGEMENT - Chat session handling state
+  // =================================================================
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [currentSessionTitle, setCurrentSessionTitle] = useState('New Chat')
   const [loadingSessions, setLoadingSessions] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  // Redirect if not authenticated
+  // =================================================================
+  // AUTHENTICATION EFFECT - Redirect unauthenticated users
+  // =================================================================
   useEffect(() => {
     if (isLoaded && !userId) {
       router.push('/sign-in')
     }
   }, [isLoaded, userId, router])
 
-  // Load sessions on mount
+  // =================================================================
+  // SESSION LOADING EFFECT - Load user's chat sessions on mount
+  // =================================================================
   useEffect(() => {
     if (userId) {
       loadSessions()
     }
   }, [userId])
 
-  // Auto-scroll to bottom when messages change
+  // =================================================================
+  // AUTO-SCROLL EFFECT - Scroll to bottom when new messages arrive
+  // =================================================================
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // =================================================================
+  // SESSION MANAGEMENT FUNCTIONS - Handle chat session operations
+  // =================================================================
+
+  // Load all user chat sessions from the server
   const loadSessions = async () => {
     console.log('loadSessions called')
     try {
@@ -103,6 +130,7 @@ export default function ChatPage() {
     }
   }
 
+  // Load a specific chat session and its conversation history
   const loadSession = async (sessionId: string) => {
     console.log('loadSession called with:', sessionId)
     try {
@@ -114,7 +142,7 @@ export default function ChatPage() {
         setCurrentSessionId(sessionId)
         setCurrentSessionTitle(data.session.title)
         
-        // Convert conversations to messages
+        // Convert conversations to messages for display
         const conversationMessages: Message[] = []
         data.conversations.forEach((conv: Conversation) => {
           // Add user message
@@ -147,6 +175,7 @@ export default function ChatPage() {
     }
   }
 
+  // Create a new chat session
   const createNewSession = async (title?: string) => {
     console.log('createNewSession called with title:', title)
     
@@ -185,6 +214,7 @@ export default function ChatPage() {
     }
   }
 
+  // Update the title of an existing session
   const updateSessionTitle = async (sessionId: string, newTitle: string) => {
     console.log('updateSessionTitle called:', sessionId, newTitle)
     try {
@@ -205,44 +235,51 @@ export default function ChatPage() {
     }
   }
 
+  // Delete a chat session with confirmation
   const deleteSession = async (sessionId: string) => {
-  if (!confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
-    return
-  }
-
-  console.log('deleteSession called with:', sessionId)
-  try {
-    const response = await fetch(`/api/chat/sessions/${sessionId}`, {
-      method: 'DELETE'
-    })
-
-    const data = await response.json()
-    console.log('deleteSession response:', data)
-
-    if (data.success) {
-      // If we're deleting the current session, clear it
-      if (sessionId === currentSessionId) {
-        setCurrentSessionId(null)
-        setCurrentSessionTitle('New Chat')
-        setMessages([])
-      }
-      
-      // Reload sessions to update sidebar
-      await loadSessions()
-    } else {
-      console.error('deleteSession error:', data.error)
-      setError(data.error)
+    if (!confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+      return
     }
-  } catch (err) {
-    console.error('deleteSession catch:', err)
-    setError('Failed to delete conversation')
-  }
-}
 
+    console.log('deleteSession called with:', sessionId)
+    try {
+      const response = await fetch(`/api/chat/sessions/${sessionId}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+      console.log('deleteSession response:', data)
+
+      if (data.success) {
+        // If we're deleting the current session, clear it
+        if (sessionId === currentSessionId) {
+          setCurrentSessionId(null)
+          setCurrentSessionTitle('New Chat')
+          setMessages([])
+        }
+        
+        // Reload sessions to update sidebar
+        await loadSessions()
+      } else {
+        console.error('deleteSession error:', data.error)
+        setError(data.error)
+      }
+    } catch (err) {
+      console.error('deleteSession catch:', err)
+      setError('Failed to delete conversation')
+    }
+  }
+
+  // =================================================================
+  // CHAT MESSAGE HANDLING - Core chat functionality
+  // =================================================================
+
+  // Handle form submission and send message to AI
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || loading || !currentSessionId) return
 
+    // Create user message for immediate display
     const userMessage: Message = {
       id: Date.now().toString(),
       type: 'user',
@@ -257,6 +294,7 @@ export default function ChatPage() {
     setError(null)
 
     try {
+      // Send question to AI chat API
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -271,6 +309,7 @@ export default function ChatPage() {
       const data = await response.json()
 
       if (data.success) {
+        // Create assistant message with AI response
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           type: 'assistant',
@@ -301,11 +340,17 @@ export default function ChatPage() {
     }
   }
 
+  // =================================================================
+  // UI EVENT HANDLERS - User interface interactions
+  // =================================================================
+
+  // Handle new chat button click
   const handleNewChatClick = () => {
     console.log('New Chat button clicked!')
     createNewSession()
   }
 
+  // Format relative dates for session display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
@@ -318,6 +363,9 @@ export default function ChatPage() {
     return date.toLocaleDateString()
   }
 
+  // =================================================================
+  // LOADING STATE - Show loading spinner while authenticating
+  // =================================================================
   if (!isLoaded || !userId) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -326,9 +374,15 @@ export default function ChatPage() {
     )
   }
 
+  // =================================================================
+  // MAIN UI RENDER - Complete chat interface layout
+  // =================================================================
   return (
     <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f9fafb' }}>
-      {/* Sidebar */}
+      
+      {/* =================================================================
+          SIDEBAR - Chat session list and navigation
+          ================================================================= */}
       <div style={{ 
         width: sidebarOpen ? '300px' : '0px',
         backgroundColor: '#111827',
@@ -337,7 +391,8 @@ export default function ChatPage() {
         display: 'flex',
         flexDirection: 'column'
       }}>
-        {/* Sidebar Header */}
+        
+        {/* Sidebar Header with New Chat Button */}
         <div style={{ padding: '1rem', borderBottom: '1px solid #374151' }}>
           <button
             onClick={handleNewChatClick}
@@ -369,63 +424,68 @@ export default function ChatPage() {
             </div>
           ) : (
             sessions.map((session) => (
-  <div
-    key={session.id}
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      margin: '0.25rem 0',
-      backgroundColor: session.id === currentSessionId ? '#374151' : 'transparent',
-      borderRadius: '0.375rem',
-      transition: 'background-color 0.2s'
-    }}
-  >
-    <div
-      onClick={() => loadSession(session.id)}
-      style={{
-        flex: 1,
-        padding: '0.75rem',
-        color: session.id === currentSessionId ? 'white' : '#d1d5db',
-        cursor: 'pointer',
-        fontSize: '0.875rem'
-      }}
-    >
-      <div style={{ fontWeight: '500', marginBottom: '0.25rem' }}>
-        {session.title}
-      </div>
-      <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-        {formatDate(session.updatedAt)} • {session.messageCount} messages
-      </div>
-    </div>
-    
-    <button
-      onClick={(e) => {
-        e.stopPropagation()
-        deleteSession(session.id)
-      }}
-      style={{
-        backgroundColor: 'transparent',
-        border: 'none',
-        color: '#9ca3af',
-        cursor: 'pointer',
-        padding: '0.5rem',
-        fontSize: '0.875rem',
-        opacity: 0.7
-      }}
-      onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-      onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
-    >
-      ✕
-    </button>
-  </div>
-))
+              <div
+                key={session.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  margin: '0.25rem 0',
+                  backgroundColor: session.id === currentSessionId ? '#374151' : 'transparent',
+                  borderRadius: '0.375rem',
+                  transition: 'background-color 0.2s'
+                }}
+              >
+                {/* Session Info - Clickable to load session */}
+                <div
+                  onClick={() => loadSession(session.id)}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    color: session.id === currentSessionId ? 'white' : '#d1d5db',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  <div style={{ fontWeight: '500', marginBottom: '0.25rem' }}>
+                    {session.title}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                    {formatDate(session.updatedAt)} • {session.messageCount} messages
+                  </div>
+                </div>
+                
+                {/* Delete Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteSession(session.id)
+                  }}
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    color: '#9ca3af',
+                    cursor: 'pointer',
+                    padding: '0.5rem',
+                    fontSize: '0.875rem',
+                    opacity: 0.7
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                >
+                  ✕
+                </button>
+              </div>
+            ))
           )}
         </div>
       </div>
 
-      {/* Main Chat Area */}
+      {/* =================================================================
+          MAIN CHAT AREA - Messages and input form
+          ================================================================= */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
+        
+        {/* Header Bar with Controls */}
         <div style={{ 
           backgroundColor: 'white', 
           borderBottom: '1px solid #e5e7eb', 
@@ -435,6 +495,7 @@ export default function ChatPage() {
           alignItems: 'center'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            {/* Sidebar Toggle Button */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               style={{
@@ -447,6 +508,7 @@ export default function ChatPage() {
             >
               ☰
             </button>
+            {/* Current Session Title */}
             <div>
               <h1 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#111827' }}>
                 {currentSessionTitle}
@@ -457,6 +519,7 @@ export default function ChatPage() {
             </div>
           </div>
           
+          {/* User Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <Link
               href="/admin"
@@ -473,7 +536,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Messages Container */}
+        {/* Messages Container - Scrollable chat history */}
         <div style={{ 
           flex: 1, 
           overflowY: 'auto', 
@@ -482,6 +545,8 @@ export default function ChatPage() {
           margin: '0 auto',
           width: '100%'
         }}>
+          
+          {/* Empty State Message */}
           {messages.length === 0 && !loading && (
             <div style={{ 
               textAlign: 'center', 
@@ -493,6 +558,7 @@ export default function ChatPage() {
             </div>
           )}
 
+          {/* Chat Messages */}
           {messages.map((message) => (
             <div
               key={message.id}
@@ -512,8 +578,10 @@ export default function ChatPage() {
                   border: message.type === 'assistant' ? '1px solid #e5e7eb' : 'none'
                 }}
               >
+                {/* Message Content */}
                 <div style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>
 
+                {/* Source Citations (for AI responses) */}
                 {message.sources && message.sources.length > 0 && (
                   <div style={{ 
                     marginTop: '0.75rem', 
@@ -536,6 +604,7 @@ export default function ChatPage() {
                   </div>
                 )}
 
+                {/* Message Timestamp */}
                 <div style={{ 
                   fontSize: '0.75rem', 
                   marginTop: '0.5rem',
@@ -547,6 +616,7 @@ export default function ChatPage() {
             </div>
           ))}
 
+          {/* Loading Indicator */}
           {loading && (
             <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1.5rem' }}>
               <div style={{
@@ -570,6 +640,7 @@ export default function ChatPage() {
             </div>
           )}
 
+          {/* Error Message Display */}
           {error && (
             <div style={{
               backgroundColor: '#fef2f2',
@@ -584,10 +655,11 @@ export default function ChatPage() {
             </div>
           )}
 
+          {/* Scroll Anchor */}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Form */}
+        {/* Input Form - Message composition */}
         <div style={{ 
           backgroundColor: 'white', 
           borderTop: '1px solid #e5e7eb', 

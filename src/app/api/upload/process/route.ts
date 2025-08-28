@@ -7,6 +7,8 @@ import { uploadRateLimit } from '@/lib/rate-limiter'
 import { getIdentifier } from '@/lib/get-identifier'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 import { processDocumentVectors } from '@/lib/ingest'
+import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -148,6 +150,17 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // After successful document upload
+await trackOnboardingMilestone({
+  clerkUserId: userId,
+  milestone: 'first_document_upload',
+  metadata: {
+    document_name: fileName,
+    file_size: fileSize,
+    mime_type: mimeType
+  }
+})
+
   } catch (error) {
     console.error('Processing error:', error)
     return NextResponse.json(
@@ -159,3 +172,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+

@@ -11,7 +11,9 @@ const navItems = [
   { href: '/', label: 'Chat', icon: '💬' },
   { href: '/admin', label: 'Documents', icon: '📚' },
   { href: '/admin/users', label: 'Users', icon: '👥' },
-  { href: '/admin/system-health', label: 'System Health', icon: '📊' }
+  { href: '/admin/system-health', label: 'System Health', icon: '📊' },
+  { href: '/admin/document-analytics', label: 'Document Analytics', icon: '📈' },
+  { href: '/admin/onboarding', label: 'Onboarding', icon: '🚀' }
 ]
 
   const isActive = (href: string) => {

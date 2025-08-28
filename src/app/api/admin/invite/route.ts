@@ -3,10 +3,16 @@ import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import { sendInvitationEmail, generateInvitationToken } from '@/lib/email'
+import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 
+// =================================================================
+// POST - Create new user invitation
+// =================================================================
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
+    // =================================================================
+    // AUTHENTICATION - Check if user is logged in
+    // =================================================================
     const { userId } = await auth()
     if (!userId) {
       return NextResponse.json(
@@ -15,7 +21,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify admin permissions
+    // =================================================================
+    // AUTHORIZATION - Verify user has admin permissions
+    // =================================================================
     const user = await getCurrentUser()
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json(
@@ -24,7 +32,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get invitation details from request
+    // =================================================================
+    // INPUT VALIDATION - Get and validate invitation details
+    // =================================================================
     const { email, name, role = 'USER' } = await request.json()
 
     if (!email || !email.includes('@')) {
@@ -41,7 +51,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if user already exists
+    // =================================================================
+    // DUPLICATE CHECK - Ensure user doesn't already exist
+    // =================================================================
     const { data: existingUser } = await supabaseAdmin
       .from('users')
       .select('id, email')
@@ -55,11 +67,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate secure invitation token
+    // =================================================================
+    // INVITATION TOKEN GENERATION - Create secure invitation link
+    // =================================================================
     const invitationToken = generateInvitationToken()
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
 
-    // Create invitation record with token
+    // =================================================================
+    // DATABASE CREATION - Create invitation record in database
+    // =================================================================
     const { data: invitedUser, error: inviteError } = await supabaseAdmin
       .from('users')
       .insert({
@@ -82,7 +98,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Send invitation email with token
+    // =================================================================
+    // ONBOARDING MILESTONE TRACKING - Track invitation milestone
+    // =================================================================
+    await trackOnboardingMilestone({
+      clerkUserId: invitedUser.clerk_id,
+      milestone: 'invited',
+      metadata: {
+        invited_by: user.id,
+        invitation_method: 'admin_invite',
+        invitation_token: invitationToken,
+        inviter_email: user.email
+      }
+    })
+
+    // =================================================================
+    // EMAIL SENDING - Send invitation email to new user
+    // =================================================================
     const emailResult = await sendInvitationEmail(
       email.toLowerCase(),
       name || '',
@@ -97,6 +129,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`Admin ${user.email} invited ${email} as ${role} with token ${invitationToken}`)
 
+    // =================================================================
+    // SUCCESS RESPONSE - Return invitation success details
+    // =================================================================
     return NextResponse.json({
       success: true,
       message: emailResult.success 
@@ -113,6 +148,9 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
+    // =================================================================
+    // ERROR HANDLING - Log errors and return user-friendly message
+    // =================================================================
     console.error('Invite API error:', error)
     return NextResponse.json(
       { 
@@ -124,9 +162,14 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Get all users (for admin user management)
+// =================================================================
+// GET - Retrieve all users for admin management
+// =================================================================
 export async function GET(request: NextRequest) {
   try {
+    // =================================================================
+    // AUTHENTICATION - Check if user is logged in
+    // =================================================================
     const { userId } = await auth()
     if (!userId) {
       return NextResponse.json(
@@ -135,6 +178,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // =================================================================
+    // AUTHORIZATION - Verify user has admin permissions
+    // =================================================================
     const user = await getCurrentUser()
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json(
@@ -143,7 +189,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get all users with invitation details
+    // =================================================================
+    // DATA RETRIEVAL - Get all users with invitation details
+    // =================================================================
     const { data: users, error } = await supabaseAdmin
       .from('users')
       .select(`
@@ -166,13 +214,16 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // =================================================================
+    // DATA FORMATTING - Format user data for frontend display
+    // =================================================================
     const formattedUsers = users.map(user => ({
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
       createdAt: user.created_at,
-      isActive: !user.clerk_id.startsWith('invited_'),
+      isActive: !user.clerk_id.startsWith('invited_'), // Check if user has completed signup
       invitedBy: (user.inviter as { email?: string })?.email || 'System'
     }))
 
@@ -183,6 +234,9 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
+    // =================================================================
+    // ERROR HANDLING - Log errors and return user-friendly message
+    // =================================================================
     console.error('Get users API error:', error)
     return NextResponse.json(
       { 
@@ -193,10 +247,15 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-// DELETE - Retract/remove pending invitation or delete user
+
+// =================================================================
+// DELETE - Remove pending invitation or delete active user
+// =================================================================
 export async function DELETE(request: NextRequest) {
   try {
-    // Check authentication
+    // =================================================================
+    // AUTHENTICATION - Check if user is logged in
+    // =================================================================
     const { userId } = await auth()
     if (!userId) {
       return NextResponse.json(
@@ -205,7 +264,9 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Verify admin permissions
+    // =================================================================
+    // AUTHORIZATION - Verify user has admin permissions
+    // =================================================================
     const user = await getCurrentUser()
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json(
@@ -214,7 +275,9 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Get user ID from request body
+    // =================================================================
+    // INPUT VALIDATION - Get target user ID from request
+    // =================================================================
     const { userId: targetUserId } = await request.json()
 
     if (!targetUserId) {
@@ -224,7 +287,9 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Prevent admin from deleting themselves
+    // =================================================================
+    // SELF-DELETION PREVENTION - Prevent admin from deleting themselves
+    // =================================================================
     if (targetUserId === user.id) {
       return NextResponse.json(
         { success: false, error: 'Cannot delete your own account' },
@@ -232,7 +297,9 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Get the target user info before deletion
+    // =================================================================
+    // USER LOOKUP - Get target user info before deletion
+    // =================================================================
     const { data: targetUser, error: fetchError } = await supabaseAdmin
       .from('users')
       .select('id, email, clerk_id, role, invitation_token')
@@ -246,10 +313,14 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Check if this is a pending invitation vs active user
+    // =================================================================
+    // USER STATUS CHECK - Determine if pending invitation vs active user
+    // =================================================================
     const isPendingInvitation = targetUser.clerk_id.startsWith('invited_')
 
-    // Delete user from database (this will cascade delete related data)
+    // =================================================================
+    // DATABASE DELETION - Remove user from database (cascades to related data)
+    // =================================================================
     const { error: deleteError } = await supabaseAdmin
       .from('users')
       .delete()
@@ -263,9 +334,15 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    // =================================================================
+    // LOGGING - Log admin action for audit trail
+    // =================================================================
     const actionType = isPendingInvitation ? 'retracted invitation for' : 'deleted user'
     console.log(`Admin ${user.email} ${actionType} ${targetUser.email}`)
 
+    // =================================================================
+    // SUCCESS RESPONSE - Return deletion confirmation
+    // =================================================================
     return NextResponse.json({
       success: true,
       message: isPendingInvitation 
@@ -279,6 +356,9 @@ export async function DELETE(request: NextRequest) {
     })
 
   } catch (error) {
+    // =================================================================
+    // ERROR HANDLING - Log errors and return user-friendly message
+    // =================================================================
     console.error('Delete user API error:', error)
     return NextResponse.json(
       { 
