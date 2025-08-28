@@ -790,7 +790,7 @@ export default function AdminUsersPage() {
                           {event.type === 'document_upload' && event.metadata && (
                             <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#9ca3af', display: 'flex', gap: '1rem' }}>
                              <span>Size: {formatFileSize((event.metadata as {size?: number}).size || 0)}</span>
-                              <span>Type: {event.metadata.type}</span>
+                             <span>Type: {(event.metadata as {type?: string}).type || 'Unknown'}</span>
                             </div>
                           )}
                           
