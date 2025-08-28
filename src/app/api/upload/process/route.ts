@@ -9,7 +9,6 @@ import { sanitizeInput } from '@/lib/input-sanitizer'
 import { processDocumentVectors } from '@/lib/ingest'
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 
-
 export async function POST(request: NextRequest) {
   try {
     // RATE LIMITING - Check this FIRST
@@ -34,12 +33,12 @@ export async function POST(request: NextRequest) {
 
     // Get current user
     const user = await getCurrentUser()
-  if (!user || !['ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
-  return NextResponse.json(
-    { success: false, error: 'Upload access denied' },
-    { status: 403 }
-  )
-}
+    if (!user || !['ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
+      return NextResponse.json(
+        { success: false, error: 'Upload access denied' },
+        { status: 403 }
+      )
+    }
 
     // Get request data
     const { storagePath, fileName, fileSize, mimeType, title, author } = await request.json()
@@ -133,6 +132,25 @@ export async function POST(request: NextRequest) {
       // Don't fail the upload if vector processing fails
     }
 
+    // Track onboarding milestone AFTER successful upload
+    try {
+      await trackOnboardingMilestone({
+        clerkUserId: userId, // userId is guaranteed to be string here
+        milestone: 'first_document_upload',
+        metadata: {
+          document_name: fileName,
+          document_title: cleanTitle,
+          file_size: fileSize,
+          mime_type: mimeType,
+          word_count: extraction.wordCount,
+          document_id: document.id
+        }
+      })
+    } catch (milestoneError) {
+      // Log but don't fail the upload
+      console.error('Failed to track onboarding milestone:', milestoneError)
+    }
+
     console.log(`Successfully processed: ${cleanTitle}`)
 
     return NextResponse.json({
@@ -150,17 +168,6 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // After successful document upload
-await trackOnboardingMilestone({
-  clerkUserId: userId,
-  milestone: 'first_document_upload',
-  metadata: {
-    document_name: fileName,
-    file_size: fileSize,
-    mime_type: mimeType
-  }
-})
-
   } catch (error) {
     console.error('Processing error:', error)
     return NextResponse.json(
@@ -172,4 +179,3 @@ await trackOnboardingMilestone({
     )
   }
 }
-
