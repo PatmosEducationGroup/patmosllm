@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
     const searchTerms = conversations?.map(conv => conv.question.toLowerCase()) || []
     const termFrequency = searchTerms.reduce((acc, question) => {
      const words = question.split(/\W+/).filter((word: string) => word.length > 3)
-      words.forEach(word => {
+      words.forEach((word: string) => {
         acc[word] = (acc[word] || 0) + 1
       })
       return acc
