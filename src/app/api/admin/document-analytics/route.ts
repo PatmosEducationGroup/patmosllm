@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     }, {} as Record<string, number>)
 
     const topSearchTerms = Object.entries(termFrequency)
-      .sort(([,a], [,b]) => b - a)
+     .sort(([, a], [, b]) => (b as number) - (a as number))
       .slice(0, 10)
       .map(([term, count]) => ({ term, count }))
 
