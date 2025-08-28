@@ -7,11 +7,12 @@ import { UserButton } from '@clerk/nextjs'
 export default function AdminNavbar() {
   const pathname = usePathname()
 
-  const navItems = [
-    { href: '/', label: 'Chat', icon: '💬' },
-    { href: '/admin', label: 'Documents', icon: '📚' },
-    { href: '/admin/users', label: 'Users', icon: '👥' }
-  ]
+const navItems = [
+  { href: '/', label: 'Chat', icon: '💬' },
+  { href: '/admin', label: 'Documents', icon: '📚' },
+  { href: '/admin/users', label: 'Users', icon: '👥' },
+  { href: '/admin/system-health', label: 'System Health', icon: '📊' }
+]
 
   const isActive = (href: string) => {
     if (href === '/admin') {
