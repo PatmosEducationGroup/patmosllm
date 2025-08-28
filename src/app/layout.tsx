@@ -24,7 +24,7 @@ export default function RootLayout({
    <ClerkProvider
   publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
   signInUrl="/sign-in"
-  fallbackRedirectUrl="/"  // ← Changed to the new prop name
+  signInFallbackRedirectUrl="/"  // ← Changed to the new prop name
 >
       <html lang="en">
         <body className={inter.className}>
