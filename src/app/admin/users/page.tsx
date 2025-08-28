@@ -796,7 +796,7 @@ export default function AdminUsersPage() {
                           
                           {event.type === 'chat_session' && event.metadata && (
                             <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#9ca3af' }}>
-                              Duration: {event.metadata.duration} minutes
+                              Duration: {(event.metadata as {duration?: number}).duration || 0} minutes
                             </div>
                           )}
                           
