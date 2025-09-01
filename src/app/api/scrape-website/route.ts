@@ -69,7 +69,7 @@ function extractMainContent(html: string, url: string): { content: string; title
     .trim()
   
   // Extract title
-  let title = $('title').text().trim() || $('h1').first().text().trim() || url
+  const title = $('title').text().trim() || $('h1').first().text().trim() || url
   
   return { content, title }
 }

@@ -35,7 +35,14 @@ interface BatchProcessResult {
   success: boolean
   processed: number
   failed: number
-  documents: any[]
+  documents: Array<{
+    id: string
+    title: string
+    author: string
+    url: string
+    wordCount: number
+    fileSize: number
+  }>
   errors: string[]
 }
 
