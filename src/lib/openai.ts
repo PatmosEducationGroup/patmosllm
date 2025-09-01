@@ -36,7 +36,7 @@ export async function createEmbeddings(texts: string[]): Promise<number[][]> {
   }
 }
 
-// Generate chat response with context
+// Generate chat response with context - OPTIMIZED FOR NATURAL CONVERSATION
 export async function generateChatResponse(
   question: string,
   context: Array<{
@@ -46,6 +46,10 @@ export async function generateChatResponse(
   }>
 ): Promise<{
   answer: string
+  sources: Array<{
+    title: string
+    author?: string
+  }>
   usage: {
     prompt_tokens: number
     completion_tokens: number
@@ -53,25 +57,27 @@ export async function generateChatResponse(
   }
 }> {
   try {
-    // Build context string
+    // Build context string - clean format without numbering
     const contextString = context
       .map((item) => 
-        `[Source: "${item.title}"${item.author ? ` by ${item.author}` : ''}]\n${item.content}`
+        `=== ${item.title}${item.author ? ` by ${item.author}` : ''} ===\n${item.content}`
       )
       .join('\n\n')
     
-    const systemPrompt = `You are a helpful assistant that answers questions based on the provided documents. 
+    // NATURAL, CONVERSATIONAL SYSTEM PROMPT
+    const systemPrompt = `You're a helpful AI assistant that answers questions using the organization's knowledge base.
 
-Instructions:
-- Answer the question using the information provided in the documents
-- When documents contain directly relevant information, cite them specifically
-- When documents contain related or foundational concepts that help answer the question, you may make reasonable inferences and connections
-- ALWAYS cite documents by their exact titles when referencing them: "According to [Document Title]..." or "As stated in [Document Title]..."
-- If an author is provided, include it: "According to [Document Title] by [Author]..."
-- When making inferences from related content, be clear about what is directly stated vs. what can be reasonably inferred
-- Synthesize information across multiple documents when relevant, citing each source specifically
-- If the documents don't contain sufficient information to answer the question, say so
-- Keep your answer clear and helpful
+Be conversational and natural - like you're talking to a colleague. Don't be overly formal or robotic.
+
+Key instructions:
+- Answer directly and helpfully using the provided documents
+- If you don't know something from the docs, just say so naturally
+- Keep it friendly and conversational
+- Make reasonable connections between related information
+- Be confident when the information is clear
+- DON'T cite sources in your response - sources will be shown separately
+- Synthesize information across documents when it makes sense
+- Use a natural, helpful tone
 
 Available documents:
 ${contextString}`
@@ -82,7 +88,7 @@ ${contextString}`
         { role: 'system', content: systemPrompt },
         { role: 'user', content: question }
       ],
-      temperature: 0.3,
+      temperature: 0.3, // Slightly more natural
       max_tokens: 1000
     })
     
@@ -91,8 +97,17 @@ ${contextString}`
       throw new Error('No response generated')
     }
     
+    // Extract unique sources from context - no duplicates
+    const uniqueSources = context.filter((source, index, self) => 
+      index === self.findIndex(s => s.title === source.title)
+    ).map(source => ({
+      title: source.title,
+      author: source.author
+    }))
+    
     return {
       answer,
+      sources: uniqueSources,
       usage: {
         prompt_tokens: response.usage?.prompt_tokens || 0,
         completion_tokens: response.usage?.completion_tokens || 0,

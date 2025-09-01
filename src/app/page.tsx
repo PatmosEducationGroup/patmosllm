@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth, UserButton } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
 
 // =================================================================
 // TYPE DEFINITIONS - Interface definitions for data structures
@@ -23,6 +24,7 @@ interface Message {
   content: string
   sources?: Source[]
   timestamp: Date
+  isStreaming?: boolean
 }
 
 interface ChatSession {
@@ -70,6 +72,11 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   // =================================================================
+  // STREAMING STATE - Handle real-time response streaming
+  // =================================================================
+  const [isStreaming, setIsStreaming] = useState(false)
+
+  // =================================================================
   // AUTHENTICATION EFFECT - Redirect unauthenticated users
   // =================================================================
   useEffect(() => {
@@ -94,10 +101,8 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // =================================================================
-  // SESSION MANAGEMENT FUNCTIONS - Handle chat session operations
-  // =================================================================
-
+  // [... Keep all the existing session management functions exactly the same ...]
+  
   // Load all user chat sessions from the server
   const loadSessions = async () => {
     console.log('loadSessions called')
@@ -109,12 +114,10 @@ export default function ChatPage() {
       if (data.success) {
         setSessions(data.sessions)
         
-        // If no current session and sessions exist, load the most recent one
         if (!currentSessionId && data.sessions.length > 0) {
           console.log('Loading most recent session:', data.sessions[0].id)
           loadSession(data.sessions[0].id)
         } else if (!currentSessionId && data.sessions.length === 0) {
-          // Create first session if none exist
           console.log('No sessions exist, creating first one')
           createNewSession()
         }
@@ -130,7 +133,6 @@ export default function ChatPage() {
     }
   }
 
-  // Load a specific chat session and its conversation history
   const loadSession = async (sessionId: string) => {
     console.log('loadSession called with:', sessionId)
     try {
@@ -142,10 +144,8 @@ export default function ChatPage() {
         setCurrentSessionId(sessionId)
         setCurrentSessionTitle(data.session.title)
         
-        // Convert conversations to messages for display
         const conversationMessages: Message[] = []
         data.conversations.forEach((conv: Conversation) => {
-          // Add user message
           conversationMessages.push({
             id: `user-${conv.id}`,
             type: 'user',
@@ -153,7 +153,6 @@ export default function ChatPage() {
             timestamp: new Date(conv.created_at)
           })
           
-          // Add assistant message
           conversationMessages.push({
             id: `assistant-${conv.id}`,
             type: 'assistant',
@@ -175,7 +174,6 @@ export default function ChatPage() {
     }
   }
 
-  // Create a new chat session
   const createNewSession = async (title?: string) => {
     console.log('createNewSession called with title:', title)
     
@@ -189,9 +187,6 @@ export default function ChatPage() {
         body: JSON.stringify({ title: title || 'New Chat' })
       })
 
-      console.log('Response status:', response.status)
-      console.log('Response ok:', response.ok)
-
       const data = await response.json()
       console.log('createNewSession response data:', data)
 
@@ -202,7 +197,6 @@ export default function ChatPage() {
         setMessages([])
         setError(null)
         
-        // Reload sessions to update sidebar
         await loadSessions()
       } else {
         console.error('createNewSession API error:', data.error)
@@ -214,7 +208,6 @@ export default function ChatPage() {
     }
   }
 
-  // Update the title of an existing session
   const updateSessionTitle = async (sessionId: string, newTitle: string) => {
     console.log('updateSessionTitle called:', sessionId, newTitle)
     try {
@@ -228,14 +221,13 @@ export default function ChatPage() {
 
       if (response.ok) {
         setCurrentSessionTitle(newTitle)
-        loadSessions() // Refresh sidebar
+        loadSessions()
       }
     } catch (err) {
       console.error('Failed to update session title:', err)
     }
   }
 
-  // Delete a chat session with confirmation
   const deleteSession = async (sessionId: string) => {
     if (!confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
       return
@@ -251,14 +243,12 @@ export default function ChatPage() {
       console.log('deleteSession response:', data)
 
       if (data.success) {
-        // If we're deleting the current session, clear it
         if (sessionId === currentSessionId) {
           setCurrentSessionId(null)
           setCurrentSessionTitle('New Chat')
           setMessages([])
         }
         
-        // Reload sessions to update sidebar
         await loadSessions()
       } else {
         console.error('deleteSession error:', data.error)
@@ -271,86 +261,163 @@ export default function ChatPage() {
   }
 
   // =================================================================
-  // CHAT MESSAGE HANDLING - Core chat functionality
+  // STREAMING CHAT MESSAGE HANDLING - Updated for real-time responses
   // =================================================================
+  // Updated handleSubmit function with smoother streaming
+// Replace the existing handleSubmit function in your page.tsx with this:
 
-  // Handle form submission and send message to AI
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || loading || !currentSessionId) return
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  if (!input.trim() || loading || !currentSessionId) return
 
-    // Create user message for immediate display
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: input.trim(),
-      timestamp: new Date()
-    }
-
-    setMessages(prev => [...prev, userMessage])
-    const questionText = input.trim()
-    setInput('')
-    setLoading(true)
-    setError(null)
-
-    try {
-      // Send question to AI chat API
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          question: questionText,
-          sessionId: currentSessionId 
-        })
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        // Create assistant message with AI response
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          type: 'assistant',
-          content: data.answer,
-          sources: data.sources,
-          timestamp: new Date()
-        }
-
-        setMessages(prev => [...prev, assistantMessage])
-        
-        // Auto-update session title based on first question
-        if (messages.length === 0 && currentSessionTitle === 'New Chat') {
-          const newTitle = questionText.length > 50 
-            ? questionText.substring(0, 47) + '...'
-            : questionText
-          updateSessionTitle(currentSessionId, newTitle)
-        }
-        
-        // Refresh sessions to update message count
-        loadSessions()
-      } else {
-        setError(data.error)
-      }
-    } catch (err) {
-      setError('Failed to get response')
-    } finally {
-      setLoading(false)
-    }
+  // Create user message for immediate display
+  const userMessage: Message = {
+    id: Date.now().toString(),
+    type: 'user',
+    content: input.trim(),
+    timestamp: new Date()
   }
+
+  setMessages(prev => [...prev, userMessage])
+  const questionText = input.trim()
+  setInput('')
+  setLoading(true)
+  setIsStreaming(true)
+  setError(null)
+
+  // Create streaming assistant message placeholder
+  const assistantMessageId = (Date.now() + 1).toString()
+  const assistantMessage: Message = {
+    id: assistantMessageId,
+    type: 'assistant',
+    content: '',
+    timestamp: new Date(),
+    isStreaming: true
+  }
+
+  setMessages(prev => [...prev, assistantMessage])
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        question: questionText,
+        sessionId: currentSessionId 
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to get response')
+    }
+
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+
+    if (!reader) {
+      throw new Error('No response body')
+    }
+
+    let streamedContent = ''
+    let sources: Source[] = []
+    let buffer = '' // Buffer to batch small updates
+    let lastUpdateTime = Date.now()
+
+    // Batch update function for smoother rendering
+    const batchUpdate = () => {
+      if (buffer) {
+        streamedContent += buffer
+        buffer = ''
+        
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId
+            ? { ...msg, content: streamedContent }
+            : msg
+        ))
+      }
+    }
+
+    // Set up interval for batched updates (every 50ms for smooth effect)
+    const updateInterval = setInterval(batchUpdate, 50)
+
+    while (true) {
+      const { done, value } = await reader.read()
+      
+      if (done) {
+        clearInterval(updateInterval)
+        batchUpdate() // Final update
+        break
+      }
+
+      const chunk = decoder.decode(value, { stream: true })
+      const lines = chunk.split('\n')
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            
+            if (data.type === 'chunk') {
+              buffer += data.content // Add to buffer instead of immediate update
+            } else if (data.type === 'sources') {
+              sources = data.sources
+            } else if (data.type === 'complete') {
+              clearInterval(updateInterval)
+              
+              // Final update with sources
+              setMessages(prev => prev.map(msg => 
+                msg.id === assistantMessageId
+                  ? { 
+                      ...msg, 
+                      content: streamedContent + buffer || data.fullResponse,
+                      sources: sources,
+                      isStreaming: false
+                    }
+                  : msg
+              ))
+            } else if (data.type === 'error') {
+              clearInterval(updateInterval)
+              setError(data.error)
+            }
+          } catch (parseError) {
+            console.error('Error parsing streaming data:', parseError)
+          }
+        }
+      }
+    }
+
+    // Auto-update session title based on first question
+    if (messages.length === 0 && currentSessionTitle === 'New Chat') {
+      const newTitle = questionText.length > 50 
+        ? questionText.substring(0, 47) + '...'
+        : questionText
+      updateSessionTitle(currentSessionId, newTitle)
+    }
+    
+    loadSessions()
+
+  } catch (err) {
+    console.error('Streaming error:', err)
+    setError('Failed to get response')
+    
+    // Remove the failed streaming message
+    setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId))
+  } finally {
+    setLoading(false)
+    setIsStreaming(false)
+  }
+}
 
   // =================================================================
   // UI EVENT HANDLERS - User interface interactions
   // =================================================================
-
-  // Handle new chat button click
   const handleNewChatClick = () => {
     console.log('New Chat button clicked!')
     createNewSession()
   }
 
-  // Format relative dates for session display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
@@ -375,14 +442,12 @@ export default function ChatPage() {
   }
 
   // =================================================================
-  // MAIN UI RENDER - Complete chat interface layout
+  // MAIN UI RENDER - Complete chat interface layout with streaming
   // =================================================================
   return (
     <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f9fafb' }}>
       
-      {/* =================================================================
-          SIDEBAR - Chat session list and navigation
-          ================================================================= */}
+      {/* Sidebar - Same as before */}
       <div style={{ 
         width: sidebarOpen ? '300px' : '0px',
         backgroundColor: '#111827',
@@ -392,7 +457,6 @@ export default function ChatPage() {
         flexDirection: 'column'
       }}>
         
-        {/* Sidebar Header with New Chat Button */}
         <div style={{ padding: '1rem', borderBottom: '1px solid #374151' }}>
           <button
             onClick={handleNewChatClick}
@@ -412,7 +476,6 @@ export default function ChatPage() {
           </button>
         </div>
 
-        {/* Sessions List */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
           {loadingSessions ? (
             <div style={{ padding: '1rem', color: '#9ca3af', textAlign: 'center' }}>
@@ -435,7 +498,6 @@ export default function ChatPage() {
                   transition: 'background-color 0.2s'
                 }}
               >
-                {/* Session Info - Clickable to load session */}
                 <div
                   onClick={() => loadSession(session.id)}
                   style={{
@@ -454,7 +516,6 @@ export default function ChatPage() {
                   </div>
                 </div>
                 
-                {/* Delete Button */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -480,12 +541,10 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* =================================================================
-          MAIN CHAT AREA - Messages and input form
-          ================================================================= */}
+      {/* Main Chat Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         
-        {/* Header Bar with Controls */}
+        {/* Header Bar */}
         <div style={{ 
           backgroundColor: 'white', 
           borderBottom: '1px solid #e5e7eb', 
@@ -495,7 +554,6 @@ export default function ChatPage() {
           alignItems: 'center'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            {/* Sidebar Toggle Button */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               style={{
@@ -508,7 +566,6 @@ export default function ChatPage() {
             >
               ☰
             </button>
-            {/* Current Session Title */}
             <div>
               <h1 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#111827' }}>
                 {currentSessionTitle}
@@ -519,7 +576,6 @@ export default function ChatPage() {
             </div>
           </div>
           
-          {/* User Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <Link
               href="/admin"
@@ -536,7 +592,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Messages Container - Scrollable chat history */}
+        {/* Messages Container with Streaming Support */}
         <div style={{ 
           flex: 1, 
           overflowY: 'auto', 
@@ -546,7 +602,6 @@ export default function ChatPage() {
           width: '100%'
         }}>
           
-          {/* Empty State Message */}
           {messages.length === 0 && !loading && (
             <div style={{ 
               textAlign: 'center', 
@@ -558,7 +613,7 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* Chat Messages */}
+          {/* Chat Messages with Streaming Support */}
           {messages.map((message) => (
             <div
               key={message.id}
@@ -578,11 +633,43 @@ export default function ChatPage() {
                   border: message.type === 'assistant' ? '1px solid #e5e7eb' : 'none'
                 }}
               >
-                {/* Message Content */}
-                <div style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>
+                {/* Message Content with Markdown Rendering */}
+                {message.type === 'assistant' ? (
+                  <div>
+                    <ReactMarkdown
+                      components={{
+                        p: ({children}) => <div style={{ marginBottom: '0.5rem' }}>{children}</div>,
+                        strong: ({children}) => <strong style={{ fontWeight: '600' }}>{children}</strong>,
+                        ul: ({children}) => <ul style={{ paddingLeft: '1.5rem', marginBottom: '0.5rem' }}>{children}</ul>,
+                        ol: ({children}) => <ol style={{ paddingLeft: '1.5rem', marginBottom: '0.5rem' }}>{children}</ol>,
+                        li: ({children}) => <li style={{ marginBottom: '0.25rem' }}>{children}</li>,
+                        h1: ({children}) => <h1 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h1>,
+                        h2: ({children}) => <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h2>,
+                        h3: ({children}) => <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h3>,
+                        code: ({children}) => <code style={{ backgroundColor: '#f3f4f6', padding: '0.125rem 0.25rem', borderRadius: '0.25rem', fontSize: '0.875rem' }}>{children}</code>
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                    
+                    {/* Streaming Cursor Animation */}
+                    {message.isStreaming && (
+                      <span style={{ 
+                        display: 'inline-block',
+                        width: '2px',
+                        height: '1rem',
+                        backgroundColor: '#2563eb',
+                        marginLeft: '2px',
+                        animation: 'blink 1s infinite'
+                      }} />
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>
+                )}
 
-                {/* Source Citations (for AI responses) */}
-                {message.sources && message.sources.length > 0 && (
+                {/* Source Citations */}
+                {message.sources && message.sources.length > 0 && !message.isStreaming && (
                   <div style={{ 
                     marginTop: '0.75rem', 
                     paddingTop: '0.75rem', 
@@ -616,8 +703,8 @@ export default function ChatPage() {
             </div>
           ))}
 
-          {/* Loading Indicator */}
-          {loading && (
+          {/* Enhanced Loading Indicator with Typing Animation */}
+          {isStreaming && (
             <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1.5rem' }}>
               <div style={{
                 maxWidth: '70%',
@@ -627,20 +714,38 @@ export default function ChatPage() {
                 border: '1px solid #e5e7eb'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#6b7280' }}>
-                  <div style={{ 
-                    width: '8px', 
-                    height: '8px', 
-                    borderRadius: '50%', 
-                    backgroundColor: '#2563eb',
-                    animation: 'pulse 1.5s ease-in-out infinite'
-                  }}></div>
-                  <span>Thinking...</span>
+                  <div style={{ display: 'flex', gap: '2px' }}>
+                    <div style={{ 
+                      width: '6px', 
+                      height: '6px', 
+                      borderRadius: '50%', 
+                      backgroundColor: '#2563eb',
+                      animation: 'bounce 1.4s ease-in-out infinite both',
+                      animationDelay: '0s'
+                    }}></div>
+                    <div style={{ 
+                      width: '6px', 
+                      height: '6px', 
+                      borderRadius: '50%', 
+                      backgroundColor: '#2563eb',
+                      animation: 'bounce 1.4s ease-in-out infinite both',
+                      animationDelay: '0.16s'
+                    }}></div>
+                    <div style={{ 
+                      width: '6px', 
+                      height: '6px', 
+                      borderRadius: '50%', 
+                      backgroundColor: '#2563eb',
+                      animation: 'bounce 1.4s ease-in-out infinite both',
+                      animationDelay: '0.32s'
+                    }}></div>
+                  </div>
+                  <span>AI is thinking...</span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Error Message Display */}
           {error && (
             <div style={{
               backgroundColor: '#fef2f2',
@@ -655,11 +760,10 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* Scroll Anchor */}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Form - Message composition */}
+        {/* Input Form */}
         <div style={{ 
           backgroundColor: 'white', 
           borderTop: '1px solid #e5e7eb', 
@@ -674,20 +778,33 @@ export default function ChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask a question about the documents..."
-              disabled={loading || !currentSessionId}
+              disabled={loading || !currentSessionId || isStreaming}
               className="input"
               style={{ flex: 1 }}
             />
             <button
               type="submit"
-              disabled={loading || !input.trim() || !currentSessionId}
+              disabled={loading || !input.trim() || !currentSessionId || isStreaming}
               className="btn btn-primary"
             >
-              {loading ? 'Sending...' : 'Send'}
+              {isStreaming ? 'Streaming...' : loading ? 'Sending...' : 'Send'}
             </button>
           </form>
         </div>
       </div>
+
+      {/* CSS Animations */}
+      <style jsx>{`
+        @keyframes blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+        
+        @keyframes bounce {
+          0%, 80%, 100% { transform: scale(0); }
+          40% { transform: scale(1); }
+        }
+      `}</style>
     </div>
   )
 }

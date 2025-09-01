@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get request data
-    const { storagePath, fileName, fileSize, mimeType, title, author } = await request.json()
+    const { storagePath, fileName, fileSize, mimeType, title, author, sourceType, sourceUrl } = await request.json()
 
     if (!storagePath || !fileName) {
       return NextResponse.json(
@@ -133,7 +133,9 @@ export async function POST(request: NextRequest) {
         word_count: extraction.wordCount,
         page_count: extraction.pageCount || null,
         uploaded_by: user.id,
-        processed_at: new Date().toISOString()
+        processed_at: new Date().toISOString(),
+        source_type: sourceType || 'upload', // Default to 'upload' for regular files
+        source_url: sourceUrl || null        // Store original URL for scraped content
       })
       .select()
       .single()
