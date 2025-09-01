@@ -89,7 +89,7 @@ async function checkRobotsTxt(url: string): Promise<boolean> {
     const robotsText = await response.text()
     const robots = robotsParser(robotsUrl, robotsText)
     
-    return robots.isAllowed(url, 'Heaven.Earth Web Scraper') || robots.isAllowed(url, '*')
+    return robots.isAllowed(url, 'Heaven.Earth Web Scraper') !== false && robots.isAllowed(url, '*') !== false
   } catch {
     return true // If error checking robots.txt, assume allowed
   }
