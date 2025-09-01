@@ -2,7 +2,7 @@ import crypto from 'crypto'
 
 interface CachedResponse {
   answer: string
-  sources: any[]
+  sources: Array<{title: string; author?: string; chunk_id: string}>
   timestamp: number
   questionHash: string
 }
@@ -43,7 +43,7 @@ export function getCachedResponse(questionHash: string): CachedResponse | null {
 export function setCachedResponse(
   questionHash: string, 
   answer: string, 
-  sources: any[]
+  sources: Array<{title: string; author?: string; chunk_id: string}>
 ): void {
   responseCache.set(questionHash, {
     answer,

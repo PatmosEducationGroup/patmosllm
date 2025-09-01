@@ -323,7 +323,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     let streamedContent = ''
     let sources: Source[] = []
     let buffer = '' // Buffer to batch small updates
-    let lastUpdateTime = Date.now()
+    const lastUpdateTime = Date.now()
 
     // Batch update function for smoother rendering
     const batchUpdate = () => {
