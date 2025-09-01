@@ -9,6 +9,20 @@ import { sanitizeInput } from '@/lib/input-sanitizer'
 import { processDocumentVectors } from '@/lib/ingest'
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 
+// Helper function to clean text content for database storage
+function cleanTextContent(content: string): string {
+  if (!content) return ''
+  
+  return content
+    // Remove null bytes (main cause of PostgreSQL error)
+    .replace(/\u0000/g, '')
+    // Remove other problematic control characters
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+    // Normalize whitespace
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export async function POST(request: NextRequest) {
   try {
     // RATE LIMITING - Check this FIRST
@@ -94,7 +108,18 @@ export async function POST(request: NextRequest) {
 
     console.log(`Extracted ${extraction.wordCount} words from ${fileName}`)
 
-    // Save document record to database
+    // Clean the extracted content to prevent database errors
+    const cleanedContent = cleanTextContent(extraction.content)
+    
+    if (!cleanedContent) {
+      console.error('Content cleaning resulted in empty text')
+      return NextResponse.json(
+        { success: false, error: 'Document content could not be processed (contains unsupported characters)' },
+        { status: 400 }
+      )
+    }
+
+    // Save document record to database with cleaned content
     console.log('Saving document record to database...')
     const { data: document, error: dbError } = await supabaseAdmin
       .from('documents')
@@ -104,7 +129,7 @@ export async function POST(request: NextRequest) {
         storage_path: storagePath,
         mime_type: mimeType,
         file_size: fileSize,
-        content: extraction.content,
+        content: cleanedContent, // Use cleaned content here
         word_count: extraction.wordCount,
         page_count: extraction.pageCount || null,
         uploaded_by: user.id,
@@ -115,8 +140,20 @@ export async function POST(request: NextRequest) {
 
     if (dbError) {
       console.error('Database error:', dbError)
+      
+      // Provide more specific error messages for common issues
+      let errorMessage = 'Failed to save document record'
+      
+      if (dbError.code === '22P05') {
+        errorMessage = 'Document contains unsupported characters'
+      } else if (dbError.code === '23505') {
+        errorMessage = 'A document with this name already exists'
+      } else if (dbError.code === '23502') {
+        errorMessage = 'Missing required document information'
+      }
+      
       return NextResponse.json(
-        { success: false, error: 'Failed to save document record' },
+        { success: false, error: errorMessage },
         { status: 500 }
       )
     }
