@@ -16,6 +16,11 @@ interface Source {
   title: string
   author?: string
   chunk_id: string
+  amazon_url?: string
+  resource_url?: string
+  download_enabled: boolean
+  contact_person?: string
+  contact_email?: string
 }
 
 interface Message {
@@ -77,6 +82,23 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false)
 
   // =================================================================
+  // CONTACT MODAL STATE - Handle contact form functionality
+  // =================================================================
+  const [showContactModal, setShowContactModal] = useState(false)
+  const [contactInfo, setContactInfo] = useState<{
+    person: string
+    email: string
+    documentTitle: string
+  } | null>(null)
+  const [contactForm, setContactForm] = useState({
+    senderName: '',
+    senderEmail: '',
+    subject: '',
+    message: ''
+  })
+  const [sendingContact, setSendingContact] = useState(false)
+
+  // =================================================================
   // AUTHENTICATION EFFECT - Redirect unauthenticated users
   // =================================================================
   useEffect(() => {
@@ -101,7 +123,46 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // [... Keep all the existing session management functions exactly the same ...]
+  // =================================================================
+  // CONTACT FORM HANDLER - Send contact email
+  // =================================================================
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!contactInfo) return
+    
+    setSendingContact(true)
+    
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: contactInfo.email,
+          contactPerson: contactInfo.person,
+          documentTitle: contactInfo.documentTitle,
+          senderName: contactForm.senderName,
+          senderEmail: contactForm.senderEmail,
+          subject: contactForm.subject,
+          message: contactForm.message
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setShowContactModal(false)
+        setContactInfo(null)
+        setContactForm({ senderName: '', senderEmail: '', subject: '', message: '' })
+        // Success feedback could be added here
+      } else {
+        setError(data.error || 'Failed to send message')
+      }
+    } catch (err) {
+      setError('Failed to send contact message')
+    } finally {
+      setSendingContact(false)
+    }
+  }
   
   // Load all user chat sessions from the server
   const loadSessions = async () => {
@@ -263,152 +324,148 @@ export default function ChatPage() {
   // =================================================================
   // STREAMING CHAT MESSAGE HANDLING - Updated for real-time responses
   // =================================================================
-  // Updated handleSubmit function with smoother streaming
-// Replace the existing handleSubmit function in your page.tsx with this:
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!input.trim() || loading || !currentSessionId) return
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  if (!input.trim() || loading || !currentSessionId) return
+    // Create user message for immediate display
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: input.trim(),
+      timestamp: new Date()
+    }
 
-  // Create user message for immediate display
-  const userMessage: Message = {
-    id: Date.now().toString(),
-    type: 'user',
-    content: input.trim(),
-    timestamp: new Date()
-  }
+    setMessages(prev => [...prev, userMessage])
+    const questionText = input.trim()
+    setInput('')
+    setLoading(true)
+    setIsStreaming(true)
+    setError(null)
 
-  setMessages(prev => [...prev, userMessage])
-  const questionText = input.trim()
-  setInput('')
-  setLoading(true)
-  setIsStreaming(true)
-  setError(null)
+    // Create streaming assistant message placeholder
+    const assistantMessageId = (Date.now() + 1).toString()
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      type: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true
+    }
 
-  // Create streaming assistant message placeholder
-  const assistantMessageId = (Date.now() + 1).toString()
-  const assistantMessage: Message = {
-    id: assistantMessageId,
-    type: 'assistant',
-    content: '',
-    timestamp: new Date(),
-    isStreaming: true
-  }
+    setMessages(prev => [...prev, assistantMessage])
 
-  setMessages(prev => [...prev, assistantMessage])
-
-  try {
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        question: questionText,
-        sessionId: currentSessionId 
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          question: questionText,
+          sessionId: currentSessionId 
+        })
       })
-    })
 
-    if (!response.ok) {
-      throw new Error('Failed to get response')
-    }
+      if (!response.ok) {
+        throw new Error('Failed to get response')
+      }
 
-    const reader = response.body?.getReader()
-    const decoder = new TextDecoder()
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
 
-    if (!reader) {
-      throw new Error('No response body')
-    }
+      if (!reader) {
+        throw new Error('No response body')
+      }
 
-    let streamedContent = ''
-    let sources: Source[] = []
-    let buffer = '' // Buffer to batch small updates
-    const lastUpdateTime = Date.now()
+      let streamedContent = ''
+      let sources: Source[] = []
+      let buffer = '' // Buffer to batch small updates
 
-    // Batch update function for smoother rendering
-    const batchUpdate = () => {
-      if (buffer) {
-        streamedContent += buffer
-        buffer = ''
+      // Batch update function for smoother rendering
+      const batchUpdate = () => {
+        if (buffer) {
+          streamedContent += buffer
+          buffer = ''
+          
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessageId
+              ? { ...msg, content: streamedContent }
+              : msg
+          ))
+        }
+      }
+
+      // Set up interval for batched updates (every 50ms for smooth effect)
+      const updateInterval = setInterval(batchUpdate, 50)
+
+      while (true) {
+        const { done, value } = await reader.read()
         
-        setMessages(prev => prev.map(msg => 
-          msg.id === assistantMessageId
-            ? { ...msg, content: streamedContent }
-            : msg
-        ))
-      }
-    }
+        if (done) {
+          clearInterval(updateInterval)
+          batchUpdate() // Final update
+          break
+        }
 
-    // Set up interval for batched updates (every 50ms for smooth effect)
-    const updateInterval = setInterval(batchUpdate, 50)
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
 
-    while (true) {
-      const { done, value } = await reader.read()
-      
-      if (done) {
-        clearInterval(updateInterval)
-        batchUpdate() // Final update
-        break
-      }
-
-      const chunk = decoder.decode(value, { stream: true })
-      const lines = chunk.split('\n')
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6))
-            
-            if (data.type === 'chunk') {
-              buffer += data.content // Add to buffer instead of immediate update
-            } else if (data.type === 'sources') {
-              sources = data.sources
-            } else if (data.type === 'complete') {
-              clearInterval(updateInterval)
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
               
-              // Final update with sources
-              setMessages(prev => prev.map(msg => 
-                msg.id === assistantMessageId
-                  ? { 
-                      ...msg, 
-                      content: streamedContent + buffer || data.fullResponse,
-                      sources: sources,
-                      isStreaming: false
-                    }
-                  : msg
-              ))
-            } else if (data.type === 'error') {
-              clearInterval(updateInterval)
-              setError(data.error)
+              if (data.type === 'chunk') {
+                buffer += data.content // Add to buffer instead of immediate update
+              } else if (data.type === 'sources') {
+                sources = data.sources
+              } else if (data.type === 'complete') {
+                clearInterval(updateInterval)
+                
+                // Final update with sources
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantMessageId
+                    ? { 
+                        ...msg, 
+                        content: streamedContent + buffer || data.fullResponse,
+                        sources: sources,
+                        isStreaming: false
+                      }
+                    : msg
+                ))
+              } else if (data.type === 'error') {
+                clearInterval(updateInterval)
+                setError(data.error)
+              }
+            } catch (parseError) {
+              console.error('Error parsing streaming data:', parseError)
             }
-          } catch (parseError) {
-            console.error('Error parsing streaming data:', parseError)
           }
         }
       }
-    }
 
-    // Auto-update session title based on first question
-    if (messages.length === 0 && currentSessionTitle === 'New Chat') {
-      const newTitle = questionText.length > 50 
-        ? questionText.substring(0, 47) + '...'
-        : questionText
-      updateSessionTitle(currentSessionId, newTitle)
-    }
-    
-    loadSessions()
+      // Auto-update session title based on first question
+      if (messages.length === 0 && currentSessionTitle === 'New Chat') {
+        const newTitle = questionText.length > 50 
+          ? questionText.substring(0, 47) + '...'
+          : questionText
+        updateSessionTitle(currentSessionId, newTitle)
+      }
+      
+      loadSessions()
 
-  } catch (err) {
-    console.error('Streaming error:', err)
-    setError('Failed to get response')
-    
-    // Remove the failed streaming message
-    setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId))
-  } finally {
-    setLoading(false)
-    setIsStreaming(false)
+    } catch (err) {
+      console.error('Streaming error:', err)
+      setError('Failed to get response')
+      
+      // Remove the failed streaming message
+      setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId))
+    } finally {
+      setLoading(false)
+      setIsStreaming(false)
+    }
   }
-}
 
   // =================================================================
   // UI EVENT HANDLERS - User interface interactions
@@ -447,7 +504,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   return (
     <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f9fafb' }}>
       
-      {/* Sidebar - Same as before */}
+      {/* Sidebar */}
       <div style={{ 
         width: sidebarOpen ? '300px' : '0px',
         backgroundColor: '#111827',
@@ -668,7 +725,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   <div style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>
                 )}
 
-                {/* Source Citations */}
+                {/* Enhanced Source Citations with Metadata */}
                 {message.sources && message.sources.length > 0 && !message.isStreaming && (
                   <div style={{ 
                     marginTop: '0.75rem', 
@@ -680,10 +737,107 @@ const handleSubmit = async (e: React.FormEvent) => {
                     </div>
                     <div>
                       {message.sources.map((source, index) => (
-                        <div key={index} style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>
-                          • <strong>{source.title}</strong>
-                          {source.author && (
-                            <span style={{ color: '#6b7280' }}> by {source.author}</span>
+                        <div key={index} style={{ 
+                          marginBottom: '0.75rem',
+                          padding: '0.5rem',
+                          backgroundColor: '#f9fafb',
+                          borderRadius: '0.375rem',
+                          border: '1px solid #f3f4f6'
+                        }}>
+                          {/* Document Title and Author */}
+                          <div style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                            <strong>{source.title}</strong>
+                            {source.author && (
+                              <span style={{ color: '#6b7280' }}> by {source.author}</span>
+                            )}
+                          </div>
+                          
+                          {/* Links Section */}
+                          {(source.amazon_url || (source.resource_url && source.download_enabled)) && (
+                            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                              {source.amazon_url && (
+                                <a
+                                  href={source.amazon_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    color: '#2563eb',
+                                    textDecoration: 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    padding: '0.25rem 0.5rem',
+                                    backgroundColor: '#eff6ff',
+                                    borderRadius: '0.25rem',
+                                    border: '1px solid #dbeafe'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#dbeafe'
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#eff6ff'
+                                  }}
+                                >
+                                  Amazon/Store
+                                </a>
+                              )}
+                              
+                              {source.resource_url && source.download_enabled && (
+                                <a
+                                  href={source.resource_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    color: '#059669',
+                                    textDecoration: 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem',
+                                    padding: '0.25rem 0.5rem',
+                                    backgroundColor: '#ecfdf5',
+                                    borderRadius: '0.25rem',
+                                    border: '1px solid #d1fae5'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#d1fae5'
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#ecfdf5'
+                                  }}
+                                >
+                                  Download/Resource
+                                </a>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Privacy-Preserving Contact Information */}
+                          {source.contact_person && source.contact_email && (
+                            <div style={{ fontSize: '0.75rem' }}>
+                              <button
+                                onClick={() => {
+                                  setContactInfo({
+                                    person: source.contact_person!,
+                                    email: source.contact_email!,
+                                    documentTitle: source.title
+                                  })
+                                  setShowContactModal(true)
+                                }}
+                                style={{
+                                  fontSize: '0.75rem',
+                                  color: '#2563eb',
+                                  backgroundColor: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  textDecoration: 'underline',
+                                  padding: 0
+                                }}
+                              >
+                                Questions about this resource? Contact {source.contact_person}
+                              </button>
+                            </div>
                           )}
                         </div>
                       ))}
@@ -792,6 +946,190 @@ const handleSubmit = async (e: React.FormEvent) => {
           </form>
         </div>
       </div>
+
+      {/* Contact Modal */}
+      {showContactModal && contactInfo && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            padding: '1.5rem',
+            maxWidth: '500px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflowY: 'auto'
+          }}>
+            <h3 style={{
+              fontSize: '1.25rem',
+              fontWeight: '600',
+              marginBottom: '1rem'
+            }}>
+              Contact {contactInfo.person}
+            </h3>
+            
+            <p style={{
+              fontSize: '0.875rem',
+              color: '#6b7280',
+              marginBottom: '1.5rem'
+            }}>
+              Send a message about "{contactInfo.documentTitle}"
+            </p>
+
+            <form onSubmit={handleContactSubmit} style={{ display: 'grid', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Your Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={contactForm.senderName}
+                    onChange={(e) => setContactForm(prev => ({ ...prev, senderName: e.target.value }))}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Your Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={contactForm.senderEmail}
+                    onChange={(e) => setContactForm(prev => ({ ...prev, senderEmail: e.target.value }))}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  marginBottom: '0.5rem'
+                }}>
+                  Subject *
+                </label>
+                <input
+                  type="text"
+                  value={contactForm.subject}
+                  onChange={(e) => setContactForm(prev => ({ ...prev, subject: e.target.value }))}
+                  required
+                  placeholder="Question about the document..."
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  marginBottom: '0.5rem'
+                }}>
+                  Message *
+                </label>
+                <textarea
+                  value={contactForm.message}
+                  onChange={(e) => setContactForm(prev => ({ ...prev, message: e.target.value }))}
+                  required
+                  rows={4}
+                  placeholder="Your question or comment..."
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowContactModal(false)
+                    setContactInfo(null)
+                    setContactForm({ senderName: '', senderEmail: '', subject: '', message: '' })
+                  }}
+                  disabled={sendingContact}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    fontSize: '0.875rem',
+                    color: '#6b7280',
+                    backgroundColor: 'white',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.375rem',
+                    cursor: sendingContact ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                
+                <button
+                  type="submit"
+                  disabled={sendingContact}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    fontSize: '0.875rem',
+                    color: 'white',
+                    backgroundColor: sendingContact ? '#9ca3af' : '#2563eb',
+                    border: 'none',
+                    borderRadius: '0.375rem',
+                    cursor: sendingContact ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {sendingContact ? 'Sending...' : 'Send Message'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* CSS Animations */}
       <style jsx>{`

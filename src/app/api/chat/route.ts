@@ -226,15 +226,47 @@ export async function POST(request: NextRequest) {
     console.log(`Using context from ${uniqueDocuments} different documents with ${context.length} total chunks`)
 
     // =================================================================
-    // STEP 4: PREPARE SOURCES FOR FRONTEND
+    // STEP 4: PREPARE SOURCES FOR FRONTEND WITH METADATA
     // =================================================================
+    
+    // Get unique document titles from chunks
+    const uniqueDocumentTitles = [...new Set(relevantChunks.map(chunk => chunk.documentTitle))]
+    
+    // Fetch document metadata from database
+    const { data: documentsWithMetadata, error: metadataError } = await supabaseAdmin
+      .from('documents')
+      .select(`
+        title,
+        author,
+        amazon_url,
+        resource_url,
+        download_enabled,
+        contact_person,
+        contact_email
+      `)
+      .in('title', uniqueDocumentTitles)
+
+    if (metadataError) {
+      console.error('Error fetching document metadata:', metadataError)
+    }
+
+    // Build sources array with metadata
     const sources = relevantChunks
       .reduce((acc, chunk) => {
         if (!acc.find(source => source.title === chunk.documentTitle)) {
+          // Find metadata for this document
+          const metadata = documentsWithMetadata?.find(doc => doc.title === chunk.documentTitle)
+          
           acc.push({
             title: chunk.documentTitle,
             author: chunk.documentAuthor || undefined,
-            chunk_id: chunk.id
+            chunk_id: chunk.id,
+            // Add metadata fields
+            amazon_url: metadata?.amazon_url || undefined,
+            resource_url: metadata?.resource_url || undefined,
+            download_enabled: metadata?.download_enabled || false,
+            contact_person: metadata?.contact_person || undefined,
+            contact_email: metadata?.contact_email || undefined
           })
         }
         return acc
@@ -242,6 +274,11 @@ export async function POST(request: NextRequest) {
         title: string
         author?: string
         chunk_id: string
+        amazon_url?: string
+        resource_url?: string
+        download_enabled: boolean
+        contact_person?: string
+        contact_email?: string
       }>)
       .slice(0, 8)
 

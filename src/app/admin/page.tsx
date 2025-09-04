@@ -15,6 +15,16 @@ interface Document {
   mimeType: string
   createdAt: string
   processing?: boolean
+  amazon_url?: string
+  resource_url?: string
+  download_enabled: boolean
+  contact_person?: string
+  contact_email?: string
+  uploaded_by: string
+  users?: {
+    email: string
+    name?: string
+  }
 }
 
 interface IngestJob {
@@ -56,6 +66,10 @@ export default function AdminPage() {
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadAuthor, setUploadAuthor] = useState('')
   const [accessDenied, setAccessDenied] = useState(false)
+
+  // Metadata editing states
+  const [editingDoc, setEditingDoc] = useState<Document | null>(null)
+  const [saving, setSaving] = useState(false)
 
   // Web scraping states
   const [websiteUrl, setWebsiteUrl] = useState('')
@@ -103,7 +117,7 @@ export default function AdminPage() {
       
       setUserData(userData.user)
       
-      if (!['ADMIN', 'CONTRIBUTOR'].includes(userData.user.role)) {
+      if (!['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(userData.user.role)) {
         setAccessDenied(true)
         setError('Access denied: You need admin or contributor permissions to access this page.')
         setLoading(false)
@@ -123,11 +137,20 @@ export default function AdminPage() {
 
   const loadDocuments = async () => {
     try {
-      const response = await fetch('/api/documents')
+      const token = await getToken()
+      
+      // Use the new admin API endpoint
+      const response = await fetch('/api/admin/documents', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
       const data = await response.json()
       
       if (data.success) {
         setDocuments(data.documents)
+        setError(null)
       } else {
         setError(data.error)
       }
@@ -149,6 +172,60 @@ export default function AdminPage() {
     } catch (err) {
       console.error('Failed to load ingest jobs:', err)
     }
+  }
+
+  // Metadata editing functions
+  const handleEdit = (doc: Document) => {
+    setEditingDoc({...doc}) // Create a copy for editing
+    setError(null)
+  }
+
+  const handleSave = async () => {
+    if (!editingDoc) return
+    
+    setSaving(true)
+    setError(null)
+    
+    try {
+      const token = await getToken()
+      const response = await fetch(`/api/admin/documents/${editingDoc.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: editingDoc.title,
+          author: editingDoc.author,
+          amazon_url: editingDoc.amazon_url,
+          resource_url: editingDoc.resource_url,
+          download_enabled: editingDoc.download_enabled,
+          contact_person: editingDoc.contact_person,
+          contact_email: editingDoc.contact_email
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        // Update the document in the local state
+        setDocuments(docs => docs.map(doc => 
+          doc.id === editingDoc.id ? {...doc, ...data.document} : doc
+        ))
+        setEditingDoc(null)
+      } else {
+        setError(data.error)
+      }
+    } catch (err) {
+      setError('Failed to save document changes')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setEditingDoc(null)
+    setError(null)
   }
 
   // Web scraping functions
@@ -233,84 +310,83 @@ export default function AdminPage() {
     }
   }
 
-  // Replace your existing saveSelectedContent function in page.tsx
-const saveSelectedContent = async () => {
-  const selectedContent = scrapedContent.filter(page => page.selected && page.success)
-  
-  if (selectedContent.length === 0) {
-    setError('Please select at least one page to save')
-    return
-  }
-  
-  setUploading(true)
-  setUploadProgress(0)
-  setError(null)
-  
-  try {
-    const token = await getToken()
-    if (!token) {
-      throw new Error('Authentication required')
-    }
-
-    console.log(`Batch processing ${selectedContent.length} pages...`)
-
-    // Call the new batch processing API
-    const response = await fetch('/api/scrape-website/save', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        scrapedPages: selectedContent
-      })
-    })
-
-    const data = await response.json()
+  const saveSelectedContent = async () => {
+    const selectedContent = scrapedContent.filter(page => page.selected && page.success)
     
-    setUploadProgress(100)
+    if (selectedContent.length === 0) {
+      setError('Please select at least one page to save')
+      return
+    }
     
-    if (!response.ok) {
-      throw new Error(data.error || `Server error: ${response.status}`)
-    }
-
-    if (data.success) {
-      const { result } = data
-      
-      // Show detailed results
-      if (result.failed > 0) {
-        setError(
-          `Processed ${result.processed} pages successfully. ${result.failed} pages failed:\n` +
-          result.errors.slice(0, 3).join('\n') + 
-          (result.errors.length > 3 ? `\n...and ${result.errors.length - 3} more` : '')
-        )
-      } else {
-        setError(null)
-        console.log(`Successfully processed all ${result.processed} pages`)
-      }
-      
-      // Reset scraping state
-      setWebsiteUrl('')
-      setDiscoveredPages([])
-      setScrapedContent([])
-      setShowPreview(false)
-      
-      // Reload documents to show new scraped content
-      await loadDocuments()
-      await loadIngestJobs()
-      
-    } else {
-      throw new Error(data.error || 'Batch processing failed')
-    }
-      
-  } catch (err) {
-    console.error('Batch processing error:', err)
-    setError('Failed to save scraped content: ' + (err instanceof Error ? err.message : 'Unknown error'))
-  } finally {
-    setUploading(false)
+    setUploading(true)
     setUploadProgress(0)
+    setError(null)
+    
+    try {
+      const token = await getToken()
+      if (!token) {
+        throw new Error('Authentication required')
+      }
+
+      console.log(`Batch processing ${selectedContent.length} pages...`)
+
+      // Call the new batch processing API
+      const response = await fetch('/api/scrape-website/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          scrapedPages: selectedContent
+        })
+      })
+
+      const data = await response.json()
+      
+      setUploadProgress(100)
+      
+      if (!response.ok) {
+        throw new Error(data.error || `Server error: ${response.status}`)
+      }
+
+      if (data.success) {
+        const { result } = data
+        
+        // Show detailed results
+        if (result.failed > 0) {
+          setError(
+            `Processed ${result.processed} pages successfully. ${result.failed} pages failed:\n` +
+            result.errors.slice(0, 3).join('\n') + 
+            (result.errors.length > 3 ? `\n...and ${result.errors.length - 3} more` : '')
+          )
+        } else {
+          setError(null)
+          console.log(`Successfully processed all ${result.processed} pages`)
+        }
+        
+        // Reset scraping state
+        setWebsiteUrl('')
+        setDiscoveredPages([])
+        setScrapedContent([])
+        setShowPreview(false)
+        
+        // Reload documents to show new scraped content
+        await loadDocuments()
+        await loadIngestJobs()
+        
+      } else {
+        throw new Error(data.error || 'Batch processing failed')
+      }
+        
+    } catch (err) {
+      console.error('Batch processing error:', err)
+      setError('Failed to save scraped content: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    } finally {
+      setUploading(false)
+      setUploadProgress(0)
+    }
   }
-}
 
   const togglePageSelection = (index: number) => {
     setDiscoveredPages(prev => prev.map((page, i) => 
@@ -324,7 +400,7 @@ const saveSelectedContent = async () => {
     ))
   }
 
-  // File upload functions (existing code)
+  // File upload functions
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -446,7 +522,7 @@ const saveSelectedContent = async () => {
     if (!confirm('Are you sure you want to delete this document?')) return
     if (!userData) return
 
-    if (userData.role !== 'ADMIN') {
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(userData.role)) {
       setError('Only administrators can delete documents')
       return
     }
@@ -548,7 +624,7 @@ const saveSelectedContent = async () => {
             Content Management
           </h1>
           <p style={{ color: '#6b7280' }}>
-            Upload documents or scrape websites to train your AI knowledge base
+            Upload documents, scrape websites, and manage document metadata
             {userData && (
               <span style={{ marginLeft: '1rem', fontSize: '0.875rem', color: '#2563eb' }}>
                 Logged in as {userData.role}: {userData.email}
@@ -571,7 +647,7 @@ const saveSelectedContent = async () => {
         )}
 
         {/* File Upload Section */}
-        {userData && ['ADMIN', 'CONTRIBUTOR'].includes(userData.role) && (
+        {userData && ['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(userData.role) && (
           <div style={{ 
             marginBottom: '2rem', 
             padding: '1.5rem', 
@@ -678,7 +754,7 @@ const saveSelectedContent = async () => {
         )}
 
         {/* Web Scraping Section */}
-        {userData && ['ADMIN', 'CONTRIBUTOR'].includes(userData.role) && (
+        {userData && ['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(userData.role) && (
           <div style={{ 
             marginBottom: '2rem', 
             padding: '1.5rem', 
@@ -939,17 +1015,31 @@ const saveSelectedContent = async () => {
           </div>
         )}
 
-        {/* Documents List */}
+        {/* Documents List with Metadata Management */}
         <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
           <div style={{ padding: '1.5rem', borderBottom: '1px solid #e5e7eb' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>
-              Documents ({documents.length})
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>
+                Documents ({documents.length})
+              </h2>
+              {userData?.role === 'SUPER_ADMIN' && (
+                <span style={{ 
+                  fontSize: '0.875rem', 
+                  color: '#059669',
+                  fontWeight: '600',
+                  padding: '0.25rem 0.75rem',
+                  backgroundColor: '#d1fae5',
+                  borderRadius: '9999px'
+                }}>
+                  SUPER ADMIN - Viewing all documents
+                </span>
+              )}
+            </div>
           </div>
 
           {documents.length === 0 ? (
             <div style={{ padding: '1.5rem', textAlign: 'center', color: '#6b7280' }}>
-              No documents uploaded yet
+              No documents found
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -963,16 +1053,22 @@ const saveSelectedContent = async () => {
                       Details
                     </th>
                     <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
-                      Status
+                      Links
                     </th>
                     <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
-                      Created
+                      Contact
                     </th>
-                    {userData?.role === 'ADMIN' && (
+                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                      Status
+                    </th>
+                    {userData?.role === 'SUPER_ADMIN' && (
                       <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
-                        Actions
+                        Uploader
                       </th>
                     )}
+                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody style={{ backgroundColor: 'white' }}>
@@ -999,6 +1095,66 @@ const saveSelectedContent = async () => {
                           <div>{formatFileSize(doc.fileSize)}</div>
                           {doc.wordCount && <div>{doc.wordCount.toLocaleString()} words</div>}
                           {doc.pageCount && <div>{doc.pageCount} pages</div>}
+                          <div style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                            {formatDate(doc.createdAt)}
+                          </div>
+                        </td>
+                        <td style={{ padding: '1rem 1.5rem' }}>
+                          {doc.amazon_url && (
+                            <div style={{ marginBottom: '0.25rem' }}>
+                              <a 
+                                href={doc.amazon_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                style={{ 
+                                  fontSize: '0.75rem', 
+                                  color: '#2563eb',
+                                  textDecoration: 'none'
+                                }}
+                              >
+                                Amazon
+                              </a>
+                            </div>
+                          )}
+                          {doc.resource_url && (
+                            <div>
+                              <a 
+                                href={doc.resource_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                style={{ 
+                                  fontSize: '0.75rem', 
+                                  color: '#059669',
+                                  textDecoration: 'none'
+                                }}
+                              >
+                                Resource
+                              </a>
+                            </div>
+                          )}
+                          {!doc.amazon_url && !doc.resource_url && (
+                            <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                              No links
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                          {doc.contact_person ? (
+                            <div>
+                              <div style={{ fontSize: '0.75rem', fontWeight: '500' }}>
+                                {doc.contact_person}
+                              </div>
+                              {doc.contact_email && (
+                                <div style={{ fontSize: '0.75rem' }}>
+                                  {doc.contact_email}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                              No contact
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '1rem 1.5rem' }}>
                           <span style={{ 
@@ -1019,33 +1175,57 @@ const saveSelectedContent = async () => {
                             </div>
                           )}
                         </td>
-                        <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
-                          {formatDate(doc.createdAt)}
-                        </td>
-                        {userData?.role === 'ADMIN' && (
-                          <td style={{ padding: '1rem 1.5rem' }}>
+                        {userData?.role === 'SUPER_ADMIN' && (
+                          <td style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', color: '#6b7280' }}>
+                            {doc.users?.email || 'Unknown'}
+                          </td>
+                        )}
+                        <td style={{ padding: '1rem 1.5rem' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button
-                              onClick={() => deleteDocument(doc.id)}
+                              onClick={() => handleEdit(doc)}
                               style={{
                                 padding: '0.25rem 0.75rem',
                                 fontSize: '0.75rem',
-                                color: '#dc2626',
+                                color: '#2563eb',
                                 backgroundColor: 'transparent',
-                                border: '1px solid #dc2626',
+                                border: '1px solid #2563eb',
                                 borderRadius: '0.375rem',
                                 cursor: 'pointer'
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = '#fef2f2'
+                                e.currentTarget.style.backgroundColor = '#eff6ff'
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.backgroundColor = 'transparent'
                               }}
                             >
-                              Delete
+                              Edit
                             </button>
-                          </td>
-                        )}
+                            {userData?.role === 'SUPER_ADMIN' && (
+                              <button
+                                onClick={() => deleteDocument(doc.id)}
+                                style={{
+                                  padding: '0.25rem 0.75rem',
+                                  fontSize: '0.75rem',
+                                  color: '#dc2626',
+                                  backgroundColor: 'transparent',
+                                  border: '1px solid #dc2626',
+                                  borderRadius: '0.375rem',
+                                  cursor: 'pointer'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fef2f2'
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent'
+                                }}
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     )
                   })}
@@ -1054,6 +1234,197 @@ const saveSelectedContent = async () => {
             </div>
           )}
         </div>
+
+        {/* Edit Modal */}
+        {editingDoc && (
+          <div style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            zIndex: 50
+          }}>
+            <div style={{ 
+              backgroundColor: 'white', 
+              borderRadius: '0.5rem', 
+              padding: '1.5rem', 
+              maxWidth: '600px', 
+              width: '90%', 
+              maxHeight: '80vh',
+              overflowY: 'auto'
+            }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>
+                Edit Document Metadata
+              </h3>
+
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={editingDoc.title}
+                    onChange={(e) => setEditingDoc({...editingDoc, title: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    Author
+                  </label>
+                  <input
+                    type="text"
+                    value={editingDoc.author || ''}
+                    onChange={(e) => setEditingDoc({...editingDoc, author: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    Amazon/Bookstore URL
+                  </label>
+                  <input
+                    type="url"
+                    value={editingDoc.amazon_url || ''}
+                    onChange={(e) => setEditingDoc({...editingDoc, amazon_url: e.target.value})}
+                    placeholder="https://amazon.com/..."
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    Resource URL (Git, FTP, Download, etc.)
+                  </label>
+                  <input
+                    type="url"
+                    value={editingDoc.resource_url || ''}
+                    onChange={(e) => setEditingDoc({...editingDoc, resource_url: e.target.value})}
+                    placeholder="https://github.com/... or https://yoursite.com/file.pdf"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                      Contact Person
+                    </label>
+                    <input
+                      type="text"
+                      value={editingDoc.contact_person || ''}
+                      onChange={(e) => setEditingDoc({...editingDoc, contact_person: e.target.value})}
+                      placeholder="John Doe"
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '0.375rem',
+                        fontSize: '0.875rem'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                      Contact Email
+                    </label>
+                    <input
+                      type="email"
+                      value={editingDoc.contact_email || ''}
+                      onChange={(e) => setEditingDoc({...editingDoc, contact_email: e.target.value})}
+                      placeholder="contact@example.com"
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '0.375rem',
+                        fontSize: '0.875rem'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={editingDoc.download_enabled}
+                    onChange={(e) => setEditingDoc({...editingDoc, download_enabled: e.target.checked})}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  <label style={{ fontSize: '0.875rem' }}>
+                    Enable download/resource access
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem' }}>
+                <button
+                  onClick={handleCancel}
+                  disabled={saving}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    fontSize: '0.875rem',
+                    color: '#6b7280',
+                    backgroundColor: 'white',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.375rem',
+                    cursor: saving ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !editingDoc.title.trim()}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    fontSize: '0.875rem',
+                    color: 'white',
+                    backgroundColor: saving || !editingDoc.title.trim() ? '#9ca3af' : '#2563eb',
+                    border: 'none',
+                    borderRadius: '0.375rem',
+                    cursor: saving || !editingDoc.title.trim() ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
