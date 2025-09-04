@@ -7,9 +7,11 @@ import { sanitizeInput } from '@/lib/input-sanitizer'
 // GET - Get single document with metadata
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params
+// Then use resolvedParams.id instead of params.id
     const { userId } = await auth()
     if (!userId) {
       return NextResponse.json(
@@ -46,7 +48,7 @@ export async function GET(
         created_at,
         users!documents_uploaded_by_fkey(email, name)
       `)
-      .eq('id', params.id)
+      .eq('id', resolvedParams.id)
       .single()
 
     if (error) {
@@ -81,9 +83,12 @@ export async function GET(
 // PUT - Update document metadata
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
+  
 ) {
   try {
+    const resolvedParams = await params
+// Then use resolvedParams.id instead of params.id
     const { userId } = await auth()
     if (!userId) {
       return NextResponse.json(
@@ -104,7 +109,7 @@ export async function PUT(
     const { data: existingDoc, error: fetchError } = await supabaseAdmin
       .from('documents')
       .select('id, uploaded_by')
-      .eq('id', params.id)
+      .eq('id', resolvedParams.id)
       .single()
 
     if (fetchError || !existingDoc) {
@@ -174,7 +179,7 @@ export async function PUT(
     const { data: updatedDoc, error: updateError } = await supabaseAdmin
       .from('documents')
       .update(updates)
-      .eq('id', params.id)
+     .eq('id', resolvedParams.id)
       .select(`
         id,
         title,
