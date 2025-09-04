@@ -66,7 +66,13 @@ export const uploadRateLimit = createRateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 20, // 20 uploads per hour
   message: 'Upload limit exceeded. You can upload up to 20 files per hour.',
-  exemptUsers: ['user_31cRURPn0EXFUf1JwtWzN5S7rKG'] // Your specific user ID
+    exemptUsers: [
+    'user_31VtkWmZ1hKvQ7XKK8EgGtTYUtx', // Your current active Clerk ID
+    '8fe756a4-d5c4-4b6b-87d9-5ada1e579bff', // Your database ID
+    // Keep the old one too just in case
+    'user_31cRURPn0EXFUf1JwtWzN5S7rKG',
+    '49c9d0d2-9380-451d-96bc-952d36951340'
+  ]
 });
 
 export const generalRateLimit = createRateLimit({
