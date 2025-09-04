@@ -9,9 +9,18 @@ export function createRateLimit(options = {}) {
     windowMs = 15 * 60 * 1000, // 15 minutes default
     max = 100, // 100 requests per window default
     message = 'Too many requests, please try again later.',
+    exemptUsers = [] // Array of exempt user identifiers
   } = options;
 
   return function rateLimit(identifier) {
+    // Check if user is exempt from rate limiting
+    if (exemptUsers.includes(identifier)) {
+      return {
+        success: true,
+        remaining: max // Show full limit for exempt users
+      };
+    }
+
     const now = Date.now();
     const windowStart = now - windowMs;
 
@@ -56,7 +65,8 @@ export const chatRateLimit = createRateLimit({
 export const uploadRateLimit = createRateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 20, // 20 uploads per hour
-  message: 'Upload limit exceeded. You can upload up to 20 files per hour.'
+  message: 'Upload limit exceeded. You can upload up to 20 files per hour.',
+  exemptUsers: ['user_31cRURPn0EXFUf1JwtWzN5S7rKG'] // Your specific user ID
 });
 
 export const generalRateLimit = createRateLimit({
