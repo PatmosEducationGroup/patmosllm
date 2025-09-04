@@ -28,13 +28,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const user = await getCurrentUser()
-  if (!user || !['ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
+
+  const user = await getCurrentUser()
+if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
   return NextResponse.json(
     { success: false, error: 'Only administrators and contributors can upload files' },
     { status: 403 }
   )
-    }
+}
 
     const { fileName, fileSize, mimeType } = await request.json()
 

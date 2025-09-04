@@ -9,6 +9,14 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 
+const ensureHttps = (url: string): string => {
+  if (!url) return url
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  return `https://${url}`
+}
+
 // =================================================================
 // TYPE DEFINITIONS - Interface definitions for data structures
 // =================================================================
@@ -751,68 +759,66 @@ export default function ChatPage() {
                               <span style={{ color: '#6b7280' }}> by {source.author}</span>
                             )}
                           </div>
-                          
-                          {/* Links Section */}
-                          {(source.amazon_url || (source.resource_url && source.download_enabled)) && (
-                            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                              {source.amazon_url && (
-                                <a
-                                  href={source.amazon_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{
-                                    fontSize: '0.75rem',
-                                    color: '#2563eb',
-                                    textDecoration: 'none',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.25rem',
-                                    padding: '0.25rem 0.5rem',
-                                    backgroundColor: '#eff6ff',
-                                    borderRadius: '0.25rem',
-                                    border: '1px solid #dbeafe'
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#dbeafe'
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#eff6ff'
-                                  }}
-                                >
-                                  Amazon/Store
-                                </a>
-                              )}
-                              
-                              {source.resource_url && source.download_enabled && (
-                                <a
-                                  href={source.resource_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{
-                                    fontSize: '0.75rem',
-                                    color: '#059669',
-                                    textDecoration: 'none',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.25rem',
-                                    padding: '0.25rem 0.5rem',
-                                    backgroundColor: '#ecfdf5',
-                                    borderRadius: '0.25rem',
-                                    border: '1px solid #d1fae5'
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#d1fae5'
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#ecfdf5'
-                                  }}
-                                >
-                                  Download/Resource
-                                </a>
-                              )}
-                            </div>
-                          )}
-                          
+{/* Links Section */}
+{(source.amazon_url || (source.resource_url && source.download_enabled)) && (
+  <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.25rem' }}>
+    {source.amazon_url && (
+      
+        <a href={ensureHttps(source.amazon_url)}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          fontSize: '0.75rem',
+          color: '#2563eb',
+          textDecoration: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.25rem',
+          padding: '0.25rem 0.5rem',
+          backgroundColor: '#eff6ff',
+          borderRadius: '0.25rem',
+          border: '1px solid #dbeafe'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = '#dbeafe'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = '#eff6ff'
+        }}
+      >
+        Amazon/Store
+      </a>
+    )}
+    
+    {source.resource_url && source.download_enabled && (
+      
+        <a href={ensureHttps(source.resource_url)}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          fontSize: '0.75rem',
+          color: '#059669',
+          textDecoration: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.25rem',
+          padding: '0.25rem 0.5rem',
+          backgroundColor: '#ecfdf5',
+          borderRadius: '0.25rem',
+          border: '1px solid #d1fae5'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = '#d1fae5'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = '#ecfdf5'
+        }}
+      >
+        Download/Resource
+      </a>
+    )}
+  </div>
+)}                 
                           {/* Privacy-Preserving Contact Information */}
                           {source.contact_person && source.contact_email && (
                             <div style={{ fontSize: '0.75rem' }}>

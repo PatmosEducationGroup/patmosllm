@@ -15,13 +15,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const user = await getCurrentUser()
-    if (!user || user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { success: false, error: 'Admin access required' },
-        { status: 403 }
-      )
-    }
+const user = await getCurrentUser()
+if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
+  return NextResponse.json(
+    { success: false, error: 'Admin access required' },
+    { status: 403 }
+  )
+}
 
     // Get all ingest jobs
     const { data: jobs, error } = await supabaseAdmin
@@ -66,13 +66,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Get current user and check permissions
-    const user = await getCurrentUser()
-    if (!user || user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { success: false, error: 'Admin access required' },
-        { status: 403 }
-      )
-    }
+const user = await getCurrentUser()
+if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
+  return NextResponse.json(
+    { success: false, error: 'Admin access required' },
+    { status: 403 }
+  )
+}
 
     // Get document ID from request
     const { documentId } = await request.json()

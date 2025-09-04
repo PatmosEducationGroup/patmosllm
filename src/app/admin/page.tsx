@@ -65,6 +65,12 @@ export default function AdminPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadAuthor, setUploadAuthor] = useState('')
+  // New upload metadata states
+  const [uploadAmazonUrl, setUploadAmazonUrl] = useState('')
+  const [uploadResourceUrl, setUploadResourceUrl] = useState('')
+  const [uploadDownloadEnabled, setUploadDownloadEnabled] = useState(true)
+  const [uploadContactPerson, setUploadContactPerson] = useState('')
+  const [uploadContactEmail, setUploadContactEmail] = useState('')
   const [accessDenied, setAccessDenied] = useState(false)
 
   // Metadata editing states
@@ -475,6 +481,7 @@ export default function AdminPage() {
 
       setUploadProgress(60)
 
+      // Updated to include all metadata fields
       const processResponse = await fetch('/api/upload/process', {
         method: 'POST',
         headers: {
@@ -487,7 +494,13 @@ export default function AdminPage() {
           fileSize: selectedFile.size,
           mimeType: selectedFile.type,
           title: uploadTitle.trim() || selectedFile.name,
-          author: uploadAuthor.trim() || null
+          author: uploadAuthor.trim() || null,
+          // Include new metadata fields
+          amazon_url: uploadAmazonUrl.trim() || null,
+          resource_url: uploadResourceUrl.trim() || null,
+          download_enabled: uploadDownloadEnabled,
+          contact_person: uploadContactPerson.trim() || null,
+          contact_email: uploadContactEmail.trim() || null
         })
       })
 
@@ -499,9 +512,15 @@ export default function AdminPage() {
 
       setUploadProgress(100)
 
+      // Clear all form fields including new metadata fields
       setSelectedFile(null)
       setUploadTitle('')
       setUploadAuthor('')
+      setUploadAmazonUrl('')
+      setUploadResourceUrl('')
+      setUploadDownloadEnabled(true)
+      setUploadContactPerson('')
+      setUploadContactEmail('')
       
       const fileInput = document.getElementById('file-upload') as HTMLInputElement
       if (fileInput) fileInput.value = ''
@@ -646,7 +665,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* File Upload Section */}
+        {/* File Upload Section with Metadata Fields */}
         {userData && ['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(userData.role) && (
           <div style={{ 
             marginBottom: '2rem', 
@@ -658,6 +677,7 @@ export default function AdminPage() {
             <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>Upload Document</h2>
             
             <div style={{ display: 'grid', gap: '1rem' }}>
+              {/* File Selection */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
                   Select File (PDF, TXT, MD, DOCX - Max 50MB)
@@ -678,6 +698,7 @@ export default function AdminPage() {
                 />
               </div>
 
+              {/* Basic Document Info */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
@@ -720,6 +741,107 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {/* Resource Links Section */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    Amazon/Bookstore URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={uploadAmazonUrl}
+                    onChange={(e) => setUploadAmazonUrl(e.target.value)}
+                    disabled={uploading}
+                    placeholder="https://amazon.com/..."
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    Resource URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={uploadResourceUrl}
+                    onChange={(e) => setUploadResourceUrl(e.target.value)}
+                    disabled={uploading}
+                    placeholder="https://github.com/... or download link"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Contact Information Section */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    Contact Person (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadContactPerson}
+                    onChange={(e) => setUploadContactPerson(e.target.value)}
+                    disabled={uploading}
+                    placeholder="John Doe"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+                
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    Contact Email (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    value={uploadContactEmail}
+                    onChange={(e) => setUploadContactEmail(e.target.value)}
+                    disabled={uploading}
+                    placeholder="contact@example.com"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Download Enabled Checkbox */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={uploadDownloadEnabled}
+                  onChange={(e) => setUploadDownloadEnabled(e.target.checked)}
+                  disabled={uploading}
+                  style={{ width: '16px', height: '16px' }}
+                />
+                <label style={{ fontSize: '0.875rem' }}>
+                  Enable resource access for users
+                </label>
+              </div>
+
+              {/* File Preview */}
               {selectedFile && (
                 <div style={{ 
                   padding: '0.75rem', 
@@ -732,6 +854,7 @@ export default function AdminPage() {
                 </div>
               )}
 
+              {/* Upload Button */}
               <button
                 onClick={handleUpload}
                 disabled={!selectedFile || uploading}

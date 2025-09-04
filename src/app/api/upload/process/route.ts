@@ -46,16 +46,34 @@ export async function POST(request: NextRequest) {
     }
 
     // Get current user
-    const user = await getCurrentUser()
-    if (!user || !['ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
-      return NextResponse.json(
-        { success: false, error: 'Upload access denied' },
-        { status: 403 }
-      )
-    }
+  // Get current user
+const user = await getCurrentUser()
+console.log('Upload route - user data:', JSON.stringify(user, null, 2))
+
+if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
+  console.log('Upload route - role check failed. User role:', user?.role)
+  return NextResponse.json(
+    { success: false, error: 'Only administrators and contributors can upload files' },
+    { status: 403 }
+  )
+}
 
     // Get request data
-    const { storagePath, fileName, fileSize, mimeType, title, author, sourceType, sourceUrl } = await request.json()
+    const { 
+  storagePath, 
+  fileName, 
+  fileSize, 
+  mimeType, 
+  title, 
+  author, 
+  sourceType, 
+  sourceUrl,
+  amazon_url,
+  resource_url,
+  download_enabled,
+  contact_person,
+  contact_email
+} = await request.json()
 
     if (!storagePath || !fileName) {
       return NextResponse.json(
@@ -75,6 +93,10 @@ export async function POST(request: NextRequest) {
     // Sanitize inputs
     const cleanTitle = sanitizeInput(title || fileName)
     const cleanAuthor = author ? sanitizeInput(author) : null
+    const cleanAmazonUrl = amazon_url ? sanitizeInput(amazon_url) : null
+const cleanResourceUrl = resource_url ? sanitizeInput(resource_url) : null
+const cleanContactPerson = contact_person ? sanitizeInput(contact_person) : null
+const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
 
     console.log(`Processing uploaded file: ${storagePath}`)
 
@@ -122,23 +144,29 @@ export async function POST(request: NextRequest) {
     // Save document record to database with cleaned content
     console.log('Saving document record to database...')
     const { data: document, error: dbError } = await supabaseAdmin
-      .from('documents')
-      .insert({
-        title: cleanTitle,
-        author: cleanAuthor,
-        storage_path: storagePath,
-        mime_type: mimeType,
-        file_size: fileSize,
-        content: cleanedContent, // Use cleaned content here
-        word_count: extraction.wordCount,
-        page_count: extraction.pageCount || null,
-        uploaded_by: user.id,
-        processed_at: new Date().toISOString(),
-        source_type: sourceType || 'upload', // Default to 'upload' for regular files
-        source_url: sourceUrl || null        // Store original URL for scraped content
-      })
-      .select()
-      .single()
+  .from('documents')
+  .insert({
+    title: cleanTitle,
+    author: cleanAuthor,
+    storage_path: storagePath,
+    mime_type: mimeType,
+    file_size: fileSize,
+    content: cleanedContent,
+    word_count: extraction.wordCount,
+    page_count: extraction.pageCount || null,
+    uploaded_by: user.id,
+    processed_at: new Date().toISOString(),
+    source_type: sourceType || 'upload',
+    source_url: sourceUrl || null,
+    // Add new metadata fields
+    amazon_url: cleanAmazonUrl,
+    resource_url: cleanResourceUrl,
+    download_enabled: download_enabled !== undefined ? Boolean(download_enabled) : true,
+    contact_person: cleanContactPerson,
+    contact_email: cleanContactEmail
+  })
+  .select()
+  .single()
 
     if (dbError) {
       console.error('Database error:', dbError)
