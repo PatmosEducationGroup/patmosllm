@@ -983,7 +983,7 @@ export default function ChatPage() {
               color: '#6b7280',
               marginBottom: '1.5rem'
             }}>
-              Send a message about "{contactInfo.documentTitle}"
+            Send a message about &ldquo;{contactInfo.documentTitle}&rdquo;
             </p>
 
             <form onSubmit={handleContactSubmit} style={{ display: 'grid', gap: '1rem' }}>

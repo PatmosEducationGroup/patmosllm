@@ -134,7 +134,15 @@ export async function PUT(
     } = await request.json()
 
     // Sanitize inputs
-    const updates: Record<string, any> = {}
+    const updates: {
+  title?: string
+  author?: string | null
+  amazon_url?: string | null
+  resource_url?: string | null
+  download_enabled?: boolean
+  contact_person?: string | null
+  contact_email?: string | null
+} = {}
     if (title !== undefined) updates.title = sanitizeInput(title)
     if (author !== undefined) updates.author = author ? sanitizeInput(author) : null
     if (amazon_url !== undefined) updates.amazon_url = amazon_url ? sanitizeInput(amazon_url) : null
