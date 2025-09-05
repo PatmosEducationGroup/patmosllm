@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth, UserButton } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import ReactMarkdown from 'react-markdown'
 
 const ensureHttps = (url: string): string => {
@@ -107,6 +108,18 @@ export default function ChatPage() {
   const [sendingContact, setSendingContact] = useState(false)
 
   // =================================================================
+  // FEEDBACK MODAL STATE - Handle beta feedback functionality
+  // =================================================================
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [feedbackForm, setFeedbackForm] = useState({
+    name: '',
+    email: '',
+    message: ''
+  })
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
+  const [feedbackSubmitStatus, setFeedbackSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle')
+
+  // =================================================================
   // AUTHENTICATION EFFECT - Redirect unauthenticated users
   // =================================================================
   useEffect(() => {
@@ -130,6 +143,56 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // =================================================================
+  // FEEDBACK FORM HANDLERS - Handle beta feedback submission
+  // =================================================================
+  const handleFeedbackInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFeedbackForm(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmittingFeedback(true)
+    setFeedbackSubmitStatus('idle')
+
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: 'patmoseducationgroup@gmail.com', // Replace with your actual feedback email
+          contactPerson: 'Heaven.Earth Team',
+          documentTitle: 'Beta Testing Feedback',
+          senderName: feedbackForm.name,
+          senderEmail: feedbackForm.email,
+          subject: 'Beta Feedback - Heaven.Earth',
+          message: feedbackForm.message
+        }),
+      })
+
+      if (response.ok) {
+        setFeedbackSubmitStatus('success')
+        setFeedbackForm({ name: '', email: '', message: '' })
+        setTimeout(() => {
+          setShowFeedbackModal(false)
+          setFeedbackSubmitStatus('idle')
+        }, 2000)
+      } else {
+        setFeedbackSubmitStatus('error')
+      }
+    } catch (error) {
+      setFeedbackSubmitStatus('error')
+    } finally {
+      setIsSubmittingFeedback(false)
+    }
+  }
 
   // =================================================================
   // CONTACT FORM HANDLER - Send contact email
@@ -510,142 +573,94 @@ export default function ChatPage() {
   // MAIN UI RENDER - Complete chat interface layout with streaming
   // =================================================================
   return (
-    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f9fafb' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#f9fafb' }}>
       
-      {/* Sidebar */}
-      <div style={{ 
-        width: sidebarOpen ? '300px' : '0px',
-        backgroundColor: '#111827',
-        transition: 'width 0.3s ease',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column'
+      {/* Beta Banner */}
+      <div style={{
+        background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)',
+        color: 'white',
+        padding: '8px 16px',
+        textAlign: 'center',
+        fontSize: '14px',
+        fontWeight: '500'
       }}>
-        
-        <div style={{ padding: '1rem', borderBottom: '1px solid #374151' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ 
+            backgroundColor: 'rgba(255,255,255,0.2)', 
+            padding: '4px 8px', 
+            borderRadius: '4px', 
+            fontSize: '12px', 
+            fontWeight: 'bold' 
+          }}>
+            BETA
+          </span>
+          This system is in beta testing - Your feedback helps us improve
           <button
-            onClick={handleNewChatClick}
+            onClick={() => setShowFeedbackModal(true)}
             style={{
-              width: '100%',
-              backgroundColor: '#374151',
-              color: 'white',
+              textDecoration: 'underline',
+              marginLeft: '8px',
+              fontWeight: '600',
+              backgroundColor: 'transparent',
               border: 'none',
-              padding: '0.75rem',
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '500'
+              color: 'white',
+              cursor: 'pointer'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'none'}
+            onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'underline'}
           >
-            + New Chat
+            Share Feedback
           </button>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-          {loadingSessions ? (
-            <div style={{ padding: '1rem', color: '#9ca3af', textAlign: 'center' }}>
-              Loading...
-            </div>
-          ) : sessions.length === 0 ? (
-            <div style={{ padding: '1rem', color: '#9ca3af', textAlign: 'center' }}>
-              No conversations yet
-            </div>
-          ) : (
-            sessions.map((session) => (
-              <div
-                key={session.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  margin: '0.25rem 0',
-                  backgroundColor: session.id === currentSessionId ? '#374151' : 'transparent',
-                  borderRadius: '0.375rem',
-                  transition: 'background-color 0.2s'
-                }}
-              >
-                <div
-                  onClick={() => loadSession(session.id)}
-                  style={{
-                    flex: 1,
-                    padding: '0.75rem',
-                    color: session.id === currentSessionId ? 'white' : '#d1d5db',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  <div style={{ fontWeight: '500', marginBottom: '0.25rem' }}>
-                    {session.title}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-                    {formatDate(session.updatedAt)} • {session.messageCount} messages
-                  </div>
-                </div>
-                
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    deleteSession(session.id)
-                  }}
-                  style={{
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    color: '#9ca3af',
-                    cursor: 'pointer',
-                    padding: '0.5rem',
-                    fontSize: '0.875rem',
-                    opacity: 0.7
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
-                >
-                  ✕
-                </button>
-              </div>
-            ))
-          )}
-        </div>
+        </span>
       </div>
 
-      {/* Main Chat Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        
-        {/* Header Bar */}
+      {/* Header with Logo */}
+      <header style={{ 
+        borderBottom: '1px solid #e5e7eb', 
+        backgroundColor: 'white', 
+        padding: '16px 24px' 
+      }}>
         <div style={{ 
-          backgroundColor: 'white', 
-          borderBottom: '1px solid #e5e7eb', 
-          padding: '1rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          maxWidth: '1280px', 
+          margin: '0 auto' 
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              style={{
-                backgroundColor: 'transparent',
-                border: 'none',
-                fontSize: '1.25rem',
-                cursor: 'pointer',
-                color: '#6b7280'
-              }}
-            >
-              ☰
-            </button>
-            <div>
-              <h1 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#111827' }}>
-                {currentSessionTitle}
-              </h1>
-              <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                Knowledge Base Chat
-              </p>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <Image
+              src="/images/navLogo.png"
+              alt="Heaven.Earth Logo"
+              width={200}
+              height={40}
+              style={{ height: '40px', width: 'auto' }}
+              priority
+            />
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button
+              onClick={() => setShowFeedbackModal(true)}
+              style={{
+                backgroundColor: '#2563eb',
+                color: 'white',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+            >
+              Feedback
+            </button>
             <Link
               href="/admin"
               style={{
-                fontSize: '0.875rem',
+                fontSize: '14px',
                 color: '#2563eb',
                 textDecoration: 'none',
                 fontWeight: '500'
@@ -656,302 +671,626 @@ export default function ChatPage() {
             <UserButton afterSignOutUrl="/" />
           </div>
         </div>
+      </header>
 
-        {/* Messages Container with Streaming Support */}
+      {/* Main Chat Layout */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        
+        {/* Sidebar */}
         <div style={{ 
-          flex: 1, 
-          overflowY: 'auto', 
-          padding: '1rem',
-          maxWidth: '800px',
-          margin: '0 auto',
-          width: '100%'
+          width: sidebarOpen ? '300px' : '0px',
+          backgroundColor: '#111827',
+          transition: 'width 0.3s ease',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
         }}>
           
-          {messages.length === 0 && !loading && (
-            <div style={{ 
-              textAlign: 'center', 
-              color: '#6b7280', 
-              marginTop: '2rem',
-              fontSize: '1.125rem'
-            }}>
-              Ask a question about the documents in our knowledge base
-            </div>
-          )}
-
-          {/* Chat Messages with Streaming Support */}
-          {messages.map((message) => (
-            <div
-              key={message.id}
+          <div style={{ padding: '1rem', borderBottom: '1px solid #374151' }}>
+            <button
+              onClick={handleNewChatClick}
               style={{
-                marginBottom: '1.5rem',
-                display: 'flex',
-                justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start'
+                width: '100%',
+                backgroundColor: '#374151',
+                color: 'white',
+                border: 'none',
+                padding: '0.75rem',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '500'
               }}
             >
-              <div
+              + New Chat
+            </button>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
+            {loadingSessions ? (
+              <div style={{ padding: '1rem', color: '#9ca3af', textAlign: 'center' }}>
+                Loading...
+              </div>
+            ) : sessions.length === 0 ? (
+              <div style={{ padding: '1rem', color: '#9ca3af', textAlign: 'center' }}>
+                No conversations yet
+              </div>
+            ) : (
+              sessions.map((session) => (
+                <div
+                  key={session.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    margin: '0.25rem 0',
+                    backgroundColor: session.id === currentSessionId ? '#374151' : 'transparent',
+                    borderRadius: '0.375rem',
+                    transition: 'background-color 0.2s'
+                  }}
+                >
+                  <div
+                    onClick={() => loadSession(session.id)}
+                    style={{
+                      flex: 1,
+                      padding: '0.75rem',
+                      color: session.id === currentSessionId ? 'white' : '#d1d5db',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    <div style={{ fontWeight: '500', marginBottom: '0.25rem' }}>
+                      {session.title}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                      {formatDate(session.updatedAt)} • {session.messageCount} messages
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteSession(session.id)
+                    }}
+                    style={{
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      color: '#9ca3af',
+                      cursor: 'pointer',
+                      padding: '0.5rem',
+                      fontSize: '0.875rem',
+                      opacity: 0.7
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Main Chat Area */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          
+          {/* Chat Header Bar */}
+          <div style={{ 
+            backgroundColor: 'white', 
+            borderBottom: '1px solid #e5e7eb', 
+            padding: '1rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
                 style={{
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  fontSize: '1.25rem',
+                  cursor: 'pointer',
+                  color: '#6b7280'
+                }}
+              >
+                ☰
+              </button>
+              <div>
+                <h1 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#111827' }}>
+                  {currentSessionTitle}
+                </h1>
+                <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                  Knowledge Base Chat
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Messages Container with Streaming Support */}
+          <div style={{ 
+            flex: 1, 
+            overflowY: 'auto', 
+            padding: '1rem',
+            maxWidth: '800px',
+            margin: '0 auto',
+            width: '100%'
+          }}>
+            
+            {messages.length === 0 && !loading && (
+              <div style={{ 
+                textAlign: 'center', 
+                color: '#6b7280', 
+                marginTop: '2rem',
+                fontSize: '1.125rem'
+              }}>
+                Ask a question about the documents in our knowledge base
+              </div>
+            )}
+
+            {/* Chat Messages with Streaming Support */}
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                style={{
+                  marginBottom: '1.5rem',
+                  display: 'flex',
+                  justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start'
+                }}
+              >
+                <div
+                  style={{
+                    maxWidth: '70%',
+                    padding: '1rem',
+                    borderRadius: '1rem',
+                    backgroundColor: message.type === 'user' ? '#2563eb' : 'white',
+                    color: message.type === 'user' ? 'white' : '#111827',
+                    border: message.type === 'assistant' ? '1px solid #e5e7eb' : 'none'
+                  }}
+                >
+                  {/* Message Content with Markdown Rendering */}
+                  {message.type === 'assistant' ? (
+                    <div>
+                      <ReactMarkdown
+                        components={{
+                          p: ({children}) => <div style={{ marginBottom: '0.5rem' }}>{children}</div>,
+                          strong: ({children}) => <strong style={{ fontWeight: '600' }}>{children}</strong>,
+                          ul: ({children}) => <ul style={{ paddingLeft: '1.5rem', marginBottom: '0.5rem' }}>{children}</ul>,
+                          ol: ({children}) => <ol style={{ paddingLeft: '1.5rem', marginBottom: '0.5rem' }}>{children}</ol>,
+                          li: ({children}) => <li style={{ marginBottom: '0.25rem' }}>{children}</li>,
+                          h1: ({children}) => <h1 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h1>,
+                          h2: ({children}) => <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h2>,
+                          h3: ({children}) => <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h3>,
+                          code: ({children}) => <code style={{ backgroundColor: '#f3f4f6', padding: '0.125rem 0.25rem', borderRadius: '0.25rem', fontSize: '0.875rem' }}>{children}</code>
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
+                      
+                      {/* Streaming Cursor Animation */}
+                      {message.isStreaming && (
+                        <span style={{ 
+                          display: 'inline-block',
+                          width: '2px',
+                          height: '1rem',
+                          backgroundColor: '#2563eb',
+                          marginLeft: '2px',
+                          animation: 'blink 1s infinite'
+                        }} />
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>
+                  )}
+
+                  {/* Enhanced Source Citations with Metadata */}
+                  {message.sources && message.sources.length > 0 && !message.isStreaming && (
+                    <div style={{ 
+                      marginTop: '0.75rem', 
+                      paddingTop: '0.75rem', 
+                      borderTop: '1px solid #e5e7eb' 
+                    }}>
+                      <div style={{ fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                        Sources:
+                      </div>
+                      <div>
+                        {message.sources.map((source, index) => (
+                          <div key={index} style={{ 
+                            marginBottom: '0.75rem',
+                            padding: '0.5rem',
+                            backgroundColor: '#f9fafb',
+                            borderRadius: '0.375rem',
+                            border: '1px solid #f3f4f6'
+                          }}>
+                            {/* Document Title and Author */}
+                            <div style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                              <strong>{source.title}</strong>
+                              {source.author && (
+                                <span style={{ color: '#6b7280' }}> by {source.author}</span>
+                              )}
+                            </div>
+  {/* Links Section */}
+  {(source.amazon_url || (source.resource_url && source.download_enabled)) && (
+    <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.25rem' }}>
+      {source.amazon_url && (
+        
+          <a href={ensureHttps(source.amazon_url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            fontSize: '0.75rem',
+            color: '#2563eb',
+            textDecoration: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            padding: '0.25rem 0.5rem',
+            backgroundColor: '#eff6ff',
+            borderRadius: '0.25rem',
+            border: '1px solid #dbeafe'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#dbeafe'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#eff6ff'
+          }}
+        >
+          Amazon/Store
+        </a>
+      )}
+      
+      {source.resource_url && source.download_enabled && (
+        
+          <a href={ensureHttps(source.resource_url)}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            fontSize: '0.75rem',
+            color: '#059669',
+            textDecoration: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            padding: '0.25rem 0.5rem',
+            backgroundColor: '#ecfdf5',
+            borderRadius: '0.25rem',
+            border: '1px solid #d1fae5'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#d1fae5'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#ecfdf5'
+          }}
+        >
+          Download/Resource
+        </a>
+      )}
+    </div>
+  )}                 
+                            {/* Privacy-Preserving Contact Information */}
+                            {source.contact_person && source.contact_email && (
+                              <div style={{ fontSize: '0.75rem' }}>
+                                <button
+                                  onClick={() => {
+                                    setContactInfo({
+                                      person: source.contact_person!,
+                                      email: source.contact_email!,
+                                      documentTitle: source.title
+                                    })
+                                    setShowContactModal(true)
+                                  }}
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    color: '#2563eb',
+                                    backgroundColor: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    textDecoration: 'underline',
+                                    padding: 0
+                                  }}
+                                >
+                                  Questions about this resource? Contact {source.contact_person}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Message Timestamp */}
+                  <div style={{ 
+                    fontSize: '0.75rem', 
+                    marginTop: '0.5rem',
+                    color: message.type === 'user' ? 'rgba(255,255,255,0.7)' : '#9ca3af'
+                  }}>
+                    {message.timestamp.toLocaleTimeString()}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Enhanced Loading Indicator with Typing Animation */}
+            {isStreaming && (
+              <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1.5rem' }}>
+                <div style={{
                   maxWidth: '70%',
                   padding: '1rem',
                   borderRadius: '1rem',
-                  backgroundColor: message.type === 'user' ? '#2563eb' : 'white',
-                  color: message.type === 'user' ? 'white' : '#111827',
-                  border: message.type === 'assistant' ? '1px solid #e5e7eb' : 'none'
+                  backgroundColor: 'white',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#6b7280' }}>
+                    <div style={{ display: 'flex', gap: '2px' }}>
+                      <div style={{ 
+                        width: '6px', 
+                        height: '6px', 
+                        borderRadius: '50%', 
+                        backgroundColor: '#2563eb',
+                        animation: 'bounce 1.4s ease-in-out infinite both',
+                        animationDelay: '0s'
+                      }}></div>
+                      <div style={{ 
+                        width: '6px', 
+                        height: '6px', 
+                        borderRadius: '50%', 
+                        backgroundColor: '#2563eb',
+                        animation: 'bounce 1.4s ease-in-out infinite both',
+                        animationDelay: '0.16s'
+                      }}></div>
+                      <div style={{ 
+                        width: '6px', 
+                        height: '6px', 
+                        borderRadius: '50%', 
+                        backgroundColor: '#2563eb',
+                        animation: 'bounce 1.4s ease-in-out infinite both',
+                        animationDelay: '0.32s'
+                      }}></div>
+                    </div>
+                    <span>AI is thinking...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div style={{
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#dc2626',
+                padding: '1rem',
+                borderRadius: '0.375rem',
+                marginBottom: '1rem',
+                textAlign: 'center'
+              }}>
+                {error}
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input Form */}
+          <div style={{ 
+            backgroundColor: 'white', 
+            borderTop: '1px solid #e5e7eb', 
+            padding: '1rem',
+            maxWidth: '800px',
+            margin: '0 auto',
+            width: '100%'
+          }}>
+            <div onSubmit={handleSubmit} style={{ display: 'flex', gap: '0.75rem' }}>
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSubmit(e as any)
+                  }
+                }}
+                placeholder="Ask a question about the documents..."
+                disabled={loading || !currentSessionId || isStreaming}
+                style={{ 
+                  flex: 1,
+                  padding: '0.75rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  fontSize: '1rem',
+                  outline: 'none'
+                }}
+              />
+              <button
+                onClick={handleSubmit}
+                disabled={loading || !input.trim() || !currentSessionId || isStreaming}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: (loading || !input.trim() || !currentSessionId || isStreaming) ? '#9ca3af' : '#2563eb',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  fontSize: '1rem',
+                  cursor: (loading || !input.trim() || !currentSessionId || isStreaming) ? 'not-allowed' : 'pointer',
+                  fontWeight: '500'
                 }}
               >
-                {/* Message Content with Markdown Rendering */}
-                {message.type === 'assistant' ? (
-                  <div>
-                    <ReactMarkdown
-                      components={{
-                        p: ({children}) => <div style={{ marginBottom: '0.5rem' }}>{children}</div>,
-                        strong: ({children}) => <strong style={{ fontWeight: '600' }}>{children}</strong>,
-                        ul: ({children}) => <ul style={{ paddingLeft: '1.5rem', marginBottom: '0.5rem' }}>{children}</ul>,
-                        ol: ({children}) => <ol style={{ paddingLeft: '1.5rem', marginBottom: '0.5rem' }}>{children}</ol>,
-                        li: ({children}) => <li style={{ marginBottom: '0.25rem' }}>{children}</li>,
-                        h1: ({children}) => <h1 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h1>,
-                        h2: ({children}) => <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h2>,
-                        h3: ({children}) => <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h3>,
-                        code: ({children}) => <code style={{ backgroundColor: '#f3f4f6', padding: '0.125rem 0.25rem', borderRadius: '0.25rem', fontSize: '0.875rem' }}>{children}</code>
-                      }}
-                    >
-                      {message.content}
-                    </ReactMarkdown>
-                    
-                    {/* Streaming Cursor Animation */}
-                    {message.isStreaming && (
-                      <span style={{ 
-                        display: 'inline-block',
-                        width: '2px',
-                        height: '1rem',
-                        backgroundColor: '#2563eb',
-                        marginLeft: '2px',
-                        animation: 'blink 1s infinite'
-                      }} />
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>
-                )}
-
-                {/* Enhanced Source Citations with Metadata */}
-                {message.sources && message.sources.length > 0 && !message.isStreaming && (
-                  <div style={{ 
-                    marginTop: '0.75rem', 
-                    paddingTop: '0.75rem', 
-                    borderTop: '1px solid #e5e7eb' 
-                  }}>
-                    <div style={{ fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
-                      Sources:
-                    </div>
-                    <div>
-                      {message.sources.map((source, index) => (
-                        <div key={index} style={{ 
-                          marginBottom: '0.75rem',
-                          padding: '0.5rem',
-                          backgroundColor: '#f9fafb',
-                          borderRadius: '0.375rem',
-                          border: '1px solid #f3f4f6'
-                        }}>
-                          {/* Document Title and Author */}
-                          <div style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>
-                            <strong>{source.title}</strong>
-                            {source.author && (
-                              <span style={{ color: '#6b7280' }}> by {source.author}</span>
-                            )}
-                          </div>
-{/* Links Section */}
-{(source.amazon_url || (source.resource_url && source.download_enabled)) && (
-  <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.25rem' }}>
-    {source.amazon_url && (
-      
-        <a href={ensureHttps(source.amazon_url)}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          fontSize: '0.75rem',
-          color: '#2563eb',
-          textDecoration: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.25rem',
-          padding: '0.25rem 0.5rem',
-          backgroundColor: '#eff6ff',
-          borderRadius: '0.25rem',
-          border: '1px solid #dbeafe'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = '#dbeafe'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = '#eff6ff'
-        }}
-      >
-        Amazon/Store
-      </a>
-    )}
-    
-    {source.resource_url && source.download_enabled && (
-      
-        <a href={ensureHttps(source.resource_url)}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          fontSize: '0.75rem',
-          color: '#059669',
-          textDecoration: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.25rem',
-          padding: '0.25rem 0.5rem',
-          backgroundColor: '#ecfdf5',
-          borderRadius: '0.25rem',
-          border: '1px solid #d1fae5'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = '#d1fae5'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = '#ecfdf5'
-        }}
-      >
-        Download/Resource
-      </a>
-    )}
-  </div>
-)}                 
-                          {/* Privacy-Preserving Contact Information */}
-                          {source.contact_person && source.contact_email && (
-                            <div style={{ fontSize: '0.75rem' }}>
-                              <button
-                                onClick={() => {
-                                  setContactInfo({
-                                    person: source.contact_person!,
-                                    email: source.contact_email!,
-                                    documentTitle: source.title
-                                  })
-                                  setShowContactModal(true)
-                                }}
-                                style={{
-                                  fontSize: '0.75rem',
-                                  color: '#2563eb',
-                                  backgroundColor: 'transparent',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  textDecoration: 'underline',
-                                  padding: 0
-                                }}
-                              >
-                                Questions about this resource? Contact {source.contact_person}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Message Timestamp */}
-                <div style={{ 
-                  fontSize: '0.75rem', 
-                  marginTop: '0.5rem',
-                  color: message.type === 'user' ? 'rgba(255,255,255,0.7)' : '#9ca3af'
-                }}>
-                  {message.timestamp.toLocaleTimeString()}
-                </div>
-              </div>
+                {isStreaming ? 'Streaming...' : loading ? 'Sending...' : 'Send'}
+              </button>
             </div>
-          ))}
-
-          {/* Enhanced Loading Indicator with Typing Animation */}
-          {isStreaming && (
-            <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1.5rem' }}>
-              <div style={{
-                maxWidth: '70%',
-                padding: '1rem',
-                borderRadius: '1rem',
-                backgroundColor: 'white',
-                border: '1px solid #e5e7eb'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#6b7280' }}>
-                  <div style={{ display: 'flex', gap: '2px' }}>
-                    <div style={{ 
-                      width: '6px', 
-                      height: '6px', 
-                      borderRadius: '50%', 
-                      backgroundColor: '#2563eb',
-                      animation: 'bounce 1.4s ease-in-out infinite both',
-                      animationDelay: '0s'
-                    }}></div>
-                    <div style={{ 
-                      width: '6px', 
-                      height: '6px', 
-                      borderRadius: '50%', 
-                      backgroundColor: '#2563eb',
-                      animation: 'bounce 1.4s ease-in-out infinite both',
-                      animationDelay: '0.16s'
-                    }}></div>
-                    <div style={{ 
-                      width: '6px', 
-                      height: '6px', 
-                      borderRadius: '50%', 
-                      backgroundColor: '#2563eb',
-                      animation: 'bounce 1.4s ease-in-out infinite both',
-                      animationDelay: '0.32s'
-                    }}></div>
-                  </div>
-                  <span>AI is thinking...</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div style={{
-              backgroundColor: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#dc2626',
-              padding: '1rem',
-              borderRadius: '0.375rem',
-              marginBottom: '1rem',
-              textAlign: 'center'
-            }}>
-              {error}
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Form */}
-        <div style={{ 
-          backgroundColor: 'white', 
-          borderTop: '1px solid #e5e7eb', 
-          padding: '1rem',
-          maxWidth: '800px',
-          margin: '0 auto',
-          width: '100%'
-        }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '0.75rem' }}>
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask a question about the documents..."
-              disabled={loading || !currentSessionId || isStreaming}
-              className="input"
-              style={{ flex: 1 }}
-            />
-            <button
-              type="submit"
-              disabled={loading || !input.trim() || !currentSessionId || isStreaming}
-              className="btn btn-primary"
-            >
-              {isStreaming ? 'Streaming...' : loading ? 'Sending...' : 'Send'}
-            </button>
-          </form>
+          </div>
         </div>
       </div>
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+          zIndex: 50
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            maxWidth: '28rem',
+            width: '100%',
+            padding: '24px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                Beta Feedback
+              </h3>
+              <button
+                onClick={() => setShowFeedbackModal(false)}
+                style={{
+                  color: '#9ca3af',
+                  fontSize: '24px',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#6b7280'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#9ca3af'}
+              >
+                ×
+              </button>
+            </div>
+
+            {feedbackSubmitStatus === 'success' ? (
+              <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                <div style={{ color: '#059669', fontSize: '48px', marginBottom: '8px' }}>✓</div>
+                <p style={{ color: '#059669', fontWeight: '500' }}>Thank you for your feedback!</p>
+                <p style={{ color: '#6b7280', fontSize: '14px', marginTop: '4px' }}>This helps us improve the system.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={feedbackForm.name}
+                    onChange={handleFeedbackInputChange}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={feedbackForm.email}
+                    onChange={handleFeedbackInputChange}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+                    Feedback
+                  </label>
+                  <textarea
+                    name="message"
+                    value={feedbackForm.message}
+                    onChange={handleFeedbackInputChange}
+                    required
+                    rows={4}
+                    placeholder="Share your thoughts, bugs you've found, or suggestions for improvement..."
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      outline: 'none',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+
+                {feedbackSubmitStatus === 'error' && (
+                  <p style={{ color: '#dc2626', fontSize: '14px' }}>
+                    There was an error sending your feedback. Please try again.
+                  </p>
+                )}
+
+                <div style={{ display: 'flex', gap: '12px', paddingTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowFeedbackModal(false)}
+                    style={{
+                      flex: 1,
+                      padding: '8px 16px',
+                      border: '1px solid #d1d5db',
+                      color: '#374151',
+                      borderRadius: '6px',
+                      backgroundColor: 'white',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleFeedbackSubmit}
+                    disabled={isSubmittingFeedback}
+                    style={{
+                      flex: 1,
+                      backgroundColor: isSubmittingFeedback ? '#9ca3af' : '#2563eb',
+                      color: 'white',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      cursor: isSubmittingFeedback ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSubmittingFeedback) e.currentTarget.style.backgroundColor = '#1d4ed8'
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSubmittingFeedback) e.currentTarget.style.backgroundColor = '#2563eb'
+                    }}
+                  >
+                    {isSubmittingFeedback ? 'Sending...' : 'Send Feedback'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Contact Modal */}
       {showContactModal && contactInfo && (
@@ -989,10 +1328,10 @@ export default function ChatPage() {
               color: '#6b7280',
               marginBottom: '1.5rem'
             }}>
-            Send a message about &ldquo;{contactInfo.documentTitle}&rdquo;
+            Send a message about "{contactInfo.documentTitle}"
             </p>
 
-            <form onSubmit={handleContactSubmit} style={{ display: 'grid', gap: '1rem' }}>
+            <div style={{ display: 'grid', gap: '1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
                   <label style={{
@@ -1117,7 +1456,7 @@ export default function ChatPage() {
                 </button>
                 
                 <button
-                  type="submit"
+                  onClick={handleContactSubmit}
                   disabled={sendingContact}
                   style={{
                     padding: '0.5rem 1rem',
@@ -1132,7 +1471,7 @@ export default function ChatPage() {
                   {sendingContact ? 'Sending...' : 'Send Message'}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
