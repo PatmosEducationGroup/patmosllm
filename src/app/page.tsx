@@ -1089,7 +1089,7 @@ export default function ChatPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
-                    handleSubmit(e as any)
+                    handleSubmit(e as React.FormEvent)
                   }
                 }}
                 placeholder="Ask a question about the documents..."
