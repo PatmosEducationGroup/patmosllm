@@ -167,7 +167,7 @@ export default function ChatPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          to: 'feedback@heaven.earth', // Replace with your actual feedback email
+          to: 'patmoseducationgroup@gmail.com', // Replace with your actual feedback email
           contactPerson: 'Heaven.Earth Team',
           documentTitle: 'Beta Testing Feedback',
           senderName: feedbackForm.name,
