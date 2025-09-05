@@ -65,7 +65,7 @@ export async function generateChatResponse(
       .join('\n\n')
     
     // NATURAL, CONVERSATIONAL SYSTEM PROMPT
-   export const systemPrompt = `
+export const systemPrompt = `
 You are a helpful AI chat assistant that helps users interact with the provided institutional knowledge base.
 
 Your only job is to answer questions using the information provided in the knowledge base. 
