@@ -167,7 +167,7 @@ export default function ChatPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          to: 'patmoseducationgroup@gmail.com', // Replace with your actual feedback email
+          to: 'feedback@heaven.earth', // Replace with your actual feedback email
           contactPerson: 'Heaven.Earth Team',
           documentTitle: 'Beta Testing Feedback',
           senderName: feedbackForm.name,
@@ -1328,7 +1328,7 @@ export default function ChatPage() {
               color: '#6b7280',
               marginBottom: '1.5rem'
             }}>
-            Send a message about "{contactInfo.documentTitle}"
+            Send a message about &ldquo;{contactInfo.documentTitle}&rdquo;
             </p>
 
             <div style={{ display: 'grid', gap: '1rem' }}>
