@@ -125,7 +125,7 @@ export default function AdminUsersPage() {
       
       setCurrentUser(userData.user)
       
-      if (userData.user.role !== 'ADMIN') {
+      if (!['ADMIN', 'SUPER_ADMIN'].includes(userData.user.role)) {
         setAccessDenied(true)
         setError('Access denied: You need admin permissions to manage users.')
         setLoading(false)
@@ -327,6 +327,8 @@ export default function AdminUsersPage() {
 
   const getRoleColor = (role: string) => {
     switch (role) {
+      case 'SUPER_ADMIN':
+        return { bg: '#f0fdf4', color: '#059669' }
       case 'ADMIN':
         return { bg: '#fef2f2', color: '#dc2626' }
       case 'CONTRIBUTOR':
@@ -491,6 +493,7 @@ export default function AdminUsersPage() {
                   <option value="USER">User (Chat only)</option>
                   <option value="CONTRIBUTOR">Contributor (Chat + Upload)</option>
                   <option value="ADMIN">Admin (Full access)</option>
+                  <option value="SUPER_ADMIN">Super Admin (Full access)</option>
                 </select>
               </div>
 
@@ -598,6 +601,7 @@ export default function AdminUsersPage() {
                             <option value="USER">USER</option>
                             <option value="CONTRIBUTOR">CONTRIBUTOR</option>
                             <option value="ADMIN">ADMIN</option>
+                            <option value="SUPER_ADMIN">SUPER_ADMIN</option>
                           </select>
                         )}
                         {updatingRole === user.id && (

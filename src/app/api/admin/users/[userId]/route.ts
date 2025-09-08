@@ -18,33 +18,50 @@ export async function PATCH(
     }
 
     // Get current user and verify admin privileges
-    const currentUser = await getCurrentUser()
-    if (!currentUser || currentUser.role !== 'ADMIN') {
-      return NextResponse.json(
-        { success: false, error: 'Admin privileges required' },
-        { status: 403 }
-      )
-    }
+const currentUser = await getCurrentUser()
+if (!currentUser || !['ADMIN', 'SUPER_ADMIN'].includes(currentUser.role)) {
+  return NextResponse.json(
+    { success: false, error: 'Admin privileges required' },
+    { status: 403 }
+  )
+}
 
-    // Get the userId from params and request body
-    const { userId } = await context.params
-    const { role } = await request.json()
+// Get the userId from params and request body
+const { userId } = await context.params
+const { role } = await request.json()
+
+// Validate role
+if (!['ADMIN', 'CONTRIBUTOR', 'USER'].includes(role)) {
+  return NextResponse.json(
+    { success: false, error: 'Invalid role' },
+    { status: 400 }
+  )
+}
+
+// Prevent self-demotion from admin (both ADMIN and SUPER_ADMIN)
+if (currentUser.id === userId && ['ADMIN', 'SUPER_ADMIN'].includes(currentUser.role) && !['ADMIN', 'SUPER_ADMIN'].includes(role)) {
+  return NextResponse.json(
+    { success: false, error: 'Cannot demote yourself from admin role' },
+    { status: 400 }
+  )
+}
+
+// Only SUPER_ADMIN can modify other ADMINs or SUPER_ADMINs
+if (currentUser.role === 'ADMIN') {
+  // Get the target user to check their current role
+  const targetUser = await supabaseAdmin
+    .from('users')
+    .select('role')
+    .eq('id', userId)
+    .single()
     
-    // Validate role
-    if (!['ADMIN', 'CONTRIBUTOR', 'USER'].includes(role)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid role' },
-        { status: 400 }
-      )
-    }
-
-    // Prevent self-demotion from admin
-    if (currentUser.id === userId && role !== 'ADMIN') {
-      return NextResponse.json(
-        { success: false, error: 'Cannot change your own admin role' },
-        { status: 400 }
-      )
-    }
+  if (targetUser.data && ['ADMIN', 'SUPER_ADMIN'].includes(targetUser.data.role)) {
+    return NextResponse.json(
+      { success: false, error: 'Only super admins can modify admin users' },
+      { status: 403 }
+    )
+  }
+}
 
     // Update user role
     const { data: updatedUser, error } = await supabaseAdmin

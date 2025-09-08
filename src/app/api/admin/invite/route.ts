@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     // AUTHORIZATION - Verify user has admin permissions
     // =================================================================
     const user = await getCurrentUser()
-    if (!user || user.role !== 'ADMIN') {
+    if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json(
         { success: false, error: 'Admin access required' },
         { status: 403 }
@@ -44,9 +44,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!['USER', 'CONTRIBUTOR', 'ADMIN'].includes(role)) {
+    if (!['USER', 'CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
       return NextResponse.json(
-        { success: false, error: 'Invalid role. Must be USER, CONTRIBUTOR, or ADMIN' },
+        { success: false, error: 'Invalid role. Must be USER, CONTRIBUTOR, ADMIN, or SUPER_ADMIN' },
         { status: 400 }
       )
     }
@@ -182,7 +182,7 @@ export async function GET(request: NextRequest) {
     // AUTHORIZATION - Verify user has admin permissions
     // =================================================================
     const user = await getCurrentUser()
-    if (!user || user.role !== 'ADMIN') {
+    if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json(
         { success: false, error: 'Admin access required' },
         { status: 403 }
@@ -268,7 +268,7 @@ export async function DELETE(request: NextRequest) {
     // AUTHORIZATION - Verify user has admin permissions
     // =================================================================
     const user = await getCurrentUser()
-    if (!user || user.role !== 'ADMIN') {
+    if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json(
         { success: false, error: 'Admin access required' },
         { status: 403 }

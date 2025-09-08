@@ -24,7 +24,7 @@ export default function OnboardingAnalyticsPage() {
         const response = await fetch('/api/auth')
         const data = await response.json()
         
-        if (data.user?.role !== 'ADMIN') {
+        if (!['ADMIN', 'SUPER_ADMIN'].includes(data.user?.role)) {
           router.push('/')
           return
         }
