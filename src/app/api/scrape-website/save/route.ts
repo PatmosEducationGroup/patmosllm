@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     // Get current user
     const user = await getCurrentUser()
-    if (!user || !['ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
+    if (!user || !['SUPER_ADMIN', 'ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
       return NextResponse.json({ error: 'Upload access denied' }, { status: 403 })
     }
 

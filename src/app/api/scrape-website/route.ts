@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
       .eq('clerk_id', userId)
       .single()
 
-    if (!user || !['ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
+    if (!user || !['SUPER_ADMIN', 'ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -230,13 +230,13 @@ export async function POST(request: NextRequest) {
       const links = await findLinksOnPage(url)
       const allLinks = new Set([url, ...links])
       
-      // Limit to reasonable number for preview
-      const limitedLinks = Array.from(allLinks).slice(0, 50)
+      // Return all discovered links
+      const allLinksArray = Array.from(allLinks)
       
       return NextResponse.json({
         success: true,
-        links: limitedLinks,
-        totalFound: allLinks.size
+        links: allLinksArray,
+        totalFound: allLinksArray.length
       })
     }
     

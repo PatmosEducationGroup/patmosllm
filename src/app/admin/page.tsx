@@ -242,9 +242,13 @@ export default function AdminPage() {
     setError(null)
     
     try {
+      const token = await getToken()
       const response = await fetch('/api/scrape-website', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           url: websiteUrl.trim(),
           action: 'discover'
@@ -283,9 +287,13 @@ export default function AdminPage() {
     setError(null)
     
     try {
+      const token = await getToken()
       const response = await fetch('/api/scrape-website', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           action: 'scrape',
           urls: selectedUrls
