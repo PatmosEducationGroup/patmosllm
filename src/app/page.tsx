@@ -1425,12 +1425,11 @@ export default function ModernChatPage() {
                       transition: 'all 0.2s'
                     }}
                     onFocus={(e) => {
-                      e.currentTarget.style.ring = '2px'
-                      e.currentTarget.style.ringColor = 'rgba(130, 179, 219, 0.5)'
+                      e.currentTarget.style.outline = '2px solid rgba(130, 179, 219, 0.5)'
                       e.currentTarget.style.borderColor = '#82b3db'
                     }}
                     onBlur={(e) => {
-                      e.currentTarget.style.ring = '0'
+                      e.currentTarget.style.outline = 'none'
                       e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'
                     }}
                   />
@@ -1584,12 +1583,11 @@ export default function ModernChatPage() {
                     }}
                     onFocus={(e) => {
                       e.currentTarget.style.borderColor = '#82b3db'
-                      e.currentTarget.style.ring = '2px'
-                      e.currentTarget.style.ringColor = 'rgba(130, 179, 219, 0.5)'
+                      e.currentTarget.style.outline = '2px solid rgba(130, 179, 219, 0.5)'
                     }}
                     onBlur={(e) => {
                       e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'
-                      e.currentTarget.style.ring = '0'
+                      e.currentTarget.style.outline = 'none'
                     }}
                   />
                 </div>

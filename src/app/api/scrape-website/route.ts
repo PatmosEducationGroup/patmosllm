@@ -282,10 +282,15 @@ async function scrapePage(url: string): Promise<{ success: boolean; content?: st
 // Helper function to parse individual sitemap file
 async function parseSitemapFile(sitemapUrl: string, baseUrl: string): Promise<string[]> {
   try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+    
     const response = await fetch(sitemapUrl, { 
       headers: { 'User-Agent': 'Heaven.Earth Web Scraper' },
-      timeout: 8000
+      signal: controller.signal
     })
+    
+    clearTimeout(timeoutId)
     
     if (!response.ok) return []
     
@@ -314,10 +319,15 @@ async function parseRobotsForSitemaps(baseUrl: string): Promise<string[]> {
     const origin = new URL(baseUrl).origin
     const robotsUrl = `${origin}/robots.txt`
     
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+    
     const response = await fetch(robotsUrl, { 
       headers: { 'User-Agent': 'Heaven.Earth Web Scraper' },
-      timeout: 8000
+      signal: controller.signal
     })
+    
+    clearTimeout(timeoutId)
     
     if (!response.ok) return []
     
@@ -378,10 +388,15 @@ async function parseSitemap(baseUrl: string): Promise<string[]> {
     
     for (const sitemapUrl of uniqueSitemapUrls) {
       try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 8000)
+        
         const response = await fetch(sitemapUrl, { 
           headers: { 'User-Agent': 'Heaven.Earth Web Scraper' },
-          timeout: 8000
+          signal: controller.signal
         })
+        
+        clearTimeout(timeoutId)
         
         if (response.ok) {
           foundSitemaps++
