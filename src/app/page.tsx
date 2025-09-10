@@ -7,7 +7,6 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth, UserButton } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import ReactMarkdown from 'react-markdown'
 import { 
   MessageCircle, 
@@ -20,9 +19,6 @@ import {
   Download,
   ShoppingCart,
   User,
-  Settings,
-  Bell,
-  UserCircle,
   Clock,
   Zap,
   Globe,
@@ -518,7 +514,7 @@ export default function ModernChatPage() {
       let streamedContent = ''
       let sources: Source[] = []
       let buffer = ''
-      let streamStartTime = Date.now()
+      const streamStartTime = Date.now()
 
       const batchUpdate = () => {
         if (buffer && !isStreamComplete) {

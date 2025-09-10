@@ -11,7 +11,6 @@ import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 import { 
   advancedCache, 
   CACHE_NAMESPACES, 
-  CACHE_TTL, 
   getCachedConversationHistory,
   cacheConversationHistory 
 } from '@/lib/advanced-cache'

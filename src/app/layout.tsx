@@ -33,7 +33,7 @@ export default function RootLayout({
     <ClerkProvider
       publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       signInUrl="/sign-in"
-      fallbackRedirectUrl="/"
+      signInFallbackRedirectUrl="/"
     >
       <html lang="en">
         <head>
