@@ -1764,7 +1764,7 @@ export default function ModernChatPage() {
               color: '#64748b',
               marginBottom: '24px'
             }}>
-              Send a message about "{contactInfo.documentTitle}"
+              Send a message about &ldquo;{contactInfo.documentTitle}&rdquo;
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
