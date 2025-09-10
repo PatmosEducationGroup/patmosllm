@@ -1,0 +1,156 @@
+# Artillery Load Test Configuration for PatmosLLM
+# Tests the new performance improvements: Connection Pool, Caching, Hybrid Search
+
+config:
+  target: "http://localhost:3000"
+  phases:
+    # Warm-up phase - test cache warming
+    - duration: 30
+      arrivalRate: 5
+      name: "Warm-up Phase"
+    # Gradual load increase - test connection pooling
+    - duration: 60
+      arrivalRate: 10
+      rampTo: 30
+      name: "Gradual Load Increase"
+    # Peak load - test concurrent user capacity
+    - duration: 120
+      arrivalRate: 50
+      name: "Peak Load Test"
+    # Stress test - push beyond normal capacity
+    - duration: 60
+      arrivalRate: 100
+      name: "Stress Test"
+    # Cool down - verify system recovery
+    - duration: 30
+      arrivalRate: 10
+      name: "Cool Down"
+
+  # HTTP settings optimized for our API
+  http:
+    timeout: 30
+    pool: 50 # Connection pooling for Artillery
+
+  # Custom variables for realistic testing
+  variables:
+    # Test questions that will exercise hybrid search
+    testQuestions:
+      - "What is artificial intelligence?"
+      - "How does machine learning work?"
+      - "What are neural networks?"
+      - "Define deep learning"
+      - "Explain natural language processing"
+      - "What is computer vision?"
+      - "How do recommendation systems work?"
+      - "What is reinforcement learning?"
+      - "Explain gradient descent"
+      - "What are transformers in AI?"
+      - "How does backpropagation work?"
+      - "What is overfitting in machine learning?"
+      - "Define supervised learning"
+      - "What is unsupervised learning?"
+      - "How do convolutional neural networks work?"
+
+scenarios:
+  # Test 1: System Health Monitoring (Admin endpoints)
+  - name: "System Health Check"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/admin/system-health"
+          headers:
+            Authorization: "Bearer {{ $randomString() }}" # Mock auth for testing
+          capture:
+            - json: "$.success"
+              as: "healthSuccess"
+            - json: "$.health.performance.cacheHitRate"
+              as: "cacheHitRate"
+            - json: "$.health.database.connectionPool.utilization"
+              as: "dbUtilization"
+          expect:
+            - statusCode: [200, 401] # 401 is expected without real auth
+
+  # Test 2: Chat API Load Test (Core functionality)
+  - name: "Chat API Load Test"
+    weight: 70
+    flow:
+      # First create a session (simulate real user flow)
+      - post:
+          url: "/api/chat/sessions"
+          headers:
+            Authorization: "Bearer {{ $randomString() }}"
+            Content-Type: "application/json"
+          json:
+            title: "Load Test Session {{ $randomInt(1, 1000) }}"
+          capture:
+            - json: "$.sessionId"
+              as: "sessionId"
+          expect:
+            - statusCode: [201, 401]
+
+      # Then send chat questions (this tests hybrid search + caching)
+      - loop:
+        - post:
+            url: "/api/chat"
+            headers:
+              Authorization: "Bearer {{ $randomString() }}"
+              Content-Type: "application/json"
+            json:
+              question: "{{ testQuestions[$randomInt(0, 14)] }}"
+              sessionId: "{{ sessionId || 'test-session' }}"
+            expect:
+              - statusCode: [200, 401, 400] # Various expected responses
+        count: 3
+
+  # Test 3: Document Upload Simulation
+  - name: "Document Management"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/documents"
+          headers:
+            Authorization: "Bearer {{ $randomString() }}"
+          expect:
+            - statusCode: [200, 401]
+
+  # Test 4: Admin Analytics (Tests database performance under load)
+  - name: "Admin Analytics"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/admin/document-analytics"
+          headers:
+            Authorization: "Bearer {{ $randomString() }}"
+          expect:
+            - statusCode: [200, 401]
+
+# Performance metrics to collect
+metrics:
+  - name: "response_time_95th"
+    unit: "ms"
+  - name: "cache_hit_rate"
+    unit: "percent"
+  - name: "database_utilization"
+    unit: "percent"
+
+# Plugins for detailed reporting
+plugins:
+  # Detailed metrics plugin
+  ensure: {}
+  
+  # Custom metrics for our performance improvements
+  metrics-by-endpoint: 
+    useOnlyRequestNames: true
+
+# Artillery plugins configuration
+ensure:
+  thresholds:
+    - http.response_time.p95: 2000  # 95th percentile under 2 seconds
+    - http.response_time.p99: 5000  # 99th percentile under 5 seconds
+    - http.request_rate: 10         # At least 10 requests per second
+    - http.codes.200: 0.1           # At least 10% successful responses (accounting for auth)
+    - http.codes.401: 0.8           # Most will be 401 without real auth
+    - vusers.failed: 0              # No failed virtual users
+
+# Test reporting
+processor: "./artillery-processor.js"

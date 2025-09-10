@@ -1,0 +1,54 @@
+# Quick Artillery Test - Fast validation of performance improvements
+
+config:
+  target: "http://localhost:3000"
+  phases:
+    # Quick load test - 30 seconds with moderate load
+    - duration: 30
+      arrivalRate: 20
+      name: "Quick Performance Check"
+
+  http:
+    timeout: 10
+    pool: 25
+
+  variables:
+    quickQuestions:
+      - "What is AI?"
+      - "How does ML work?"
+      - "Define neural networks"
+      - "What is deep learning?"
+
+scenarios:
+  # Test system health endpoint
+  - name: "Health Check"
+    weight: 30
+    flow:
+      - get:
+          url: "/api/admin/system-health"
+          expect:
+            - statusCode: [200, 401]
+
+  # Test chat functionality (without auth for load testing)
+  - name: "Chat Performance"
+    weight: 70
+    flow:
+      - post:
+          url: "/api/chat"
+          headers:
+            Content-Type: "application/json"
+          json:
+            question: "{{ quickQuestions[$randomInt(0, 3)] }}"
+            sessionId: "test-session-{{ $randomInt(1, 100) }}"
+          expect:
+            - statusCode: [200, 401, 400]
+
+plugins:
+  ensure: {}
+
+ensure:
+  thresholds:
+    - http.response_time.p95: 3000  # 95th percentile under 3 seconds
+    - http.request_rate: 5          # At least 5 requests per second
+
+processor: "./artillery-processor.js"

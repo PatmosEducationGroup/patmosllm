@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { withSupabaseAdmin, getSupabaseHealth } from '@/lib/supabase'
+import { advancedCache } from '@/lib/advanced-cache'
+import { testConnection as testPineconeConnection } from '@/lib/pinecone'
 import { getCurrentUser } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
@@ -18,31 +20,43 @@ export async function GET(request: NextRequest) {
 
     const startTime = Date.now()
 
-    // Test database connection and get basic stats
-    const [usersResult, documentsResult, conversationsResult] = await Promise.all([
-      supabaseAdmin.from('users').select('id, created_at, clerk_id').limit(1000),
-      supabaseAdmin.from('documents').select('id, file_size, created_at').limit(1000),
-      supabaseAdmin.from('conversations').select('id, created_at').limit(1000)
+    // Get advanced system metrics
+    const [dbStats, cacheStats, connectionHealth, pineconeHealth] = await Promise.all([
+      // Database stats with connection pooling
+      withSupabaseAdmin(async (supabase) => {
+        const [usersResult, documentsResult, conversationsResult] = await Promise.all([
+          supabase.from('users').select('id, created_at, clerk_id').limit(1000),
+          supabase.from('documents').select('id, file_size, created_at').limit(1000),
+          supabase.from('conversations').select('id, created_at').limit(1000)
+        ])
+        return { usersResult, documentsResult, conversationsResult }
+      }),
+      // Cache performance metrics
+      advancedCache.getStats(),
+      // Connection pool health
+      getSupabaseHealth(),
+      // Vector database health
+      testPineconeConnection()
     ])
 
     const dbResponseTime = Date.now() - startTime
 
-    // Calculate statistics
-    const totalUsers = usersResult.data?.length || 0
-    const activeUsers = usersResult.data?.filter(u => !u.clerk_id.startsWith('invited_')).length || 0
+    // Calculate statistics from pooled database results
+    const totalUsers = dbStats.usersResult.data?.length || 0
+    const activeUsers = dbStats.usersResult.data?.filter(u => !u.clerk_id.startsWith('invited_')).length || 0
     const pendingUsers = totalUsers - activeUsers
 
-    const totalDocuments = documentsResult.data?.length || 0
-    const totalStorage = documentsResult.data?.reduce((sum, doc) => sum + (doc.file_size || 0), 0) || 0
+    const totalDocuments = dbStats.documentsResult.data?.length || 0
+    const totalStorage = dbStats.documentsResult.data?.reduce((sum, doc) => sum + (doc.file_size || 0), 0) || 0
 
-    const totalConversations = conversationsResult.data?.length || 0
+    const totalConversations = dbStats.conversationsResult.data?.length || 0
 
     // Get recent activity (last 24 hours)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     
-    const recentUsers = usersResult.data?.filter(u => u.created_at > yesterday).length || 0
-    const recentDocuments = documentsResult.data?.filter(d => d.created_at > yesterday).length || 0
-    const recentConversations = conversationsResult.data?.filter(c => c.created_at > yesterday).length || 0
+    const recentUsers = dbStats.usersResult.data?.filter(u => u.created_at > yesterday).length || 0
+    const recentDocuments = dbStats.documentsResult.data?.filter(d => d.created_at > yesterday).length || 0
+    const recentConversations = dbStats.conversationsResult.data?.filter(c => c.created_at > yesterday).length || 0
 
     return NextResponse.json({
       success: true,
@@ -50,7 +64,17 @@ export async function GET(request: NextRequest) {
         database: {
           status: 'healthy',
           responseTime: dbResponseTime,
-          connected: true
+          connected: true,
+          connectionPool: connectionHealth
+        },
+        cache: {
+          ...cacheStats,
+          status: cacheStats.hitRate > 30 ? 'optimal' : cacheStats.hitRate > 10 ? 'good' : 'warming-up',
+          memoryUsageMB: parseFloat(cacheStats.memoryUsage.toFixed(2))
+        },
+        vectorDatabase: {
+          status: pineconeHealth ? 'healthy' : 'error',
+          connected: pineconeHealth
         },
         users: {
           total: totalUsers,
@@ -61,16 +85,32 @@ export async function GET(request: NextRequest) {
         documents: {
           total: totalDocuments,
           totalSizeBytes: totalStorage,
+          totalSizeMB: parseFloat((totalStorage / (1024 * 1024)).toFixed(2)),
           recent24h: recentDocuments
         },
         conversations: {
           total: totalConversations,
           recent24h: recentConversations
         },
+        performance: {
+          databaseUtilization: connectionHealth.utilization,
+          cacheHitRate: cacheStats.hitRate,
+          estimatedConcurrentCapacity: Math.floor(100 - connectionHealth.utilization) * 5, // Rough estimate
+          status: connectionHealth.utilization < 70 && cacheStats.hitRate > 20 ? 'excellent' : 'good'
+        },
         system: {
           uptime: process.uptime(),
           timestamp: new Date().toISOString(),
-          version: '1.0.0'
+          version: '2.0.0-hybrid-search',
+          nodeVersion: process.version,
+          memoryUsage: process.memoryUsage(),
+          features: [
+            'Singleton Connection Pool',
+            'Advanced Multi-layer Cache',
+            'Hybrid Search (Semantic + Keyword)',
+            'Intelligent Query Analysis',
+            'Real-time Performance Monitoring'
+          ]
         }
       }
     })

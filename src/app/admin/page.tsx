@@ -62,10 +62,11 @@ export default function AdminPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [scrapingMessage, setScrapingMessage] = useState<string | null>(null)
+  const [scrapingMessageType, setScrapingMessageType] = useState<'info' | 'error'>('info')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadAuthor, setUploadAuthor] = useState('')
-  // New upload metadata states
   const [uploadAmazonUrl, setUploadAmazonUrl] = useState('')
   const [uploadResourceUrl, setUploadResourceUrl] = useState('')
   const [uploadDownloadEnabled, setUploadDownloadEnabled] = useState(true)
@@ -85,6 +86,11 @@ export default function AdminPage() {
   const [isScrapingPages, setIsScrapingPages] = useState(false)
   const [scrapedContent, setScrapedContent] = useState<ScrapedPage[]>([])
   const [showPreview, setShowPreview] = useState(false)
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pagesPerPage, setPagesPerPage] = useState(20)
+  const [showAllPages, setShowAllPages] = useState(false)
 
   // Check authentication and permissions
   useEffect(() => {
@@ -145,7 +151,6 @@ export default function AdminPage() {
     try {
       const token = await getToken()
       
-      // Use the new admin API endpoint
       const response = await fetch('/api/admin/documents', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -182,7 +187,7 @@ export default function AdminPage() {
 
   // Metadata editing functions
   const handleEdit = (doc: Document) => {
-    setEditingDoc({...doc}) // Create a copy for editing
+    setEditingDoc({...doc})
     setError(null)
   }
 
@@ -214,7 +219,6 @@ export default function AdminPage() {
       const data = await response.json()
       
       if (data.success) {
-        // Update the document in the local state
         setDocuments(docs => docs.map(doc => 
           doc.id === editingDoc.id ? {...doc, ...data.document} : doc
         ))
@@ -239,7 +243,12 @@ export default function AdminPage() {
     if (!websiteUrl.trim()) return
     
     setIsDiscovering(true)
-    setError(null)
+    setScrapingMessage(null)
+    
+    let normalizedUrl = websiteUrl.trim()
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = 'https://' + normalizedUrl
+    }
     
     try {
       const token = await getToken()
@@ -250,7 +259,7 @@ export default function AdminPage() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          url: websiteUrl.trim(),
+          url: normalizedUrl,
           action: 'discover'
         })
       })
@@ -258,17 +267,28 @@ export default function AdminPage() {
       const data = await response.json()
       
       if (data.success) {
-        // Convert links to objects with selected: false by default
         setDiscoveredPages(data.links.map((url: string) => ({ url, selected: false })))
-        setError(data.totalFound > 50 ? 
-          `Found ${data.totalFound} pages, showing first 50 for review` : 
+        setCurrentPage(1)
+        setShowAllPages(false)
+        
+        const discoveryMethod = data.discoveryMethod === 'recursive_crawl' ? 'Enhanced Crawling' : 'Single Page'
+        const methodDetails = data.discoveryMethod === 'recursive_crawl' 
+          ? ` (depth: ${data.crawlDepth} levels)` 
+          : ''
+        
+        const message = data.totalFound > 1 ?
+          `Found ${data.totalFound} pages using ${discoveryMethod}${methodDetails}.` :
           null
-        )
+          
+        setScrapingMessage(message)
+        setScrapingMessageType('info')
       } else {
-        setError(data.error || 'Failed to discover pages')
+        setScrapingMessage(data.error || 'Failed to discover pages')
+        setScrapingMessageType('error')
       }
     } catch (err) {
-      setError('Failed to discover website pages')
+      setScrapingMessage('Failed to discover website pages')
+      setScrapingMessageType('error')
     } finally {
       setIsDiscovering(false)
     }
@@ -278,13 +298,14 @@ export default function AdminPage() {
     const selectedUrls = discoveredPages.filter(page => page.selected).map(page => page.url)
     
     if (selectedUrls.length === 0) {
-      setError('Please select at least one page to scrape')
+      setScrapingMessage('Please select at least one page to scrape')
+      setScrapingMessageType('error')
       return
     }
     
     setIsScrapingPages(true)
     setScrapingProgress(0)
-    setError(null)
+    setScrapingMessage(null)
     
     try {
       const token = await getToken()
@@ -305,19 +326,22 @@ export default function AdminPage() {
       if (data.success) {
         setScrapedContent(data.results.map((result: ScrapedPage) => ({
           ...result,
-          selected: result.success // Auto-select successful scrapes
+          selected: result.success
         })))
         setShowPreview(true)
         
         const failedCount = data.results.filter((r: ScrapedPage) => !r.success).length
         if (failedCount > 0) {
-          setError(`Warning: ${failedCount} pages failed to scrape. Review the results below.`)
+          setScrapingMessage(`Warning: ${failedCount} pages failed to scrape. Review the results below.`)
+          setScrapingMessageType('error')
         }
       } else {
-        setError(data.error || 'Failed to scrape pages')
+        setScrapingMessage(data.error || 'Failed to scrape pages')
+        setScrapingMessageType('error')
       }
     } catch (err) {
-      setError('Failed to scrape website pages')
+      setScrapingMessage('Failed to scrape website pages')
+      setScrapingMessageType('error')
     } finally {
       setIsScrapingPages(false)
       setScrapingProgress(100)
@@ -328,13 +352,14 @@ export default function AdminPage() {
     const selectedContent = scrapedContent.filter(page => page.selected && page.success)
     
     if (selectedContent.length === 0) {
-      setError('Please select at least one page to save')
+      setScrapingMessage('Please select at least one page to save')
+      setScrapingMessageType('error')
       return
     }
     
     setUploading(true)
     setUploadProgress(0)
-    setError(null)
+    setScrapingMessage(null)
     
     try {
       const token = await getToken()
@@ -342,9 +367,6 @@ export default function AdminPage() {
         throw new Error('Authentication required')
       }
 
-      console.log(`Batch processing ${selectedContent.length} pages...`)
-
-      // Call the new batch processing API
       const response = await fetch('/api/scrape-website/save', {
         method: 'POST',
         headers: {
@@ -367,25 +389,22 @@ export default function AdminPage() {
       if (data.success) {
         const { result } = data
         
-        // Show detailed results
         if (result.failed > 0) {
-          setError(
+          setScrapingMessage(
             `Processed ${result.processed} pages successfully. ${result.failed} pages failed:\n` +
             result.errors.slice(0, 3).join('\n') + 
             (result.errors.length > 3 ? `\n...and ${result.errors.length - 3} more` : '')
           )
+          setScrapingMessageType('error')
         } else {
-          setError(null)
-          console.log(`Successfully processed all ${result.processed} pages`)
+          setScrapingMessage(null)
         }
         
-        // Reset scraping state
         setWebsiteUrl('')
         setDiscoveredPages([])
         setScrapedContent([])
         setShowPreview(false)
         
-        // Reload documents to show new scraped content
         await loadDocuments()
         await loadIngestJobs()
         
@@ -394,8 +413,8 @@ export default function AdminPage() {
       }
         
     } catch (err) {
-      console.error('Batch processing error:', err)
-      setError('Failed to save scraped content: ' + (err instanceof Error ? err.message : 'Unknown error'))
+      setScrapingMessage('Failed to save scraped content: ' + (err instanceof Error ? err.message : 'Unknown error'))
+      setScrapingMessageType('error')
     } finally {
       setUploading(false)
       setUploadProgress(0)
@@ -406,6 +425,27 @@ export default function AdminPage() {
     setDiscoveredPages(prev => prev.map((page, i) => 
       i === index ? { ...page, selected: !page.selected } : page
     ))
+  }
+  
+  const getPaginatedPages = () => {
+    if (showAllPages) {
+      return discoveredPages
+    }
+    
+    const startIndex = (currentPage - 1) * pagesPerPage
+    const endIndex = startIndex + pagesPerPage
+    return discoveredPages.slice(startIndex, endIndex)
+  }
+  
+  const getTotalPages = () => {
+    return Math.ceil(discoveredPages.length / pagesPerPage)
+  }
+  
+  const getGlobalIndex = (localIndex: number) => {
+    if (showAllPages) {
+      return localIndex
+    }
+    return (currentPage - 1) * pagesPerPage + localIndex
   }
 
   const toggleScrapedPageSelection = (index: number) => {
@@ -489,7 +529,6 @@ export default function AdminPage() {
 
       setUploadProgress(60)
 
-      // Updated to include all metadata fields
       const processResponse = await fetch('/api/upload/process', {
         method: 'POST',
         headers: {
@@ -503,7 +542,6 @@ export default function AdminPage() {
           mimeType: selectedFile.type,
           title: uploadTitle.trim() || selectedFile.name,
           author: uploadAuthor.trim() || null,
-          // Include new metadata fields
           amazon_url: uploadAmazonUrl.trim() || null,
           resource_url: uploadResourceUrl.trim() || null,
           download_enabled: uploadDownloadEnabled,
@@ -520,7 +558,6 @@ export default function AdminPage() {
 
       setUploadProgress(100)
 
-      // Clear all form fields including new metadata fields
       setSelectedFile(null)
       setUploadTitle('')
       setUploadAuthor('')
@@ -605,28 +642,81 @@ export default function AdminPage() {
   }
 
   if (!isLoaded || !userId) {
-    return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading...</div>
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '24px',
+              fontWeight: 'bold',
+              marginBottom: '16px',
+              marginLeft: 'auto',
+              marginRight: 'auto',
+              animation: 'pulse 2s infinite',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
+            }}
+          >
+            H.E
+          </div>
+          <div style={{ color: '#64748b', fontSize: '18px', fontWeight: '500' }}>
+            Loading admin panel...
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (accessDenied) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '2rem' }}>
-        <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#dc2626', marginBottom: '1rem' }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        padding: '32px',
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'
+      }}>
+        <h1 style={{
+          fontSize: '30px',
+          fontWeight: 'bold',
+          color: '#dc2626',
+          marginBottom: '16px'
+        }}>
           Access Denied
         </h1>
-        <p style={{ color: '#6b7280', textAlign: 'center', marginBottom: '2rem', maxWidth: '500px' }}>
+        <p style={{
+          color: '#64748b',
+          textAlign: 'center',
+          marginBottom: '32px',
+          maxWidth: '500px'
+        }}>
           {error}
         </p>
         <button
           onClick={() => router.push('/')}
           style={{
-            backgroundColor: '#2563eb',
+            background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
             color: 'white',
-            padding: '0.75rem 1.5rem',
+            padding: '12px 24px',
             border: 'none',
-            borderRadius: '0.375rem',
+            borderRadius: '8px',
             cursor: 'pointer',
-            fontSize: '0.875rem',
+            fontSize: '14px',
             fontWeight: '500'
           }}
         >
@@ -637,23 +727,65 @@ export default function AdminPage() {
   }
 
   if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading...</div>
+    return (
+      <div>
+        <AdminNavbar />
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 'calc(100vh - 80px)',
+          background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                border: '4px solid #e2e8f0',
+                borderTopColor: '#82b3db',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+                marginBottom: '16px'
+              }}
+            />
+            <div style={{ color: '#64748b' }}>Loading...</div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'
+    }}>
       <AdminNavbar />
       
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
+      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px' }}>
         {/* Header */}
-        <div style={{ marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>
+        <div style={{
+          marginBottom: '32px',
+          background: 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(12px)',
+          borderRadius: '20px',
+          padding: '32px',
+          border: '1px solid rgba(226, 232, 240, 0.4)',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
+        }}>
+          <h1 style={{
+            fontSize: '30px',
+            fontWeight: 'bold',
+            color: '#1e293b',
+            marginBottom: '8px'
+          }}>
             Content Management
           </h1>
-          <p style={{ color: '#6b7280' }}>
+          <p style={{ color: '#64748b' }}>
             Upload documents, scrape websites, and manage document metadata
             {userData && (
-              <span style={{ marginLeft: '1rem', fontSize: '0.875rem', color: '#2563eb' }}>
+              <span style={{ marginLeft: '16px', fontSize: '14px', color: '#82b3db' }}>
                 Logged in as {userData.role}: {userData.email}
               </span>
             )}
@@ -661,33 +793,38 @@ export default function AdminPage() {
         </div>
 
         {error && (
-          <div style={{ 
-            marginBottom: '1.5rem', 
-            padding: '1rem', 
-            backgroundColor: '#fef2f2', 
-            border: '1px solid #fecaca', 
-            color: '#dc2626', 
-            borderRadius: '0.375rem' 
+          <div style={{
+            marginBottom: '24px',
+            padding: '16px',
+            background: 'rgba(254, 242, 242, 0.8)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid #fecaca',
+            color: '#dc2626',
+            borderRadius: '12px'
           }}>
             {error}
           </div>
         )}
 
-        {/* File Upload Section with Metadata Fields */}
+        {/* File Upload Section */}
         {userData && ['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(userData.role) && (
-          <div style={{ 
-            marginBottom: '2rem', 
-            padding: '1.5rem', 
-            backgroundColor: 'white', 
-            borderRadius: '0.5rem', 
-            border: '1px solid #e5e7eb' 
+          <div style={{
+            marginBottom: '32px',
+            background: 'rgba(255, 255, 255, 0.8)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: '20px',
+            padding: '24px',
+            border: '1px solid rgba(226, 232, 240, 0.4)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
           }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>Upload Document</h2>
+            <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '24px', color: '#1e293b' }}>
+              Upload Document
+            </h2>
             
-            <div style={{ display: 'grid', gap: '1rem' }}>
+            <div style={{ display: 'grid', gap: '16px' }}>
               {/* File Selection */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
                   Select File (PDF, TXT, MD, DOCX - Max 50MB)
                 </label>
                 <input
@@ -698,18 +835,19 @@ export default function AdminPage() {
                   disabled={uploading}
                   style={{
                     width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem'
+                    padding: '12px',
+                    border: '1px solid rgba(203, 213, 225, 0.6)',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    background: 'rgba(255, 255, 255, 0.8)'
                   }}
                 />
               </div>
 
               {/* Basic Document Info */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
                     Title (Optional)
                   </label>
                   <input
@@ -720,16 +858,17 @@ export default function AdminPage() {
                     placeholder="Document title..."
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      border: '1px solid rgba(203, 213, 225, 0.6)',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      background: 'rgba(255, 255, 255, 0.8)'
                     }}
                   />
                 </div>
                 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
                     Author (Optional)
                   </label>
                   <input
@@ -740,19 +879,20 @@ export default function AdminPage() {
                     placeholder="Author name..."
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      border: '1px solid rgba(203, 213, 225, 0.6)',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      background: 'rgba(255, 255, 255, 0.8)'
                     }}
                   />
                 </div>
               </div>
 
               {/* Resource Links Section */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
                     Amazon/Bookstore URL (Optional)
                   </label>
                   <input
@@ -763,16 +903,17 @@ export default function AdminPage() {
                     placeholder="https://amazon.com/..."
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      border: '1px solid rgba(203, 213, 225, 0.6)',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      background: 'rgba(255, 255, 255, 0.8)'
                     }}
                   />
                 </div>
                 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
                     Resource URL (Optional)
                   </label>
                   <input
@@ -783,19 +924,20 @@ export default function AdminPage() {
                     placeholder="https://github.com/... or download link"
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      border: '1px solid rgba(203, 213, 225, 0.6)',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      background: 'rgba(255, 255, 255, 0.8)'
                     }}
                   />
                 </div>
               </div>
 
               {/* Contact Information Section */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
                     Contact Person (Optional)
                   </label>
                   <input
@@ -806,16 +948,17 @@ export default function AdminPage() {
                     placeholder="John Doe"
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      border: '1px solid rgba(203, 213, 225, 0.6)',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      background: 'rgba(255, 255, 255, 0.8)'
                     }}
                   />
                 </div>
                 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
                     Contact Email (Optional)
                   </label>
                   <input
@@ -826,17 +969,18 @@ export default function AdminPage() {
                     placeholder="contact@example.com"
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      border: '1px solid rgba(203, 213, 225, 0.6)',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      background: 'rgba(255, 255, 255, 0.8)'
                     }}
                   />
                 </div>
               </div>
 
               {/* Download Enabled Checkbox */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input
                   type="checkbox"
                   checked={uploadDownloadEnabled}
@@ -844,19 +988,19 @@ export default function AdminPage() {
                   disabled={uploading}
                   style={{ width: '16px', height: '16px' }}
                 />
-                <label style={{ fontSize: '0.875rem' }}>
+                <label style={{ fontSize: '14px' }}>
                   Enable resource access for users
                 </label>
               </div>
 
               {/* File Preview */}
               {selectedFile && (
-                <div style={{ 
-                  padding: '0.75rem', 
-                  backgroundColor: '#f9fafb', 
-                  borderRadius: '0.375rem',
-                  fontSize: '0.875rem',
-                  color: '#6b7280'
+                <div style={{
+                  padding: '12px',
+                  background: 'rgba(130, 179, 219, 0.1)',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  color: '#64748b'
                 }}>
                   Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
                 </div>
@@ -867,12 +1011,12 @@ export default function AdminPage() {
                 onClick={handleUpload}
                 disabled={!selectedFile || uploading}
                 style={{
-                  backgroundColor: !selectedFile || uploading ? '#9ca3af' : '#3b82f6',
-                  color: 'white',
-                  padding: '0.75rem 1.5rem',
+                  background: !selectedFile || uploading ? '#cbd5e1' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                  color: !selectedFile || uploading ? '#64748b' : 'white',
+                  padding: '12px 24px',
                   border: 'none',
-                  borderRadius: '0.375rem',
-                  fontSize: '0.875rem',
+                  borderRadius: '12px',
+                  fontSize: '14px',
                   fontWeight: '500',
                   cursor: !selectedFile || uploading ? 'not-allowed' : 'pointer',
                   width: 'fit-content'
@@ -884,23 +1028,48 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* Scraping Messages */}
+        {scrapingMessage && (
+          <div style={{
+            marginBottom: '24px',
+            padding: '16px',
+            background: scrapingMessageType === 'error' ? 'rgba(254, 242, 242, 0.8)' : 'rgba(240, 249, 255, 0.8)',
+            backdropFilter: 'blur(12px)',
+            border: `1px solid ${scrapingMessageType === 'error' ? '#fecaca' : '#bfdbfe'}`,
+            color: scrapingMessageType === 'error' ? '#dc2626' : '#1d4ed8',
+            borderRadius: '12px'
+          }}>
+            {scrapingMessage}
+          </div>
+        )}
+
         {/* Web Scraping Section */}
         {userData && ['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(userData.role) && (
-          <div style={{ 
-            marginBottom: '2rem', 
-            padding: '1.5rem', 
-            backgroundColor: 'white', 
-            borderRadius: '0.5rem', 
-            border: '1px solid #e5e7eb' 
+          <div style={{
+            marginBottom: '32px',
+            background: 'rgba(255, 255, 255, 0.8)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: '20px',
+            padding: '24px',
+            border: '1px solid rgba(226, 232, 240, 0.4)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
           }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>Scrape Website</h2>
-            <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}>
-              Enter a website URL to discover and scrape all pages within the same domain
+            <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '16px', color: '#1e293b' }}>
+              Scrape Website
+            </h2>
+            <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '16px' }}>
+              Enter a website URL to discover and scrape all pages within the same domain. The scraper uses enhanced discovery with:
             </p>
+            <ul style={{ fontSize: '14px', color: '#64748b', marginBottom: '16px', paddingLeft: '20px' }}>
+              <li>• Sitemap.xml parsing for comprehensive page discovery</li>
+              <li>• Recursive crawling up to 3 levels deep to find nested pages</li>
+              <li>• Smart filtering to exclude non-content pages and file downloads</li>
+              <li>• Subdomain support for blog.example.com, www.example.com, etc.</li>
+            </ul>
             
-            <div style={{ display: 'grid', gap: '1rem' }}>
+            <div style={{ display: 'grid', gap: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
                   Website URL
                 </label>
                 <input
@@ -908,21 +1077,24 @@ export default function AdminPage() {
                   value={websiteUrl}
                   onChange={(e) => {
                     setWebsiteUrl(e.target.value)
-                    // Clear previous results when URL changes
                     if (discoveredPages.length > 0) {
                       setDiscoveredPages([])
                       setScrapedContent([])
                       setShowPreview(false)
+                      setScrapingMessage(null)
+                      setCurrentPage(1)
+                      setShowAllPages(false)
                     }
                   }}
                   disabled={isDiscovering || isScrapingPages || uploading}
-                  placeholder="https://example.com"
+                  placeholder="example.com (https:// will be added automatically)"
                   style={{
                     width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem'
+                    padding: '12px',
+                    border: '1px solid rgba(203, 213, 225, 0.6)',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    background: 'rgba(255, 255, 255, 0.8)'
                   }}
                 />
               </div>
@@ -931,77 +1103,156 @@ export default function AdminPage() {
                 onClick={discoverWebsitePages}
                 disabled={!websiteUrl.trim() || isDiscovering || isScrapingPages || uploading}
                 style={{
-                  backgroundColor: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? '#9ca3af' : '#10b981',
-                  color: 'white',
-                  padding: '0.75rem 1.5rem',
+                  background: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? '#cbd5e1' : 'linear-gradient(135deg, #9ecd55 0%, #84cc16 100%)',
+                  color: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? '#64748b' : 'white',
+                  padding: '12px 24px',
                   border: 'none',
-                  borderRadius: '0.375rem',
-                  fontSize: '0.875rem',
+                  borderRadius: '12px',
+                  fontSize: '14px',
                   fontWeight: '500',
                   cursor: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? 'not-allowed' : 'pointer',
                   width: 'fit-content'
                 }}
               >
-                {isDiscovering ? 'Discovering Pages...' : 'Discover Pages'}
+                {isDiscovering ? '🔍 Discovering Pages... (up to 5 minutes)' : 'Discover Pages'}
               </button>
+              
+              {isDiscovering && (
+                <div style={{
+                  marginTop: '16px',
+                  padding: '16px',
+                  background: 'rgba(240, 249, 255, 0.8)',
+                  border: '1px solid #dbeafe',
+                  borderRadius: '12px',
+                  fontSize: '14px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      border: '2px solid #3b82f6',
+                      borderTopColor: 'transparent',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite',
+                      marginRight: '8px'
+                    }}></div>
+                    <span style={{ fontWeight: '500', color: '#1d4ed8' }}>Deep crawling website...</span>
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: '12px' }}>
+                    • Crawling 3 levels deep to find all pages<br/>
+                    • Processing pages in parallel batches of 5<br/>
+                    • No page limit - discovering as many as possible<br/>
+                    • Check browser console for real-time progress
+                  </div>
+                </div>
+              )}
 
               {discoveredPages.length > 0 && (
                 <div>
-                  <p style={{ fontSize: '0.875rem', fontWeight: '500', marginBottom: '1rem' }}>
-                    Select pages to scrape ({discoveredPages.filter(p => p.selected).length} selected):
-                  </p>
-                  <div style={{ 
-                    maxHeight: '300px', 
-                    overflowY: 'auto', 
-                    padding: '1rem', 
-                    backgroundColor: '#f9fafb', 
-                    borderRadius: '0.375rem',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    {discoveredPages.map((page, index) => (
-                      <div key={index} style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        marginBottom: '0.5rem',
-                        padding: '0.5rem',
-                        backgroundColor: 'white',
-                        borderRadius: '0.25rem',
-                        border: page.selected ? '2px solid #3b82f6' : '1px solid #e5e7eb'
-                      }}>
-                        <input
-                          type="checkbox"
-                          checked={page.selected}
-                          onChange={() => togglePageSelection(index)}
-                          style={{ 
-                            marginRight: '0.75rem',
-                            width: '16px',
-                            height: '16px',
-                            cursor: 'pointer'
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <p style={{ fontSize: '14px', fontWeight: '500' }}>
+                      Select pages to scrape ({discoveredPages.filter(p => p.selected).length} of {discoveredPages.length} selected)
+                    </p>
+                    
+                    {!showAllPages && discoveredPages.length > pagesPerPage && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+                        <span>Page {currentPage} of {getTotalPages()}</span>
+                        <button
+                          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                          disabled={currentPage === 1}
+                          style={{
+                            padding: '4px 8px',
+                            backgroundColor: currentPage === 1 ? '#e5e7eb' : '#82b3db',
+                            color: currentPage === 1 ? '#9ca3af' : 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                            fontSize: '12px'
                           }}
-                        />
-                        <span style={{ 
-                          fontSize: '0.875rem',
-                          color: '#374151',
-                          wordBreak: 'break-all',
-                          flex: 1
-                        }}>
-                          {page.url}
-                        </span>
+                        >
+                          ←
+                        </button>
+                        <button
+                          onClick={() => setCurrentPage(Math.min(getTotalPages(), currentPage + 1))}
+                          disabled={currentPage === getTotalPages()}
+                          style={{
+                            padding: '4px 8px',
+                            backgroundColor: currentPage === getTotalPages() ? '#e5e7eb' : '#82b3db',
+                            color: currentPage === getTotalPages() ? '#9ca3af' : 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: currentPage === getTotalPages() ? 'not-allowed' : 'pointer',
+                            fontSize: '12px'
+                          }}
+                        >
+                          →
+                        </button>
                       </div>
-                    ))}
+                    )}
                   </div>
                   
-                  <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+                  <div style={{
+                    maxHeight: showAllPages ? '500px' : '300px',
+                    overflowY: 'auto',
+                    padding: '16px',
+                    background: 'rgba(248, 250, 252, 0.8)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(226, 232, 240, 0.4)'
+                  }}>
+                    {getPaginatedPages().map((page, index) => {
+                      const globalIndex = getGlobalIndex(index)
+                      return (
+                        <div key={globalIndex} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginBottom: '8px',
+                          padding: '8px',
+                          backgroundColor: 'white',
+                          borderRadius: '8px',
+                          border: page.selected ? '2px solid #82b3db' : '1px solid #e5e7eb'
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={page.selected}
+                            onChange={() => togglePageSelection(globalIndex)}
+                            style={{
+                              marginRight: '12px',
+                              width: '16px',
+                              height: '16px',
+                              cursor: 'pointer'
+                            }}
+                          />
+                          <span style={{
+                            fontSize: '14px',
+                            color: '#374151',
+                            wordBreak: 'break-all',
+                            flex: 1
+                          }}>
+                            {page.url}
+                          </span>
+                          <span style={{
+                            fontSize: '12px',
+                            color: '#64748b',
+                            marginLeft: '8px'
+                          }}>
+                            #{globalIndex + 1}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  
+                  <div style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     <button
                       onClick={() => setDiscoveredPages(prev => prev.map(p => ({ ...p, selected: true })))}
                       disabled={isScrapingPages || uploading}
                       style={{
-                        backgroundColor: '#10b981',
+                        background: 'linear-gradient(135deg, #9ecd55 0%, #84cc16 100%)',
                         color: 'white',
-                        padding: '0.5rem 1rem',
+                        padding: '8px 16px',
                         border: 'none',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.75rem',
+                        borderRadius: '8px',
+                        fontSize: '12px',
                         fontWeight: '500',
                         cursor: isScrapingPages || uploading ? 'not-allowed' : 'pointer'
                       }}
@@ -1013,12 +1264,12 @@ export default function AdminPage() {
                       onClick={() => setDiscoveredPages(prev => prev.map(p => ({ ...p, selected: false })))}
                       disabled={isScrapingPages || uploading}
                       style={{
-                        backgroundColor: '#6b7280',
+                        backgroundColor: '#64748b',
                         color: 'white',
-                        padding: '0.5rem 1rem',
+                        padding: '8px 16px',
                         border: 'none',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.75rem',
+                        borderRadius: '8px',
+                        fontSize: '12px',
                         fontWeight: '500',
                         cursor: isScrapingPages || uploading ? 'not-allowed' : 'pointer'
                       }}
@@ -1026,16 +1277,35 @@ export default function AdminPage() {
                       Deselect All
                     </button>
                     
+                    {discoveredPages.length > pagesPerPage && (
+                      <button
+                        onClick={() => setShowAllPages(!showAllPages)}
+                        disabled={isScrapingPages || uploading}
+                        style={{
+                          backgroundColor: showAllPages ? '#dc2626' : '#82b3db',
+                          color: 'white',
+                          padding: '8px 16px',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          cursor: isScrapingPages || uploading ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {showAllPages ? `Show Pages (20 per page)` : `Show All ${discoveredPages.length} Pages`}
+                      </button>
+                    )}
+                    
                     <button
                       onClick={scrapeSelectedPages}
                       disabled={isScrapingPages || uploading || discoveredPages.filter(p => p.selected).length === 0}
                       style={{
-                        backgroundColor: isScrapingPages || uploading || discoveredPages.filter(p => p.selected).length === 0 ? '#9ca3af' : '#f59e0b',
+                        background: isScrapingPages || uploading || discoveredPages.filter(p => p.selected).length === 0 ? '#9ca3af' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                         color: 'white',
-                        padding: '0.5rem 1rem',
+                        padding: '8px 16px',
                         border: 'none',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.75rem',
+                        borderRadius: '8px',
+                        fontSize: '12px',
                         fontWeight: '500',
                         cursor: isScrapingPages || uploading || discoveredPages.filter(p => p.selected).length === 0 ? 'not-allowed' : 'pointer'
                       }}
@@ -1051,37 +1321,39 @@ export default function AdminPage() {
 
         {/* Content Preview Section */}
         {showPreview && scrapedContent.length > 0 && (
-          <div style={{ 
-            marginBottom: '2rem', 
-            padding: '1.5rem', 
-            backgroundColor: 'white', 
-            borderRadius: '0.5rem', 
-            border: '1px solid #e5e7eb' 
+          <div style={{
+            marginBottom: '32px',
+            background: 'rgba(255, 255, 255, 0.8)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: '20px',
+            padding: '24px',
+            border: '1px solid rgba(226, 232, 240, 0.4)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
           }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '16px', color: '#1e293b' }}>
               Review Scraped Content ({scrapedContent.filter(p => p.selected).length} selected)
             </h2>
             
-            <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '1rem' }}>
+            <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '16px' }}>
               {scrapedContent.map((page, index) => (
-                <div key={index} style={{ 
-                  padding: '1rem', 
-                  border: '1px solid #e5e7eb', 
-                  borderRadius: '0.375rem', 
-                  marginBottom: '0.5rem',
+                <div key={index} style={{
+                  padding: '16px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '12px',
+                  marginBottom: '8px',
                   backgroundColor: page.success ? '#f9fafb' : '#fef2f2'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                     {page.success && (
                       <input
                         type="checkbox"
                         checked={page.selected || false}
                         onChange={() => toggleScrapedPageSelection(index)}
-                        style={{ marginRight: '0.5rem' }}
+                        style={{ marginRight: '8px' }}
                       />
                     )}
-                    <span style={{ 
-                      fontSize: '0.875rem', 
+                    <span style={{
+                      fontSize: '14px',
                       fontWeight: '500',
                       color: page.success ? '#111827' : '#dc2626'
                     }}>
@@ -1090,11 +1362,11 @@ export default function AdminPage() {
                   </div>
                   
                   {page.success ? (
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>
                       {page.content?.slice(0, 200)}...
                     </div>
                   ) : (
-                    <div style={{ fontSize: '0.75rem', color: '#dc2626' }}>
+                    <div style={{ fontSize: '12px', color: '#dc2626' }}>
                       Error: {page.error}
                     </div>
                   )}
@@ -1106,12 +1378,12 @@ export default function AdminPage() {
               onClick={saveSelectedContent}
               disabled={uploading || scrapedContent.filter(p => p.selected).length === 0}
               style={{
-                backgroundColor: uploading || scrapedContent.filter(p => p.selected).length === 0 ? '#9ca3af' : '#3b82f6',
+                background: uploading || scrapedContent.filter(p => p.selected).length === 0 ? '#9ca3af' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
                 color: 'white',
-                padding: '0.75rem 1.5rem',
+                padding: '12px 24px',
                 border: 'none',
-                borderRadius: '0.375rem',
-                fontSize: '0.875rem',
+                borderRadius: '12px',
+                fontSize: '14px',
                 fontWeight: '500',
                 cursor: uploading || scrapedContent.filter(p => p.selected).length === 0 ? 'not-allowed' : 'pointer'
               }}
@@ -1123,22 +1395,22 @@ export default function AdminPage() {
 
         {/* Progress Bar */}
         {(uploading || isScrapingPages) && (
-          <div style={{ marginBottom: '2rem' }}>
-            <div style={{ 
-              width: '100%', 
-              backgroundColor: '#e5e7eb', 
-              borderRadius: '0.25rem', 
-              height: '0.5rem' 
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{
+              width: '100%',
+              backgroundColor: '#e5e7eb',
+              borderRadius: '4px',
+              height: '8px'
             }}>
-              <div style={{ 
-                width: `${uploadProgress || scrapingProgress}%`, 
-                backgroundColor: '#3b82f6', 
-                height: '100%', 
-                borderRadius: '0.25rem',
+              <div style={{
+                width: `${uploadProgress || scrapingProgress}%`,
+                backgroundColor: '#82b3db',
+                height: '100%',
+                borderRadius: '4px',
                 transition: 'width 0.3s ease'
               }} />
             </div>
-            <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.25rem' }}>
+            <p style={{ fontSize: '14px', color: '#64748b', marginTop: '4px' }}>
               {isScrapingPages ? 'Scraping website content...' : 
                uploadProgress < 20 ? 'Getting upload URL...' : 
                uploadProgress < 60 ? 'Uploading file...' : 'Processing...'}
@@ -1146,21 +1418,28 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Documents List with Metadata Management */}
-        <div style={{ backgroundColor: 'white', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
-          <div style={{ padding: '1.5rem', borderBottom: '1px solid #e5e7eb' }}>
+        {/* Documents List */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(12px)',
+          borderRadius: '20px',
+          border: '1px solid rgba(226, 232, 240, 0.4)',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden'
+        }}>
+          <div style={{ padding: '24px', borderBottom: '1px solid rgba(226, 232, 240, 0.4)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>
                 Documents ({documents.length})
               </h2>
               {userData?.role === 'SUPER_ADMIN' && (
-                <span style={{ 
-                  fontSize: '0.875rem', 
+                <span style={{
+                  fontSize: '14px',
                   color: '#059669',
                   fontWeight: '600',
-                  padding: '0.25rem 0.75rem',
+                  padding: '4px 12px',
                   backgroundColor: '#d1fae5',
-                  borderRadius: '9999px'
+                  borderRadius: '16px'
                 }}>
                   SUPER ADMIN - Viewing all documents
                 </span>
@@ -1169,35 +1448,35 @@ export default function AdminPage() {
           </div>
 
           {documents.length === 0 ? (
-            <div style={{ padding: '1.5rem', textAlign: 'center', color: '#6b7280' }}>
+            <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
               No documents found
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%' }}>
-                <thead style={{ backgroundColor: '#f9fafb' }}>
+                <thead style={{ backgroundColor: 'rgba(248, 250, 252, 0.8)' }}>
                   <tr>
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Document
                     </th>
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Details
                     </th>
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Links
                     </th>
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Contact
                     </th>
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Status
                     </th>
                     {userData?.role === 'SUPER_ADMIN' && (
-                      <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                         Uploader
                       </th>
                     )}
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Actions
                     </th>
                   </tr>
@@ -1209,36 +1488,36 @@ export default function AdminPage() {
                     const statusColors = getStatusColor(status)
                     
                     return (
-                      <tr key={doc.id} style={{ borderTop: '1px solid #e5e7eb' }}>
-                        <td style={{ padding: '1rem 1.5rem' }}>
+                      <tr key={doc.id} style={{ borderTop: '1px solid rgba(226, 232, 240, 0.4)' }}>
+                        <td style={{ padding: '16px 24px' }}>
                           <div>
-                            <div style={{ fontSize: '0.875rem', fontWeight: '500', color: '#111827' }}>
+                            <div style={{ fontSize: '14px', fontWeight: '500', color: '#111827' }}>
                               {doc.title}
                             </div>
                             {doc.author && (
-                              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                              <div style={{ fontSize: '14px', color: '#64748b' }}>
                                 by {doc.author}
                               </div>
                             )}
                           </div>
                         </td>
-                        <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                        <td style={{ padding: '16px 24px', fontSize: '14px', color: '#64748b' }}>
                           <div>{formatFileSize(doc.fileSize)}</div>
                           {doc.wordCount && <div>{doc.wordCount.toLocaleString()} words</div>}
                           {doc.pageCount && <div>{doc.pageCount} pages</div>}
-                          <div style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                          <div style={{ fontSize: '12px', marginTop: '4px' }}>
                             {formatDate(doc.createdAt)}
                           </div>
                         </td>
-                        <td style={{ padding: '1rem 1.5rem' }}>
+                        <td style={{ padding: '16px 24px' }}>
                           {doc.amazon_url && (
-                            <div style={{ marginBottom: '0.25rem' }}>
+                            <div style={{ marginBottom: '4px' }}>
                               <a 
                                 href={doc.amazon_url} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 style={{ 
-                                  fontSize: '0.75rem', 
+                                  fontSize: '12px', 
                                   color: '#2563eb',
                                   textDecoration: 'none'
                                 }}
@@ -1254,8 +1533,8 @@ export default function AdminPage() {
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 style={{ 
-                                  fontSize: '0.75rem', 
-                                  color: '#059669',
+                                  fontSize: '12px', 
+                                  color: '#9ecd55',
                                   textDecoration: 'none'
                                 }}
                               >
@@ -1264,36 +1543,36 @@ export default function AdminPage() {
                             </div>
                           )}
                           {!doc.amazon_url && !doc.resource_url && (
-                            <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                            <span style={{ fontSize: '12px', color: '#9ca3af' }}>
                               No links
                             </span>
                           )}
                         </td>
-                        <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                        <td style={{ padding: '16px 24px', fontSize: '14px', color: '#64748b' }}>
                           {doc.contact_person ? (
                             <div>
-                              <div style={{ fontSize: '0.75rem', fontWeight: '500' }}>
+                              <div style={{ fontSize: '12px', fontWeight: '500' }}>
                                 {doc.contact_person}
                               </div>
                               {doc.contact_email && (
-                                <div style={{ fontSize: '0.75rem' }}>
+                                <div style={{ fontSize: '12px' }}>
                                   {doc.contact_email}
                                 </div>
                               )}
                             </div>
                           ) : (
-                            <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                            <span style={{ fontSize: '12px', color: '#9ca3af' }}>
                               No contact
                             </span>
                           )}
                         </td>
-                        <td style={{ padding: '1rem 1.5rem' }}>
-                          <span style={{ 
-                            display: 'inline-flex', 
-                            padding: '0.25rem 0.5rem', 
-                            fontSize: '0.75rem', 
-                            fontWeight: '600', 
-                            borderRadius: '9999px',
+                        <td style={{ padding: '16px 24px' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            borderRadius: '16px',
                             backgroundColor: statusColors.bg,
                             color: statusColors.color
                           }}>
@@ -1301,31 +1580,32 @@ export default function AdminPage() {
                             {job && status === 'completed' && ` (${job.chunks_created} chunks)`}
                           </span>
                           {job?.error_message && (
-                            <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.25rem' }}>
+                            <div style={{ fontSize: '12px', color: '#dc2626', marginTop: '4px' }}>
                               {job.error_message}
                             </div>
                           )}
                         </td>
                         {userData?.role === 'SUPER_ADMIN' && (
-                          <td style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', color: '#6b7280' }}>
+                          <td style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b' }}>
                             {doc.users?.email || 'Unknown'}
                           </td>
                         )}
-                        <td style={{ padding: '1rem 1.5rem' }}>
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <td style={{ padding: '16px 24px' }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
                             <button
                               onClick={() => handleEdit(doc)}
                               style={{
-                                padding: '0.25rem 0.75rem',
-                                fontSize: '0.75rem',
-                                color: '#2563eb',
+                                padding: '4px 12px',
+                                fontSize: '12px',
+                                color: '#82b3db',
                                 backgroundColor: 'transparent',
-                                border: '1px solid #2563eb',
-                                borderRadius: '0.375rem',
-                                cursor: 'pointer'
+                                border: '1px solid #82b3db',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = '#eff6ff'
+                                e.currentTarget.style.backgroundColor = 'rgba(130, 179, 219, 0.1)'
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.backgroundColor = 'transparent'
@@ -1337,16 +1617,17 @@ export default function AdminPage() {
                               <button
                                 onClick={() => deleteDocument(doc.id)}
                                 style={{
-                                  padding: '0.25rem 0.75rem',
-                                  fontSize: '0.75rem',
+                                  padding: '4px 12px',
+                                  fontSize: '12px',
                                   color: '#dc2626',
                                   backgroundColor: 'transparent',
                                   border: '1px solid #dc2626',
-                                  borderRadius: '0.375rem',
-                                  cursor: 'pointer'
+                                  borderRadius: '8px',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s'
                                 }}
                                 onMouseEnter={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#fef2f2'
+                                  e.currentTarget.style.backgroundColor = 'rgba(220, 38, 38, 0.1)'
                                 }}
                                 onMouseLeave={(e) => {
                                   e.currentTarget.style.backgroundColor = 'transparent'
@@ -1368,34 +1649,38 @@ export default function AdminPage() {
 
         {/* Edit Modal */}
         {editingDoc && (
-          <div style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            backgroundColor: 'rgba(0, 0, 0, 0.5)', 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
             zIndex: 50
           }}>
-            <div style={{ 
-              backgroundColor: 'white', 
-              borderRadius: '0.5rem', 
-              padding: '1.5rem', 
-              maxWidth: '600px', 
-              width: '90%', 
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(12px)',
+              borderRadius: '20px',
+              padding: '24px',
+              maxWidth: '600px',
+              width: '90%',
               maxHeight: '80vh',
-              overflowY: 'auto'
+              overflowY: 'auto',
+              border: '1px solid rgba(226, 232, 240, 0.4)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
             }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '24px', color: '#1e293b' }}>
                 Edit Document Metadata
               </h3>
 
-              <div style={{ display: 'grid', gap: '1rem' }}>
+              <div style={{ display: 'grid', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
                     Title *
                   </label>
                   <input
@@ -1404,16 +1689,21 @@ export default function AdminPage() {
                     onChange={(e) => setEditingDoc({...editingDoc, title: e.target.value})}
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      border: '1px solid rgba(203, 213, 225, 0.6)',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      background: 'rgba(255, 255, 255, 0.8)',
+                      outline: 'none',
+                      transition: 'all 0.2s'
                     }}
+                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                    onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
                     Author
                   </label>
                   <input
@@ -1422,16 +1712,21 @@ export default function AdminPage() {
                     onChange={(e) => setEditingDoc({...editingDoc, author: e.target.value})}
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      border: '1px solid rgba(203, 213, 225, 0.6)',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      background: 'rgba(255, 255, 255, 0.8)',
+                      outline: 'none',
+                      transition: 'all 0.2s'
                     }}
+                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                    onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
                     Amazon/Bookstore URL
                   </label>
                   <input
@@ -1441,16 +1736,21 @@ export default function AdminPage() {
                     placeholder="https://amazon.com/..."
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      border: '1px solid rgba(203, 213, 225, 0.6)',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      background: 'rgba(255, 255, 255, 0.8)',
+                      outline: 'none',
+                      transition: 'all 0.2s'
                     }}
+                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                    onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
                     Resource URL (Git, FTP, Download, etc.)
                   </label>
                   <input
@@ -1460,17 +1760,22 @@ export default function AdminPage() {
                     placeholder="https://github.com/... or https://yoursite.com/file.pdf"
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      border: '1px solid rgba(203, 213, 225, 0.6)',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      background: 'rgba(255, 255, 255, 0.8)',
+                      outline: 'none',
+                      transition: 'all 0.2s'
                     }}
+                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                    onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
                       Contact Person
                     </label>
                     <input
@@ -1480,16 +1785,21 @@ export default function AdminPage() {
                       placeholder="John Doe"
                       style={{
                         width: '100%',
-                        padding: '0.5rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.875rem'
+                        padding: '12px',
+                        border: '1px solid rgba(203, 213, 225, 0.6)',
+                        borderRadius: '12px',
+                        fontSize: '14px',
+                        background: 'rgba(255, 255, 255, 0.8)',
+                        outline: 'none',
+                        transition: 'all 0.2s'
                       }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                     />
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
                       Contact Email
                     </label>
                     <input
@@ -1499,40 +1809,52 @@ export default function AdminPage() {
                       placeholder="contact@example.com"
                       style={{
                         width: '100%',
-                        padding: '0.5rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.875rem'
+                        padding: '12px',
+                        border: '1px solid rgba(203, 213, 225, 0.6)',
+                        borderRadius: '12px',
+                        fontSize: '14px',
+                        background: 'rgba(255, 255, 255, 0.8)',
+                        outline: 'none',
+                        transition: 'all 0.2s'
                       }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                     />
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input
                     type="checkbox"
                     checked={editingDoc.download_enabled}
                     onChange={(e) => setEditingDoc({...editingDoc, download_enabled: e.target.checked})}
                     style={{ width: '16px', height: '16px' }}
                   />
-                  <label style={{ fontSize: '0.875rem' }}>
+                  <label style={{ fontSize: '14px', color: '#374151' }}>
                     Enable download/resource access
                   </label>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
                 <button
                   onClick={handleCancel}
                   disabled={saving}
                   style={{
-                    padding: '0.5rem 1rem',
-                    fontSize: '0.875rem',
-                    color: '#6b7280',
+                    padding: '8px 16px',
+                    fontSize: '14px',
+                    color: '#64748b',
                     backgroundColor: 'white',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    cursor: saving ? 'not-allowed' : 'pointer'
+                    border: '1px solid rgba(203, 213, 225, 0.6)',
+                    borderRadius: '8px',
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!saving) e.currentTarget.style.backgroundColor = '#f8fafc'
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!saving) e.currentTarget.style.backgroundColor = 'white'
                   }}
                 >
                   Cancel
@@ -1541,13 +1863,24 @@ export default function AdminPage() {
                   onClick={handleSave}
                   disabled={saving || !editingDoc.title.trim()}
                   style={{
-                    padding: '0.5rem 1rem',
-                    fontSize: '0.875rem',
+                    padding: '8px 16px',
+                    fontSize: '14px',
                     color: 'white',
-                    backgroundColor: saving || !editingDoc.title.trim() ? '#9ca3af' : '#2563eb',
+                    background: saving || !editingDoc.title.trim() ? '#9ca3af' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
                     border: 'none',
-                    borderRadius: '0.375rem',
-                    cursor: saving || !editingDoc.title.trim() ? 'not-allowed' : 'pointer'
+                    borderRadius: '8px',
+                    cursor: saving || !editingDoc.title.trim() ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!saving && editingDoc.title.trim()) {
+                      e.currentTarget.style.transform = 'scale(1.05)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!saving && editingDoc.title.trim()) {
+                      e.currentTarget.style.transform = 'scale(1)'
+                    }
                   }}
                 >
                   {saving ? 'Saving...' : 'Save Changes'}
@@ -1557,6 +1890,18 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+      `}</style>
     </div>
   )
 }

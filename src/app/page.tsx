@@ -1,7 +1,7 @@
 'use client'
 
 // =================================================================
-// IMPORTS - All necessary dependencies for the chat interface
+// IMPORTS - All necessary dependencies for the modern chat interface
 // =================================================================
 import { useState, useRef, useEffect } from 'react'
 import { useAuth, UserButton } from '@clerk/nextjs'
@@ -9,6 +9,25 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import ReactMarkdown from 'react-markdown'
+import { 
+  MessageCircle, 
+  Send, 
+  Menu, 
+  X, 
+  Plus, 
+  Trash2, 
+  Search,
+  Download,
+  ShoppingCart,
+  User,
+  Settings,
+  Bell,
+  UserCircle,
+  Clock,
+  Zap,
+  Globe,
+  Shield
+} from 'lucide-react'
 
 const ensureHttps = (url: string): string => {
   if (!url) return url
@@ -58,9 +77,9 @@ interface Conversation {
 }
 
 // =================================================================
-// MAIN CHAT COMPONENT - The primary chat interface
+// MAIN CHAT COMPONENT - The primary modern chat interface
 // =================================================================
-export default function ChatPage() {
+export default function ModernChatPage() {
   // =================================================================
   // AUTHENTICATION HOOKS - Handle user authentication state
   // =================================================================
@@ -167,7 +186,7 @@ export default function ChatPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          to: 'patmoseducationgroup@gmail.com', // Replace with your actual feedback email
+          to: 'patmoseducationgroup@gmail.com',
           contactPerson: 'Heaven.Earth Team',
           documentTitle: 'Beta Testing Feedback',
           senderName: feedbackForm.name,
@@ -224,7 +243,6 @@ export default function ChatPage() {
         setShowContactModal(false)
         setContactInfo(null)
         setContactForm({ senderName: '', senderEmail: '', subject: '', message: '' })
-        // Success feedback could be added here
       } else {
         setError(data.error || 'Failed to send message')
       }
@@ -235,7 +253,9 @@ export default function ChatPage() {
     }
   }
   
-  // Load all user chat sessions from the server
+  // =================================================================
+  // SESSION MANAGEMENT FUNCTIONS - All chat session operations
+  // =================================================================
   const loadSessions = async () => {
     console.log('loadSessions called')
     try {
@@ -393,13 +413,12 @@ export default function ChatPage() {
   }
 
   // =================================================================
-  // STREAMING CHAT MESSAGE HANDLING - Updated for real-time responses
+  // STREAMING CHAT MESSAGE HANDLING - Real-time chat functionality
   // =================================================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || loading || !currentSessionId) return
 
-    // Create user message for immediate display
     const userMessage: Message = {
       id: Date.now().toString(),
       type: 'user',
@@ -414,7 +433,6 @@ export default function ChatPage() {
     setIsStreaming(true)
     setError(null)
 
-    // Create streaming assistant message placeholder
     const assistantMessageId = (Date.now() + 1).toString()
     const assistantMessage: Message = {
       id: assistantMessageId,
@@ -451,9 +469,8 @@ export default function ChatPage() {
 
       let streamedContent = ''
       let sources: Source[] = []
-      let buffer = '' // Buffer to batch small updates
+      let buffer = ''
 
-      // Batch update function for smoother rendering
       const batchUpdate = () => {
         if (buffer) {
           streamedContent += buffer
@@ -467,7 +484,6 @@ export default function ChatPage() {
         }
       }
 
-      // Set up interval for batched updates (every 50ms for smooth effect)
       const updateInterval = setInterval(batchUpdate, 50)
 
       while (true) {
@@ -475,7 +491,7 @@ export default function ChatPage() {
         
         if (done) {
           clearInterval(updateInterval)
-          batchUpdate() // Final update
+          batchUpdate()
           break
         }
 
@@ -488,13 +504,12 @@ export default function ChatPage() {
               const data = JSON.parse(line.slice(6))
               
               if (data.type === 'chunk') {
-                buffer += data.content // Add to buffer instead of immediate update
+                buffer += data.content
               } else if (data.type === 'sources') {
                 sources = data.sources
               } else if (data.type === 'complete') {
                 clearInterval(updateInterval)
                 
-                // Final update with sources
                 setMessages(prev => prev.map(msg => 
                   msg.id === assistantMessageId
                     ? { 
@@ -516,7 +531,6 @@ export default function ChatPage() {
         }
       }
 
-      // Auto-update session title based on first question
       if (messages.length === 0 && currentSessionTitle === 'New Chat') {
         const newTitle = questionText.length > 50 
           ? questionText.substring(0, 47) + '...'
@@ -530,7 +544,6 @@ export default function ChatPage() {
       console.error('Streaming error:', err)
       setError('Failed to get response')
       
-      // Remove the failed streaming message
       setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId))
     } finally {
       setLoading(false)
@@ -539,7 +552,7 @@ export default function ChatPage() {
   }
 
   // =================================================================
-  // UI EVENT HANDLERS - User interface interactions
+  // UTILITY FUNCTIONS - Helper functions for UI
   // =================================================================
   const handleNewChatClick = () => {
     console.log('New Chat button clicked!')
@@ -563,61 +576,117 @@ export default function ChatPage() {
   // =================================================================
   if (!isLoaded || !userId) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <div>Loading...</div>
+      <div style={{ 
+        minHeight: '100vh', 
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div 
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '24px',
+              fontWeight: 'bold',
+              marginBottom: '16px',
+              marginLeft: 'auto',
+              marginRight: 'auto',
+              animation: 'pulse 2s infinite',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
+            }}
+          >
+            H.E
+          </div>
+          <div style={{ color: '#64748b', fontSize: '18px', fontWeight: '500' }}>
+            Loading your workspace...
+          </div>
+        </div>
       </div>
     )
   }
 
   // =================================================================
-  // MAIN UI RENDER - Complete chat interface layout with streaming
+  // MAIN UI RENDER - Complete modern chat interface layout
   // =================================================================
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#f9fafb' }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100vh', 
+      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+      overflow: 'hidden'
+    }}>
       
-      {/* Beta Banner */}
-      <div style={{
-        background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)',
-        color: 'white',
-        padding: '8px 16px',
-        textAlign: 'center',
-        fontSize: '14px',
-        fontWeight: '500'
-      }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+      {/* Modern Beta Banner */}
+      <div 
+        style={{ 
+          background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+          color: 'white',
+          padding: '12px 24px',
+          textAlign: 'center',
+          fontSize: '14px',
+          fontWeight: '500',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+      >
+        <div style={{ 
+          position: 'absolute', 
+          inset: 0, 
+          background: 'rgba(255,255,255,0.1)', 
+          animation: 'pulse 2s infinite' 
+        }}></div>
+        <div style={{ 
+          position: 'relative', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          gap: '12px' 
+        }}>
           <span style={{ 
-            backgroundColor: 'rgba(255,255,255,0.2)', 
-            padding: '4px 8px', 
-            borderRadius: '4px', 
+            backgroundColor: '#9ecd55', 
+            color: '#1e293b',
+            padding: '4px 12px', 
+            borderRadius: '9999px', 
             fontSize: '12px', 
-            fontWeight: 'bold' 
+            fontWeight: 'bold', 
+            letterSpacing: '0.05em'
           }}>
             BETA
           </span>
-          This system is in beta testing - Your feedback helps us improve
+          <span>This system is in beta testing - Your feedback helps us improve</span>
           <button
             onClick={() => setShowFeedbackModal(true)}
             style={{
               textDecoration: 'underline',
-              marginLeft: '8px',
               fontWeight: '600',
-              backgroundColor: 'transparent',
+              background: 'transparent',
               border: 'none',
               color: 'white',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              transition: 'all 0.2s'
             }}
             onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'none'}
             onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'underline'}
           >
             Share Feedback
           </button>
-        </span>
+        </div>
       </div>
 
-      {/* Header with Logo */}
+      {/* Modern Header */}
       <header style={{ 
-        borderBottom: '1px solid #e5e7eb', 
-        backgroundColor: 'white', 
+        background: 'rgba(255, 255, 255, 0.8)', 
+        backdropFilter: 'blur(12px)', 
+        borderBottom: '1px solid rgba(226, 232, 240, 0.4)', 
         padding: '16px 24px' 
       }}>
         <div style={{ 
@@ -627,33 +696,61 @@ export default function ChatPage() {
           maxWidth: '1280px', 
           margin: '0 auto' 
         }}>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <Image
-              src="/images/navLogo.png"
-              alt="Heaven.Earth Logo"
-              width={200}
-              height={40}
-              style={{ height: '40px', width: 'auto' }}
-              priority
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div 
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontWeight: 'bold',
+                fontSize: '18px',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
+                cursor: 'pointer',
+                transition: 'transform 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              H.E
+            </div>
+            <div>
+              <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>
+                Heaven.Earth
+              </h1>
+              <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>
+                Knowledge Base Assistant
+              </p>
+            </div>
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <button
               onClick={() => setShowFeedbackModal(true)}
               style={{
-                backgroundColor: '#2563eb',
+                background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
                 color: 'white',
                 padding: '8px 16px',
-                borderRadius: '8px',
+                borderRadius: '12px',
                 fontSize: '14px',
                 fontWeight: '500',
                 border: 'none',
                 cursor: 'pointer',
-                transition: 'background-color 0.2s'
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
+                transition: 'all 0.2s'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 20px 40px -12px rgba(0, 0, 0, 0.25)'
+                e.currentTarget.style.transform = 'scale(1.05)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
+                e.currentTarget.style.transform = 'scale(1)'
+              }}
             >
               Feedback
             </button>
@@ -661,9 +758,18 @@ export default function ChatPage() {
               href="/admin"
               style={{
                 fontSize: '14px',
-                color: '#2563eb',
+                color: '#64748b',
                 textDecoration: 'none',
-                fontWeight: '500'
+                fontWeight: '500',
+                transition: 'color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#1e293b'
+                e.currentTarget.style.textDecoration = 'underline'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#64748b'
+                e.currentTarget.style.textDecoration = 'none'
               }}
             >
               Admin Tools
@@ -673,383 +779,589 @@ export default function ChatPage() {
         </div>
       </header>
 
-      {/* Main Chat Layout */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        
-        {/* Sidebar */}
-        <div style={{ 
-          width: sidebarOpen ? '300px' : '0px',
-          backgroundColor: '#111827',
-          transition: 'width 0.3s ease',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
-          
-          <div style={{ padding: '1rem', borderBottom: '1px solid #374151' }}>
-            <button
-              onClick={handleNewChatClick}
-              style={{
-                width: '100%',
-                backgroundColor: '#374151',
-                color: 'white',
-                border: 'none',
-                padding: '0.75rem',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500'
-              }}
-            >
-              + New Chat
-            </button>
-          </div>
+        {/* Modern Animated Sidebar */}
+        <div 
+          style={{ 
+            width: sidebarOpen ? '320px' : '0px',
+            background: 'linear-gradient(180deg, rgba(130, 179, 219, 0.1) 0%, rgba(158, 205, 85, 0.05) 100%), #1e293b',
+            backdropFilter: 'blur(12px)',
+            transition: 'all 0.3s ease-out',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
+          <div style={{ 
+            opacity: sidebarOpen ? 1 : 0, 
+            transition: 'opacity 0.3s', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            height: '100%' 
+          }}>
+            {/* New Chat Button */}
+            <div style={{ padding: '16px', borderBottom: '1px solid rgba(100, 116, 139, 0.5)' }}>
+              <button
+                onClick={handleNewChatClick}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                  color: 'white',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = '0 20px 40px -12px rgba(0, 0, 0, 0.25)'
+                  e.currentTarget.style.transform = 'scale(1.02)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
+                  e.currentTarget.style.transform = 'scale(1)'
+                }}
+              >
+                <Plus size={20} />
+                New Conversation
+              </button>
+            </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-            {loadingSessions ? (
-              <div style={{ padding: '1rem', color: '#9ca3af', textAlign: 'center' }}>
-                Loading...
-              </div>
-            ) : sessions.length === 0 ? (
-              <div style={{ padding: '1rem', color: '#9ca3af', textAlign: 'center' }}>
-                No conversations yet
-              </div>
-            ) : (
-              sessions.map((session) => (
-                <div
-                  key={session.id}
+            {/* Search Bar */}
+            <div style={{ padding: '16px', borderBottom: '1px solid rgba(100, 116, 139, 0.5)' }}>
+              <div style={{ position: 'relative' }}>
+                <Search 
+                  style={{ 
+                    position: 'absolute', 
+                    left: '12px', 
+                    top: '50%', 
+                    transform: 'translateY(-50%)', 
+                    width: '16px', 
+                    height: '16px', 
+                    color: '#94a3b8' 
+                  }} 
+                />
+                <input
+                  type="text"
+                  placeholder="Search conversations..."
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    margin: '0.25rem 0',
-                    backgroundColor: session.id === currentSessionId ? '#374151' : 'transparent',
-                    borderRadius: '0.375rem',
-                    transition: 'background-color 0.2s'
+                    width: '100%',
+                    background: 'rgba(30, 41, 59, 0.5)',
+                    color: 'white',
+                    paddingLeft: '40px',
+                    paddingRight: '16px',
+                    paddingTop: '8px',
+                    paddingBottom: '8px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(100, 116, 139, 0.3)',
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                    fontSize: '14px'
                   }}
-                >
+                  onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(100, 116, 139, 0.3)'}
+                />
+              </div>
+            </div>
+
+            {/* Sessions List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+              {loadingSessions ? (
+                <div style={{ padding: '16px', color: '#94a3b8', textAlign: 'center' }}>
+                  <div style={{ 
+                    width: '24px', 
+                    height: '24px', 
+                    border: '2px solid #94a3b8', 
+                    borderTopColor: 'transparent', 
+                    borderRadius: '50%', 
+                    margin: '0 auto 8px', 
+                    animation: 'spin 1s linear infinite' 
+                  }}></div>
+                  Loading conversations...
+                </div>
+              ) : sessions.length === 0 ? (
+                <div style={{ padding: '16px', color: '#94a3b8', textAlign: 'center' }}>
+                  <MessageCircle style={{ width: '32px', height: '32px', margin: '0 auto 8px', opacity: 0.5 }} />
+                  No conversations yet
+                </div>
+              ) : (
+                sessions.map((session, index) => (
                   <div
-                    onClick={() => loadSession(session.id)}
+                    key={session.id}
                     style={{
-                      flex: 1,
-                      padding: '0.75rem',
-                      color: session.id === currentSessionId ? 'white' : '#d1d5db',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      marginBottom: '8px',
                       cursor: 'pointer',
-                      fontSize: '0.875rem'
+                      transition: 'all 0.2s',
+                      backgroundColor: session.id === currentSessionId ? 'rgba(100, 116, 139, 0.4)' : 'transparent',
+                      border: session.id === currentSessionId ? '1px solid rgba(130, 179, 219, 0.2)' : '1px solid transparent',
+                      animationDelay: `${index * 100}ms`,
+                      animation: 'slideInLeft 0.5s ease-out forwards'
+                    }}
+                    onClick={() => loadSession(session.id)}
+                    onMouseEnter={(e) => {
+                      if (session.id !== currentSessionId) {
+                        e.currentTarget.style.backgroundColor = 'rgba(100, 116, 139, 0.3)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (session.id !== currentSessionId) {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                      }
                     }}
                   >
-                    <div style={{ fontWeight: '500', marginBottom: '0.25rem' }}>
-                      {session.title}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-                      {formatDate(session.updatedAt)} • {session.messageCount} messages
+                    <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <h3 style={{ 
+                          color: 'white', 
+                          fontWeight: '500', 
+                          fontSize: '14px', 
+                          marginBottom: '4px', 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', 
+                          whiteSpace: 'nowrap',
+                          transition: 'color 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = '#9ecd55'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'white'}
+                        >
+                          {session.title}
+                        </h3>
+                        <p style={{ 
+                          color: '#94a3b8', 
+                          fontSize: '12px', 
+                          marginBottom: '8px', 
+                          margin: '8px 0' 
+                        }}>
+                          {formatDate(session.updatedAt)} • {session.messageCount} messages
+                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <MessageCircle style={{ width: '12px', height: '12px', color: '#64748b' }} />
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>{session.messageCount}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteSession(session.id)
+                        }}
+                        style={{
+                          opacity: 0,
+                          color: '#94a3b8',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = '#ef4444'
+                          e.currentTarget.style.opacity = '1'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = '#94a3b8'
+                        }}
+                      >
+                        <Trash2 style={{ width: '16px', height: '16px' }} />
+                      </button>
                     </div>
                   </div>
-                  
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      deleteSession(session.id)
-                    }}
-                    style={{
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      color: '#9ca3af',
-                      cursor: 'pointer',
-                      padding: '0.5rem',
-                      fontSize: '0.875rem',
-                      opacity: 0.7
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
         </div>
 
         {/* Main Chat Area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          
-          {/* Chat Header Bar */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+          {/* Chat Header */}
           <div style={{ 
-            backgroundColor: 'white', 
-            borderBottom: '1px solid #e5e7eb', 
-            padding: '1rem',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
+            background: 'rgba(255, 255, 255, 0.6)', 
+            backdropFilter: 'blur(12px)', 
+            borderBottom: '1px solid rgba(226, 232, 240, 0.4)', 
+            padding: '16px 24px' 
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                style={{
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  fontSize: '1.25rem',
-                  cursor: 'pointer',
-                  color: '#6b7280'
-                }}
-              >
-                ☰
-              </button>
-              <div>
-                <h1 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#111827' }}>
-                  {currentSessionTitle}
-                </h1>
-                <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                  Knowledge Base Chat
-                </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <button
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '8px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+                </button>
+                <div>
+                  <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1e293b', margin: 0 }}>
+                    {currentSessionTitle}
+                  </h2>
+                  <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>
+                    AI Assistant • Online
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div 
+                  style={{ 
+                    width: '12px', 
+                    height: '12px', 
+                    borderRadius: '50%', 
+                    backgroundColor: '#9ecd55',
+                    animation: 'pulse 2s infinite'
+                  }}
+                ></div>
+                <span style={{ fontSize: '14px', color: '#64748b' }}>Active</span>
               </div>
             </div>
           </div>
 
-          {/* Messages Container with Streaming Support */}
+          {/* Messages Container */}
           <div style={{ 
             flex: 1, 
             overflowY: 'auto', 
-            padding: '1rem',
-            maxWidth: '800px',
-            margin: '0 auto',
-            width: '100%'
+            padding: '24px', 
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '24px'
           }}>
-            
             {messages.length === 0 && !loading && (
-              <div style={{ 
-                textAlign: 'center', 
-                color: '#6b7280', 
-                marginTop: '2rem',
-                fontSize: '1.125rem'
-              }}>
-                Ask a question about the documents in our knowledge base
+              <div style={{ textAlign: 'center', paddingTop: '80px', paddingBottom: '80px' }}>
+                <div 
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '16px',
+                    background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: '24px',
+                    fontWeight: 'bold',
+                    marginBottom: '24px',
+                    marginLeft: 'auto',
+                    marginRight: 'auto',
+                    animation: 'pulse 2s infinite',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
+                  }}
+                >
+                  H.E
+                </div>
+                <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>
+                  Welcome to Heaven.Earth
+                </h3>
+                <p style={{ color: '#64748b', fontSize: '18px' }}>
+                  Ask any question about our knowledge base to get started
+                </p>
               </div>
             )}
 
-            {/* Chat Messages with Streaming Support */}
-            {messages.map((message) => (
+            {/* Chat Messages */}
+            {messages.map((message, index) => (
               <div
                 key={message.id}
                 style={{
-                  marginBottom: '1.5rem',
                   display: 'flex',
-                  justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start'
+                  justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start',
+                  animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`
                 }}
               >
-                <div
-                  style={{
-                    maxWidth: '70%',
-                    padding: '1rem',
-                    borderRadius: '1rem',
-                    backgroundColor: message.type === 'user' ? '#2563eb' : 'white',
-                    color: message.type === 'user' ? 'white' : '#111827',
-                    border: message.type === 'assistant' ? '1px solid #e5e7eb' : 'none'
-                  }}
-                >
-                  {/* Message Content with Markdown Rendering */}
-                  {message.type === 'assistant' ? (
-                    <div>
-                      <ReactMarkdown
-                        components={{
-                          p: ({children}) => <div style={{ marginBottom: '0.5rem' }}>{children}</div>,
-                          strong: ({children}) => <strong style={{ fontWeight: '600' }}>{children}</strong>,
-                          ul: ({children}) => <ul style={{ paddingLeft: '1.5rem', marginBottom: '0.5rem' }}>{children}</ul>,
-                          ol: ({children}) => <ol style={{ paddingLeft: '1.5rem', marginBottom: '0.5rem' }}>{children}</ol>,
-                          li: ({children}) => <li style={{ marginBottom: '0.25rem' }}>{children}</li>,
-                          h1: ({children}) => <h1 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h1>,
-                          h2: ({children}) => <h2 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h2>,
-                          h3: ({children}) => <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem' }}>{children}</h3>,
-                          code: ({children}) => <code style={{ backgroundColor: '#f3f4f6', padding: '0.125rem 0.25rem', borderRadius: '0.25rem', fontSize: '0.875rem' }}>{children}</code>
-                        }}
-                      >
-                        {message.content}
-                      </ReactMarkdown>
-                      
-                      {/* Streaming Cursor Animation */}
-                      {message.isStreaming && (
-                        <span style={{ 
-                          display: 'inline-block',
-                          width: '2px',
-                          height: '1rem',
-                          backgroundColor: '#2563eb',
-                          marginLeft: '2px',
-                          animation: 'blink 1s infinite'
-                        }} />
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>
-                  )}
-
-                  {/* Enhanced Source Citations with Metadata */}
-                  {message.sources && message.sources.length > 0 && !message.isStreaming && (
-                    <div style={{ 
-                      marginTop: '0.75rem', 
-                      paddingTop: '0.75rem', 
-                      borderTop: '1px solid #e5e7eb' 
-                    }}>
-                      <div style={{ fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
-                        Sources:
-                      </div>
+                <div style={{ 
+                  maxWidth: '896px', 
+                  order: message.type === 'user' ? 2 : 1 
+                }}>
+                  <div
+                    style={{
+                      borderRadius: '16px',
+                      padding: '24px',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
+                      marginLeft: message.type === 'user' ? '48px' : '0',
+                      marginRight: message.type === 'user' ? '0' : '48px',
+                      background: message.type === 'user' 
+                        ? 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)' 
+                        : 'rgba(255, 255, 255, 0.8)',
+                      backdropFilter: message.type === 'assistant' ? 'blur(12px)' : 'none',
+                      border: message.type === 'assistant' ? '1px solid rgba(226, 232, 240, 0.4)' : 'none',
+                      color: message.type === 'user' ? 'white' : '#1e293b'
+                    }}
+                  >
+                    {/* Message Content */}
+                    {message.type === 'assistant' ? (
                       <div>
-                        {message.sources.map((source, index) => (
-                          <div key={index} style={{ 
-                            marginBottom: '0.75rem',
-                            padding: '0.5rem',
-                            backgroundColor: '#f9fafb',
-                            borderRadius: '0.375rem',
-                            border: '1px solid #f3f4f6'
-                          }}>
-                            {/* Document Title and Author */}
-                            <div style={{ fontSize: '0.875rem', marginBottom: '0.25rem' }}>
-                              <strong>{source.title}</strong>
-                              {source.author && (
-                                <span style={{ color: '#6b7280' }}> by {source.author}</span>
-                              )}
-                            </div>
-  {/* Links Section */}
-  {(source.amazon_url || (source.resource_url && source.download_enabled)) && (
-    <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.25rem' }}>
-      {source.amazon_url && (
-        
-          <a href={ensureHttps(source.amazon_url)}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            fontSize: '0.75rem',
-            color: '#2563eb',
-            textDecoration: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-            padding: '0.25rem 0.5rem',
-            backgroundColor: '#eff6ff',
-            borderRadius: '0.25rem',
-            border: '1px solid #dbeafe'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#dbeafe'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#eff6ff'
-          }}
-        >
-          Amazon/Store
-        </a>
-      )}
-      
-      {source.resource_url && source.download_enabled && (
-        
-          <a href={ensureHttps(source.resource_url)}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            fontSize: '0.75rem',
-            color: '#059669',
-            textDecoration: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-            padding: '0.25rem 0.5rem',
-            backgroundColor: '#ecfdf5',
-            borderRadius: '0.25rem',
-            border: '1px solid #d1fae5'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#d1fae5'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#ecfdf5'
-          }}
-        >
-          Download/Resource
-        </a>
-      )}
-    </div>
-  )}                 
-                            {/* Privacy-Preserving Contact Information */}
-                            {source.contact_person && source.contact_email && (
-                              <div style={{ fontSize: '0.75rem' }}>
-                                <button
-                                  onClick={() => {
-                                    setContactInfo({
-                                      person: source.contact_person!,
-                                      email: source.contact_email!,
-                                      documentTitle: source.title
-                                    })
-                                    setShowContactModal(true)
-                                  }}
-                                  style={{
-                                    fontSize: '0.75rem',
-                                    color: '#2563eb',
-                                    backgroundColor: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    textDecoration: 'underline',
-                                    padding: 0
-                                  }}
-                                >
-                                  Questions about this resource? Contact {source.contact_person}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                        <ReactMarkdown
+                          components={{
+                            p: ({children}) => <div style={{ marginBottom: '12px', color: '#334155' }}>{children}</div>,
+                            strong: ({children}) => <strong style={{ fontWeight: '600', color: '#1e293b' }}>{children}</strong>,
+                            ul: ({children}) => <ul style={{ listStyleType: 'disc', paddingLeft: '24px', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>{children}</ul>,
+                            ol: ({children}) => <ol style={{ listStyleType: 'decimal', paddingLeft: '24px', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>{children}</ol>,
+                            li: ({children}) => <li style={{ color: '#334155' }}>{children}</li>,
+                            h1: ({children}) => <h1 style={{ fontSize: '20px', fontWeight: '600', color: '#1e293b', marginBottom: '12px' }}>{children}</h1>,
+                            h2: ({children}) => <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1e293b', marginBottom: '12px' }}>{children}</h2>,
+                            h3: ({children}) => <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>{children}</h3>,
+                            code: ({children}) => <code style={{ backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontSize: '14px', fontFamily: 'monospace', color: '#1e293b' }}>{children}</code>
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                        
+                        {/* Streaming Cursor */}
+                        {message.isStreaming && (
+                          <span 
+                            style={{ 
+                              display: 'inline-block',
+                              width: '2px',
+                              height: '20px',
+                              marginLeft: '4px',
+                              backgroundColor: '#82b3db',
+                              animation: 'pulse 2s infinite'
+                            }}
+                          />
+                        )}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div style={{ whiteSpace: 'pre-wrap', color: 'rgba(255,255,255,0.95)' }}>
+                        {message.content}
+                      </div>
+                    )}
 
-                  {/* Message Timestamp */}
-                  <div style={{ 
-                    fontSize: '0.75rem', 
-                    marginTop: '0.5rem',
-                    color: message.type === 'user' ? 'rgba(255,255,255,0.7)' : '#9ca3af'
-                  }}>
-                    {message.timestamp.toLocaleTimeString()}
+                    {/* Enhanced Source Citations */}
+                    {message.sources && message.sources.length > 0 && !message.isStreaming && (
+                      <div style={{ 
+                        marginTop: '24px', 
+                        paddingTop: '16px', 
+                        borderTop: '1px solid rgba(226, 232, 240, 0.3)' 
+                      }}>
+                        <div style={{ 
+                          fontSize: '14px', 
+                          fontWeight: '600', 
+                          color: '#334155', 
+                          marginBottom: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}>
+                          <Globe style={{ width: '16px', height: '16px' }} />
+                          Sources:
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {message.sources.map((source, i) => (
+                            <div 
+                              key={i} 
+                              style={{ 
+                                backgroundColor: 'rgba(248, 250, 252, 0.8)',
+                                borderRadius: '12px',
+                                padding: '16px',
+                                border: '1px solid rgba(226, 232, 240, 0.4)',
+                                transition: 'all 0.2s',
+                                animation: `slideInRight 0.5s ease-out ${i * 0.1}s both`
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1)'}
+                              onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                            >
+                              <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'start', 
+                                justifyContent: 'space-between', 
+                                marginBottom: '12px' 
+                              }}>
+                                <div>
+                                  <h4 style={{ 
+                                    fontWeight: '600', 
+                                    color: '#1e293b', 
+                                    fontSize: '14px', 
+                                    margin: 0 
+                                  }}>
+                                    {source.title}
+                                  </h4>
+                                  {source.author && (
+                                    <p style={{ 
+                                      fontSize: '12px', 
+                                      color: '#64748b', 
+                                      marginTop: '4px', 
+                                      margin: 0 
+                                    }}>
+                                      by {source.author}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px', 
+                                flexWrap: 'wrap' 
+                              }}>
+                                {source.amazon_url && (
+                                  <a
+                                    href={ensureHttps(source.amazon_url)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '8px',
+                                      padding: '6px 12px',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      borderRadius: '8px',
+                                      textDecoration: 'none',
+                                      transition: 'all 0.2s',
+                                      background: 'linear-gradient(135deg, rgba(130, 179, 219, 0.2) 0%, rgba(130, 179, 219, 0.1) 100%)',
+                                      color: '#82b3db',
+                                      border: '1px solid rgba(130, 179, 219, 0.3)'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                  >
+                                    <ShoppingCart style={{ width: '12px', height: '12px' }} />
+                                    Store
+                                  </a>
+                                )}
+                                
+                                {source.resource_url && source.download_enabled && (
+                                  <a
+                                    href={ensureHttps(source.resource_url)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '8px',
+                                      padding: '6px 12px',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      borderRadius: '8px',
+                                      textDecoration: 'none',
+                                      transition: 'all 0.2s',
+                                      background: 'linear-gradient(135deg, rgba(158, 205, 85, 0.2) 0%, rgba(158, 205, 85, 0.1) 100%)',
+                                      color: '#9ecd55',
+                                      border: '1px solid rgba(158, 205, 85, 0.3)'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                  >
+                                    <Download style={{ width: '12px', height: '12px' }} />
+                                    Download
+                                  </a>
+                                )}
+                                
+                                {source.contact_person && source.contact_email && (
+                                  <button 
+                                    onClick={() => {
+                                      setContactInfo({
+                                        person: source.contact_person!,
+                                        email: source.contact_email!,
+                                        documentTitle: source.title
+                                      })
+                                      setShowContactModal(true)
+                                    }}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '8px',
+                                      padding: '6px 12px',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      color: '#64748b',
+                                      backgroundColor: 'white',
+                                      borderRadius: '8px',
+                                      border: '1px solid #cbd5e1',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.color = '#1e293b'
+                                      e.currentTarget.style.borderColor = '#94a3b8'
+                                      e.currentTarget.style.transform = 'scale(1.05)'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.color = '#64748b'
+                                      e.currentTarget.style.borderColor = '#cbd5e1'
+                                      e.currentTarget.style.transform = 'scale(1)'
+                                    }}
+                                  >
+                                    <User style={{ width: '12px', height: '12px' }} />
+                                    Contact {source.contact_person}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Message Timestamp */}
+                    <div style={{
+                      fontSize: '12px',
+                      marginTop: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      color: message.type === 'user' ? 'rgba(255,255,255,0.7)' : '#94a3b8'
+                    }}>
+                      <Clock style={{ width: '12px', height: '12px' }} />
+                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
                   </div>
                 </div>
               </div>
             ))}
 
-            {/* Enhanced Loading Indicator with Typing Animation */}
+            {/* Modern Loading Animation */}
             {isStreaming && (
-              <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                 <div style={{
-                  maxWidth: '70%',
-                  padding: '1rem',
-                  borderRadius: '1rem',
-                  backgroundColor: 'white',
-                  border: '1px solid #e5e7eb'
+                  background: 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(226, 232, 240, 0.4)',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
+                  marginRight: '48px'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#6b7280' }}>
-                    <div style={{ display: 'flex', gap: '2px' }}>
-                      <div style={{ 
-                        width: '6px', 
-                        height: '6px', 
-                        borderRadius: '50%', 
-                        backgroundColor: '#2563eb',
-                        animation: 'bounce 1.4s ease-in-out infinite both',
-                        animationDelay: '0s'
-                      }}></div>
-                      <div style={{ 
-                        width: '6px', 
-                        height: '6px', 
-                        borderRadius: '50%', 
-                        backgroundColor: '#2563eb',
-                        animation: 'bounce 1.4s ease-in-out infinite both',
-                        animationDelay: '0.16s'
-                      }}></div>
-                      <div style={{ 
-                        width: '6px', 
-                        height: '6px', 
-                        borderRadius: '50%', 
-                        backgroundColor: '#2563eb',
-                        animation: 'bounce 1.4s ease-in-out infinite both',
-                        animationDelay: '0.32s'
-                      }}></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {[0, 1, 2].map(i => (
+                        <div
+                          key={i}
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            backgroundColor: '#82b3db',
+                            animation: `bounce 1.4s ease-in-out ${i * 0.2}s infinite`
+                          }}
+                        ></div>
+                      ))}
                     </div>
-                    <span>AI is thinking...</span>
+                    <span style={{ 
+                      fontSize: '14px', 
+                      color: '#64748b', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px',
+                      animation: 'pulse 2s infinite' 
+                    }}>
+                      <Zap style={{ width: '16px', height: '16px' }} />
+                      AI is thinking...
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1057,68 +1369,119 @@ export default function ChatPage() {
 
             {error && (
               <div style={{
-                backgroundColor: '#fef2f2',
+                background: 'rgba(254, 242, 242, 0.8)',
+                backdropFilter: 'blur(12px)',
                 border: '1px solid #fecaca',
                 color: '#dc2626',
-                padding: '1rem',
-                borderRadius: '0.375rem',
-                marginBottom: '1rem',
-                textAlign: 'center'
+                padding: '24px',
+                borderRadius: '12px',
+                textAlign: 'center',
+                boxShadow: '0 10px 25px -5px rgba(220, 38, 38, 0.1)'
               }}>
-                {error}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  <Shield style={{ width: '20px', height: '20px' }} />
+                  {error}
+                </div>
               </div>
             )}
 
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Form */}
+          {/* Modern Input Area */}
           <div style={{ 
-            backgroundColor: 'white', 
-            borderTop: '1px solid #e5e7eb', 
-            padding: '1rem',
-            maxWidth: '800px',
-            margin: '0 auto',
-            width: '100%'
+            background: 'rgba(255, 255, 255, 0.6)', 
+            backdropFilter: 'blur(12px)', 
+            borderTop: '1px solid rgba(226, 232, 240, 0.4)', 
+            padding: '24px' 
           }}>
-            <div onSubmit={handleSubmit} style={{ display: 'flex', gap: '0.75rem' }}>
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSubmit(e as React.FormEvent)
-                  }
-                }}
-                placeholder="Ask a question about the documents..."
-                disabled={loading || !currentSessionId || isStreaming}
-                style={{ 
-                  flex: 1,
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  fontSize: '1rem',
-                  outline: 'none'
-                }}
-              />
-              <button
-                onClick={handleSubmit}
-                disabled={loading || !input.trim() || !currentSessionId || isStreaming}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  backgroundColor: (loading || !input.trim() || !currentSessionId || isStreaming) ? '#9ca3af' : '#2563eb',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  fontSize: '1rem',
-                  cursor: (loading || !input.trim() || !currentSessionId || isStreaming) ? 'not-allowed' : 'pointer',
-                  fontWeight: '500'
-                }}
-              >
-                {isStreaming ? 'Streaming...' : loading ? 'Sending...' : 'Send'}
-              </button>
+            <div style={{ maxWidth: '896px', margin: '0 auto' }}>
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSubmit(e as React.FormEvent)
+                      }
+                    }}
+                    placeholder="Ask a question about the documents..."
+                    disabled={loading || !currentSessionId || isStreaming}
+                    rows={1}
+                    style={{
+                      width: '100%',
+                      padding: '24px',
+                      background: 'rgba(255, 255, 255, 0.8)',
+                      backdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(226, 232, 240, 0.6)',
+                      borderRadius: '16px',
+                      resize: 'none',
+                      outline: 'none',
+                      fontSize: '16px',
+                      color: '#334155',
+                      minHeight: '56px',
+                      transition: 'all 0.2s'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.ring = '2px'
+                      e.currentTarget.style.ringColor = 'rgba(130, 179, 219, 0.5)'
+                      e.currentTarget.style.borderColor = '#82b3db'
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.ring = '0'
+                      e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading || !input.trim() || !currentSessionId || isStreaming}
+                  style={{
+                    padding: '16px 24px',
+                    borderRadius: '16px',
+                    fontWeight: '500',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s',
+                    border: 'none',
+                    cursor: loading || !input.trim() || !currentSessionId || isStreaming ? 'not-allowed' : 'pointer',
+                    background: loading || !input.trim() || !currentSessionId || isStreaming
+                      ? '#cbd5e1'
+                      : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                    color: loading || !input.trim() || !currentSessionId || isStreaming ? '#64748b' : 'white'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!loading && input.trim() && currentSessionId && !isStreaming) {
+                      e.currentTarget.style.boxShadow = '0 20px 40px -12px rgba(0, 0, 0, 0.25)'
+                      e.currentTarget.style.transform = 'scale(1.05)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loading && input.trim() && currentSessionId && !isStreaming) {
+                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
+                      e.currentTarget.style.transform = 'scale(1)'
+                    }
+                  }}
+                >
+                  {loading ? (
+                    <div style={{ 
+                      width: '20px', 
+                      height: '20px', 
+                      border: '2px solid #94a3b8', 
+                      borderTopColor: 'transparent', 
+                      borderRadius: '50%', 
+                      animation: 'spin 1s linear infinite' 
+                    }}></div>
+                  ) : (
+                    <Send style={{ width: '20px', height: '20px' }} />
+                  )}
+                  {isStreaming ? 'Streaming...' : loading ? 'Sending...' : 'Send'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1130,6 +1493,7 @@ export default function ChatPage() {
           position: 'fixed',
           inset: 0,
           backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          backdropFilter: 'blur(4px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1137,43 +1501,68 @@ export default function ChatPage() {
           zIndex: 50
         }}>
           <div style={{
-            backgroundColor: 'white',
-            borderRadius: '8px',
+            background: 'rgba(255, 255, 255, 0.9)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: '16px',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            maxWidth: '28rem',
+            maxWidth: '512px',
             width: '100%',
-            padding: '24px'
+            padding: '24px',
+            border: '1px solid rgba(226, 232, 240, 0.4)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#1e293b', margin: 0 }}>
                 Beta Feedback
               </h3>
               <button
                 onClick={() => setShowFeedbackModal(false)}
                 style={{
-                  color: '#9ca3af',
-                  fontSize: '24px',
-                  backgroundColor: 'transparent',
+                  color: '#94a3b8',
+                  background: 'transparent',
                   border: 'none',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  transition: 'color 0.2s'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#6b7280'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#9ca3af'}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#64748b'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
               >
-                ×
+                <X style={{ width: '24px', height: '24px' }} />
               </button>
             </div>
 
             {feedbackSubmitStatus === 'success' ? (
               <div style={{ textAlign: 'center', padding: '32px 0' }}>
-                <div style={{ color: '#059669', fontSize: '48px', marginBottom: '8px' }}>✓</div>
-                <p style={{ color: '#059669', fontWeight: '500' }}>Thank you for your feedback!</p>
-                <p style={{ color: '#6b7280', fontSize: '14px', marginTop: '4px' }}>This helps us improve the system.</p>
+                <div 
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: '24px',
+                    margin: '0 auto 16px'
+                  }}
+                >
+                  ✓
+                </div>
+                <h4 style={{ fontSize: '18px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>
+                  Thank you for your feedback!
+                </h4>
+                <p style={{ color: '#64748b' }}>This helps us improve the system.</p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '14px', 
+                    fontWeight: '500', 
+                    color: '#374151', 
+                    marginBottom: '8px'
+                  }}>
                     Name
                   </label>
                   <input
@@ -1184,17 +1573,35 @@ export default function ChatPage() {
                     required
                     style={{
                       width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
+                      padding: '16px',
+                      background: 'rgba(255, 255, 255, 0.8)',
+                      backdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(226, 232, 240, 0.6)',
+                      borderRadius: '12px',
                       fontSize: '14px',
-                      outline: 'none'
+                      outline: 'none',
+                      transition: 'all 0.2s'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#82b3db'
+                      e.currentTarget.style.ring = '2px'
+                      e.currentTarget.style.ringColor = 'rgba(130, 179, 219, 0.5)'
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'
+                      e.currentTarget.style.ring = '0'
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '14px', 
+                    fontWeight: '500', 
+                    color: '#374151', 
+                    marginBottom: '8px'
+                  }}>
                     Email
                   </label>
                   <input
@@ -1205,17 +1612,32 @@ export default function ChatPage() {
                     required
                     style={{
                       width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
+                      padding: '16px',
+                      background: 'rgba(255, 255, 255, 0.8)',
+                      backdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(226, 232, 240, 0.6)',
+                      borderRadius: '12px',
                       fontSize: '14px',
-                      outline: 'none'
+                      outline: 'none',
+                      transition: 'all 0.2s'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#82b3db'
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '14px', 
+                    fontWeight: '500', 
+                    color: '#374151', 
+                    marginBottom: '8px'
+                  }}>
                     Feedback
                   </label>
                   <textarea
@@ -1227,12 +1649,21 @@ export default function ChatPage() {
                     placeholder="Share your thoughts, bugs you've found, or suggestions for improvement..."
                     style={{
                       width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
+                      padding: '16px',
+                      background: 'rgba(255, 255, 255, 0.8)',
+                      backdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(226, 232, 240, 0.6)',
+                      borderRadius: '12px',
                       fontSize: '14px',
                       outline: 'none',
-                      resize: 'vertical'
+                      resize: 'vertical',
+                      transition: 'all 0.2s'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#82b3db'
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'
                     }}
                   />
                 </div>
@@ -1249,15 +1680,17 @@ export default function ChatPage() {
                     onClick={() => setShowFeedbackModal(false)}
                     style={{
                       flex: 1,
-                      padding: '8px 16px',
-                      border: '1px solid #d1d5db',
-                      color: '#374151',
-                      borderRadius: '6px',
+                      padding: '12px 16px',
+                      border: '1px solid #cbd5e1',
+                      color: '#334155',
+                      borderRadius: '12px',
                       backgroundColor: 'white',
                       cursor: 'pointer',
-                      fontSize: '14px'
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      transition: 'all 0.2s'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
                   >
                     Cancel
@@ -1267,20 +1700,21 @@ export default function ChatPage() {
                     disabled={isSubmittingFeedback}
                     style={{
                       flex: 1,
-                      backgroundColor: isSubmittingFeedback ? '#9ca3af' : '#2563eb',
-                      color: 'white',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
+                      background: isSubmittingFeedback ? '#cbd5e1' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                      color: isSubmittingFeedback ? '#64748b' : 'white',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
                       border: 'none',
                       cursor: isSubmittingFeedback ? 'not-allowed' : 'pointer',
                       fontSize: '14px',
-                      transition: 'background-color 0.2s'
+                      fontWeight: '500',
+                      transition: 'all 0.2s'
                     }}
                     onMouseEnter={(e) => {
-                      if (!isSubmittingFeedback) e.currentTarget.style.backgroundColor = '#1d4ed8'
+                      if (!isSubmittingFeedback) e.currentTarget.style.transform = 'scale(1.05)'
                     }}
                     onMouseLeave={(e) => {
-                      if (!isSubmittingFeedback) e.currentTarget.style.backgroundColor = '#2563eb'
+                      if (!isSubmittingFeedback) e.currentTarget.style.transform = 'scale(1)'
                     }}
                   >
                     {isSubmittingFeedback ? 'Sending...' : 'Send Feedback'}
@@ -1296,49 +1730,52 @@ export default function ChatPage() {
       {showContactModal && contactInfo && (
         <div style={{
           position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
+          inset: 0,
           backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          backdropFilter: 'blur(4px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 1000
+          padding: '16px',
+          zIndex: 50
         }}>
           <div style={{
-            backgroundColor: 'white',
-            borderRadius: '0.5rem',
-            padding: '1.5rem',
+            background: 'rgba(255, 255, 255, 0.9)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: '16px',
+            padding: '24px',
             maxWidth: '500px',
-            width: '90%',
-            maxHeight: '80vh',
-            overflowY: 'auto'
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            border: '1px solid rgba(226, 232, 240, 0.4)'
           }}>
             <h3 style={{
-              fontSize: '1.25rem',
+              fontSize: '20px',
               fontWeight: '600',
-              marginBottom: '1rem'
+              marginBottom: '8px',
+              color: '#1e293b'
             }}>
               Contact {contactInfo.person}
             </h3>
             
             <p style={{
-              fontSize: '0.875rem',
-              color: '#6b7280',
-              marginBottom: '1.5rem'
+              fontSize: '14px',
+              color: '#64748b',
+              marginBottom: '24px'
             }}>
-            Send a message about &ldquo;{contactInfo.documentTitle}&rdquo;
+              Send a message about "{contactInfo.documentTitle}"
             </p>
 
-            <div style={{ display: 'grid', gap: '1rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={{
                     display: 'block',
-                    fontSize: '0.875rem',
+                    fontSize: '14px',
                     fontWeight: '500',
-                    marginBottom: '0.5rem'
+                    marginBottom: '8px',
+                    color: '#374151'
                   }}>
                     Your Name *
                   </label>
@@ -1349,20 +1786,26 @@ export default function ChatPage() {
                     required
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      background: 'rgba(255, 255, 255, 0.8)',
+                      border: '1px solid rgba(226, 232, 240, 0.6)',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      outline: 'none',
+                      transition: 'all 0.2s'
                     }}
+                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                    onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'}
                   />
                 </div>
                 
                 <div>
                   <label style={{
                     display: 'block',
-                    fontSize: '0.875rem',
+                    fontSize: '14px',
                     fontWeight: '500',
-                    marginBottom: '0.5rem'
+                    marginBottom: '8px',
+                    color: '#374151'
                   }}>
                     Your Email *
                   </label>
@@ -1373,11 +1816,16 @@ export default function ChatPage() {
                     required
                     style={{
                       width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
+                      padding: '12px',
+                      background: 'rgba(255, 255, 255, 0.8)',
+                      border: '1px solid rgba(226, 232, 240, 0.6)',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      outline: 'none',
+                      transition: 'all 0.2s'
                     }}
+                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                    onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'}
                   />
                 </div>
               </div>
@@ -1385,9 +1833,10 @@ export default function ChatPage() {
               <div>
                 <label style={{
                   display: 'block',
-                  fontSize: '0.875rem',
+                  fontSize: '14px',
                   fontWeight: '500',
-                  marginBottom: '0.5rem'
+                  marginBottom: '8px',
+                  color: '#374151'
                 }}>
                   Subject *
                 </label>
@@ -1399,20 +1848,26 @@ export default function ChatPage() {
                   placeholder="Question about the document..."
                   style={{
                     width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem'
+                    padding: '12px',
+                    background: 'rgba(255, 255, 255, 0.8)',
+                    border: '1px solid rgba(226, 232, 240, 0.6)',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'all 0.2s'
                   }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'}
                 />
               </div>
 
               <div>
                 <label style={{
                   display: 'block',
-                  fontSize: '0.875rem',
+                  fontSize: '14px',
                   fontWeight: '500',
-                  marginBottom: '0.5rem'
+                  marginBottom: '8px',
+                  color: '#374151'
                 }}>
                   Message *
                 </label>
@@ -1424,16 +1879,21 @@ export default function ChatPage() {
                   placeholder="Your question or comment..."
                   style={{
                     width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
-                    resize: 'vertical'
+                    padding: '12px',
+                    background: 'rgba(255, 255, 255, 0.8)',
+                    border: '1px solid rgba(226, 232, 240, 0.6)',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    outline: 'none',
+                    resize: 'vertical',
+                    transition: 'all 0.2s'
                   }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'}
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -1443,13 +1903,20 @@ export default function ChatPage() {
                   }}
                   disabled={sendingContact}
                   style={{
-                    padding: '0.5rem 1rem',
-                    fontSize: '0.875rem',
-                    color: '#6b7280',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    color: '#64748b',
                     backgroundColor: 'white',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    cursor: sendingContact ? 'not-allowed' : 'pointer'
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    cursor: sendingContact ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!sendingContact) e.currentTarget.style.backgroundColor = '#f8fafc'
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!sendingContact) e.currentTarget.style.backgroundColor = 'white'
                   }}
                 >
                   Cancel
@@ -1459,13 +1926,20 @@ export default function ChatPage() {
                   onClick={handleContactSubmit}
                   disabled={sendingContact}
                   style={{
-                    padding: '0.5rem 1rem',
-                    fontSize: '0.875rem',
-                    color: 'white',
-                    backgroundColor: sendingContact ? '#9ca3af' : '#2563eb',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    color: sendingContact ? '#64748b' : 'white',
+                    background: sendingContact ? '#cbd5e1' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
                     border: 'none',
-                    borderRadius: '0.375rem',
-                    cursor: sendingContact ? 'not-allowed' : 'pointer'
+                    borderRadius: '8px',
+                    cursor: sendingContact ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!sendingContact) e.currentTarget.style.transform = 'scale(1.05)'
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!sendingContact) e.currentTarget.style.transform = 'scale(1)'
                   }}
                 >
                   {sendingContact ? 'Sending...' : 'Send Message'}
@@ -1478,14 +1952,55 @@ export default function ChatPage() {
 
       {/* CSS Animations */}
       <style jsx>{`
-        @keyframes blink {
-          0%, 50% { opacity: 1; }
-          51%, 100% { opacity: 0; }
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
         
+        @keyframes slideInLeft {
+          from {
+            opacity: 0;
+            transform: translateX(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        
+        @keyframes slideInRight {
+          from {
+            opacity: 0;
+            transform: translateX(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
         @keyframes bounce {
-          0%, 80%, 100% { transform: scale(0); }
-          40% { transform: scale(1); }
+          0%, 80%, 100% {
+            transform: translateY(0);
+          }
+          40% {
+            transform: translateY(-10px);
+          }
+        }
+
+        @keyframes spin {
+          0% {
+            transform: rotate(0deg);
+          }
+          100% {
+            transform: rotate(360deg);
+          }
         }
       `}</style>
     </div>

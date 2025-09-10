@@ -1,13 +1,20 @@
 import { NextRequest } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { withSupabaseAdmin } from '@/lib/supabase'
 import { createEmbedding } from '@/lib/openai'
-import { searchChunks } from '@/lib/pinecone'
+import { intelligentSearch } from '@/lib/hybrid-search'
 import { getCurrentUser } from '@/lib/auth'
 import { chatRateLimit } from '@/lib/rate-limiter';
 import { getIdentifier } from '@/lib/get-identifier';
 import { sanitizeInput } from '@/lib/input-sanitizer';
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
+import { 
+  advancedCache, 
+  CACHE_NAMESPACES, 
+  CACHE_TTL, 
+  getCachedConversationHistory,
+  cacheConversationHistory 
+} from '@/lib/advanced-cache'
 import OpenAI from 'openai'
 import { hashQuestion, getCachedResponse, setCachedResponse } from '@/lib/cache'
 
@@ -81,14 +88,21 @@ export async function POST(request: NextRequest) {
     // =================================================================
     // SESSION VERIFICATION - Ensure session belongs to this user
     // =================================================================
-    const { data: session, error: sessionError } = await supabaseAdmin
-      .from('chat_sessions')
-      .select('id')
-      .eq('id', sessionId)
-      .eq('user_id', user.id)
-      .single()
+    const session = await withSupabaseAdmin(async (supabase) => {
+      const { data, error } = await supabase
+        .from('chat_sessions')
+        .select('id')
+        .eq('id', sessionId)
+        .eq('user_id', user.id)
+        .single()
+      
+      if (error || !data) {
+        throw new Error('Invalid session')
+      }
+      return data
+    }).catch(() => null)
 
-    if (sessionError || !session) {
+    if (!session) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid session' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -160,39 +174,53 @@ export async function POST(request: NextRequest) {
     const questionEmbedding = await createEmbedding(trimmedQuestion)
 
     // =================================================================
-    // STEP 2: VECTOR SEARCH - Find relevant document chunks
+    // STEP 2: HYBRID SEARCH - Advanced semantic + keyword search
     // =================================================================
-    console.log('Searching for relevant chunks...')
-    const relevantChunks = await searchChunks(
+    console.log('Starting intelligent hybrid search...')
+    const searchResult = await intelligentSearch(
+      trimmedQuestion,
       questionEmbedding,
-      20,
-      0.3
+      {
+        maxResults: 20,
+        minSemanticScore: 0.3,
+        minKeywordScore: 0.1,
+        userId: user.id,
+        enableCache: true
+      }
     )
 
-    console.log(`Found ${relevantChunks.length} relevant chunks`)
+    const relevantChunks = searchResult.results
+    console.log(`Hybrid search completed: ${relevantChunks.length} chunks found using ${searchResult.searchStrategy} (confidence: ${(searchResult.confidence * 100).toFixed(1)}%)`)
 
     // =================================================================
     // HANDLE NO RESULTS - Return helpful message if no relevant content
     // =================================================================
     if (relevantChunks.length === 0) {
-      const noResultsMessage = "I couldn't find any relevant information in the uploaded documents to answer your question. You might want to try rephrasing your question or check if relevant documents have been uploaded."
+      const noResultsMessage = searchResult.suggestions && searchResult.suggestions.length > 0
+        ? `I couldn't find any relevant information in the uploaded documents to answer your question. ${searchResult.suggestions.join(' ')} You might also want to check if relevant documents have been uploaded.`
+        : "I couldn't find any relevant information in the uploaded documents to answer your question. You might want to try rephrasing your question or check if relevant documents have been uploaded."
       
-      // Save conversation with no sources
-      await supabaseAdmin
-        .from('conversations')
-        .insert({
-          user_id: user.id,
-          session_id: sessionId,
-          question: trimmedQuestion,
-          answer: noResultsMessage,
-          sources: []
-        })
+      // Save conversation with no sources using connection pool
+      await withSupabaseAdmin(async (supabase) => {
+        await supabase
+          .from('conversations')
+          .insert({
+            user_id: user.id,
+            session_id: sessionId,
+            question: trimmedQuestion,
+            answer: noResultsMessage,
+            sources: []
+          })
+      })
 
       return new Response(
         JSON.stringify({
           type: 'complete',
           answer: noResultsMessage,
-          sources: []
+          sources: [],
+          searchStrategy: searchResult.searchStrategy,
+          confidence: searchResult.confidence,
+          suggestions: searchResult.suggestions
         }),
         { headers: { 'Content-Type': 'application/json' } }
       )
@@ -232,23 +260,27 @@ export async function POST(request: NextRequest) {
     // Get unique document titles from chunks
     const uniqueDocumentTitles = [...new Set(relevantChunks.map(chunk => chunk.documentTitle))]
     
-    // Fetch document metadata from database
-    const { data: documentsWithMetadata, error: metadataError } = await supabaseAdmin
-      .from('documents')
-      .select(`
-        title,
-        author,
-        amazon_url,
-        resource_url,
-        download_enabled,
-        contact_person,
-        contact_email
-      `)
-      .in('title', uniqueDocumentTitles)
+    // Fetch document metadata from database with connection pooling
+    const documentsWithMetadata = await withSupabaseAdmin(async (supabase) => {
+      const { data, error } = await supabase
+        .from('documents')
+        .select(`
+          title,
+          author,
+          amazon_url,
+          resource_url,
+          download_enabled,
+          contact_person,
+          contact_email
+        `)
+        .in('title', uniqueDocumentTitles)
 
-    if (metadataError) {
-      console.error('Error fetching document metadata:', metadataError)
-    }
+      if (error) {
+        console.error('Error fetching document metadata:', error)
+        return []
+      }
+      return data || []
+    })
 
     // Build sources array with metadata
     const sources = relevantChunks
@@ -283,16 +315,35 @@ export async function POST(request: NextRequest) {
       .slice(0, 8)
 
     // =================================================================
-    // STEP 5: GET CONVERSATION HISTORY FOR CONTEXT
+    // STEP 5: GET CONVERSATION HISTORY FOR CONTEXT (WITH CACHING)
     // =================================================================
-    console.log('Fetching conversation history...')
-    const { data: recentConversations, error: historyError } = await supabaseAdmin
-      .from('conversations')
-      .select('question, answer')
-      .eq('session_id', sessionId)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true })
-      .limit(2) // Get last 2 messages only
+    console.log('Fetching conversation history with caching...')
+    let recentConversations = getCachedConversationHistory(sessionId)
+    
+    if (!recentConversations) {
+      // Cache miss - fetch from database using optimized connection
+      const conversations = await withSupabaseAdmin(async (supabase) => {
+        const { data, error } = await supabase
+          .from('conversations')
+          .select('question, answer')
+          .eq('session_id', sessionId)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true })
+          .limit(2) // Get last 2 messages only
+        
+        if (error) {
+          console.error('Error fetching conversation history:', error)
+          return []
+        }
+        return data || []
+      })
+      
+      recentConversations = conversations
+      cacheConversationHistory(sessionId, conversations)
+      console.log(`Conversation history cached for session ${sessionId}`)
+    } else {
+      console.log(`Using cached conversation history for session ${sessionId}`)
+    }
 
     let conversationHistory = ''
     if (recentConversations && recentConversations.length > 0) {
@@ -409,22 +460,36 @@ ${contextDocuments}`
               await setCachedResponse(questionHash, fullResponse, sources)
               console.log(`✅ PERFECT CACHE: Stored complete response (${fullResponse.length} chars)`)
               
-              // Save conversation to database
-              await supabaseAdmin
-                .from('conversations')
-                .insert({
-                  user_id: user.id,
-                  session_id: sessionId,
-                  question: trimmedQuestion,
-                  answer: fullResponse,
-                  sources: sources
-                })
+              // Save conversation to database using connection pool
+              await withSupabaseAdmin(async (supabase) => {
+                const { error: insertError } = await supabase
+                  .from('conversations')
+                  .insert({
+                    user_id: user.id,
+                    session_id: sessionId,
+                    question: trimmedQuestion,
+                    answer: fullResponse,
+                    sources: sources
+                  })
 
-              // Update session timestamp
-              await supabaseAdmin
-                .from('chat_sessions')
-                .update({ updated_at: new Date().toISOString() })
-                .eq('id', sessionId)
+                if (insertError) {
+                  console.error('Error saving conversation:', insertError)
+                  throw insertError
+                }
+
+                // Update session timestamp
+                const { error: updateError } = await supabase
+                  .from('chat_sessions')
+                  .update({ updated_at: new Date().toISOString() })
+                  .eq('id', sessionId)
+
+                if (updateError) {
+                  console.error('Error updating session:', updateError)
+                }
+              })
+
+              // Clear cached conversation history since we added a new message
+              advancedCache.delete(CACHE_NAMESPACES.CHAT_HISTORY, sessionId)
 
               // Track onboarding milestone
               await trackOnboardingMilestone({

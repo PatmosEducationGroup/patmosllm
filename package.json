@@ -6,7 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:load": "artillery run artillery-config.yml",
+    "test:quick": "artillery run artillery-quick-test.yml",
+    "test:performance": "node test-performance.js",
+    "test:artillery": "npm run test:quick && echo '\n🎯 Run npm run test:load for full Artillery load test'",
+    "monitor": "./monitor-performance.sh",
+    "health": "curl -s http://localhost:3000/api/admin/system-health | jq . || curl -s http://localhost:3000/api/admin/system-health",
+    "verify": "echo '🔍 Verifying Performance Improvements...' && npm run health && echo '\n📊 Run npm run test:performance for full validation'"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.31.2",
@@ -44,6 +51,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "artillery": "^2.0.24",
     "autoprefixer": "^10.4.21",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
