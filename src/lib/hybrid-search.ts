@@ -30,8 +30,8 @@ interface HybridSearchOptions {
 const DEFAULT_HYBRID_OPTIONS: HybridSearchOptions = {
   semanticWeight: 0.7,
   keywordWeight: 0.3,
-  minSemanticScore: 0.3,
-  minKeywordScore: 0.1,
+  minSemanticScore: 0.5, // Increased from 0.3 to 0.5 for stricter matching
+  minKeywordScore: 0.3,  // Increased from 0.1 to 0.3 for stricter matching
   maxResults: 15,
   enableCache: true
 }

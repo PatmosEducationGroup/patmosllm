@@ -254,6 +254,25 @@ export async function POST(request: NextRequest) {
     console.log(`Using context from ${uniqueDocuments} different documents with ${context.length} total chunks`)
 
     // =================================================================
+    // SECURITY CHECK: REFUSE IF NO RELEVANT DOCUMENTS FOUND OR LOW CONFIDENCE
+    // =================================================================
+    if (context.length === 0 || searchResult.confidence < 40) {
+      console.log(`Security check triggered - context: ${context.length} chunks, confidence: ${searchResult.confidence}% - refusing to answer`)
+      return new Response(
+        JSON.stringify({
+          answer: "I don't have information about that in the available documents. Please contact support if you need help with topics outside our knowledge base.",
+          sources: [],
+          session_id: sessionId,
+          cached: false
+        }),
+        { 
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // =================================================================
     // STEP 4: PREPARE SOURCES FOR FRONTEND WITH METADATA
     // =================================================================
     
@@ -364,21 +383,23 @@ export async function POST(request: NextRequest) {
       )
       .join('\n\n')
       
-    const systemPrompt = `You're a helpful AI assistant that answers questions using the organization's knowledge base.
+    const systemPrompt = `You are a strict document-based AI assistant. You MUST ONLY answer questions using information from the provided documents below.
 
-Be conversational and natural - like you're talking to a colleague. Don't be overly formal or robotic.
+STRICT RULES - NO EXCEPTIONS:
+- ONLY use information that appears in the provided documents
+- NEVER use your general knowledge or training data
+- If the answer is not in the documents, say "I don't have information about that in the available documents"
+- NEVER provide information from outside sources, even if you know it
+- NEVER make assumptions or provide general knowledge
+- NEVER answer questions about topics not covered in the documents
+- If someone asks about baking, cooking, general facts, etc. that aren't in the docs, refuse politely
 
-Key instructions:
-- Answer directly and helpfully using the provided documents
-- Use the conversation history to provide contextual responses
-- If someone asks "tell me more about that" or similar, refer to the previous conversation
-- If you don't know something from the docs, just say so naturally
-- Keep it friendly and conversational
-- Make reasonable connections between related information
-- Be confident when the information is clear
+Response guidelines:
+- Be helpful and conversational when the information IS in the documents
+- Use conversation history for context only if it relates to the documents
 - DON'T cite sources in your response - sources will be shown separately
-- Synthesize information across documents when it makes sense
-- Use a natural, helpful tone
+- Synthesize information across the provided documents when relevant
+- If asked about something not in the documents, politely decline and suggest they contact support
 
 ${conversationHistory}
 

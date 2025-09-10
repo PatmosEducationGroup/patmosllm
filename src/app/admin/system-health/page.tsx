@@ -10,7 +10,10 @@ import {
   MessageSquare, 
   CheckCircle,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Zap,
+  Activity,
+  Gauge
 } from 'lucide-react'
 
 interface SystemHealth {
@@ -18,7 +21,27 @@ interface SystemHealth {
     status: string
     responseTime: number
     connected: boolean
+    connectionPool: {
+      utilization: number
+      activeConnections: number
+      totalConnections: number
+      queueLength: number
+    }
     error?: string
+  }
+  cache: {
+    hits: number
+    misses: number
+    hitRate: number
+    totalEntries: number
+    memoryUsage: number
+    memoryUsageMB: number
+    evictions: number
+    status: string
+  }
+  vectorDatabase: {
+    status: string
+    connected: boolean
   }
   users: {
     total: number
@@ -29,16 +52,32 @@ interface SystemHealth {
   documents: {
     total: number
     totalSizeBytes: number
+    totalSizeMB: number
     recent24h: number
   }
   conversations: {
     total: number
     recent24h: number
   }
+  performance: {
+    databaseUtilization: number
+    cacheHitRate: number
+    estimatedConcurrentCapacity: number
+    status: string
+  }
   system: {
     uptime: number
     timestamp: string
     version: string
+    nodeVersion: string
+    memoryUsage: {
+      rss: number
+      heapTotal: number
+      heapUsed: number
+      external: number
+      arrayBuffers: number
+    }
+    features: string[]
   }
 }
 
@@ -182,16 +221,20 @@ export default function SystemHealthPage() {
                   <div className="text-sm text-gray-600">Database Response</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">{formatUptime(health.system.uptime)}</div>
-                  <div className="text-sm text-gray-600">System Uptime</div>
+                  <div className={`text-2xl font-bold ${health.cache.hitRate > 50 ? 'text-green-600' : health.cache.hitRate > 25 ? 'text-yellow-600' : 'text-red-600'}`}>
+                    {health.cache.hitRate.toFixed(1)}%
+                  </div>
+                  <div className="text-sm text-gray-600">Cache Hit Rate</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">{health.users.active}</div>
-                  <div className="text-sm text-gray-600">Active Users</div>
+                  <div className="text-2xl font-bold text-green-600">{health.performance.estimatedConcurrentCapacity}</div>
+                  <div className="text-sm text-gray-600">Concurrent Capacity</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">{health.system.version}</div>
-                  <div className="text-sm text-gray-600">App Version</div>
+                  <div className={`text-2xl font-bold ${health.database.connectionPool.utilization < 70 ? 'text-green-600' : 'text-yellow-600'}`}>
+                    {health.database.connectionPool.utilization.toFixed(0)}%
+                  </div>
+                  <div className="text-sm text-gray-600">DB Utilization</div>
                 </div>
               </div>
             </div>
@@ -218,6 +261,12 @@ export default function SystemHealthPage() {
                     <span className="text-gray-600">Status</span>
                     <span className={`font-medium ${health.database.connected ? 'text-green-600' : 'text-red-600'}`}>
                       {health.database.connected ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Pool Utilization</span>
+                    <span className={`font-medium ${health.database.connectionPool.utilization < 70 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {health.database.connectionPool.utilization.toFixed(1)}%
                     </span>
                   </div>
                 </div>
@@ -290,6 +339,152 @@ export default function SystemHealthPage() {
                     </span>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Advanced Performance Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Cache Performance */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <Zap className="h-8 w-8 text-yellow-500" />
+                  <div className="ml-4">
+                    <h3 className="text-lg font-medium text-gray-900">Cache</h3>
+                    <p className={`text-sm ${
+                      health.cache.status === 'optimal' ? 'text-green-600' : 
+                      health.cache.status === 'good' ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {health.cache.status}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Hit Rate</span>
+                    <span className={`font-medium ${health.cache.hitRate > 50 ? 'text-green-600' : health.cache.hitRate > 25 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {health.cache.hitRate.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Total Entries</span>
+                    <span className="font-medium">{health.cache.totalEntries}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Memory Usage</span>
+                    <span className="font-medium">{health.cache.memoryUsageMB.toFixed(1)} MB</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Evictions</span>
+                    <span className="font-medium">{health.cache.evictions}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Connection Pool */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <Database className="h-8 w-8 text-indigo-500" />
+                  <div className="ml-4">
+                    <h3 className="text-lg font-medium text-gray-900">Connection Pool</h3>
+                    <p className={`text-sm ${
+                      health.database.connectionPool.utilization < 70 ? 'text-green-600' : 
+                      health.database.connectionPool.utilization < 85 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {health.database.connectionPool.utilization.toFixed(1)}% utilized
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Active</span>
+                    <span className="font-medium">{health.database.connectionPool.activeConnections}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Total Pool</span>
+                    <span className="font-medium">{health.database.connectionPool.totalConnections}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Queue Length</span>
+                    <span className={`font-medium ${health.database.connectionPool.queueLength > 5 ? 'text-red-600' : 'text-green-600'}`}>
+                      {health.database.connectionPool.queueLength}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Vector Database */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <Activity className="h-8 w-8 text-pink-500" />
+                  <div className="ml-4">
+                    <h3 className="text-lg font-medium text-gray-900">Vector DB</h3>
+                    <p className={`text-sm ${health.vectorDatabase.connected ? 'text-green-600' : 'text-red-600'}`}>
+                      {health.vectorDatabase.status}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Status</span>
+                    <span className={`font-medium ${health.vectorDatabase.connected ? 'text-green-600' : 'text-red-600'}`}>
+                      {health.vectorDatabase.connected ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Search Type</span>
+                    <span className="font-medium">Hybrid (Semantic + Keyword)</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Embedding Model</span>
+                    <span className="font-medium">text-embedding-3-small</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance Metrics */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <Gauge className="h-8 w-8 text-emerald-500" />
+                  <div className="ml-4">
+                    <h3 className="text-lg font-medium text-gray-900">Performance</h3>
+                    <p className={`text-sm ${
+                      health.performance.status === 'excellent' ? 'text-green-600' : 'text-yellow-600'
+                    }`}>
+                      {health.performance.status}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Concurrent Capacity</span>
+                    <span className="font-medium text-green-600">{health.performance.estimatedConcurrentCapacity} users</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">DB Utilization</span>
+                    <span className={`font-medium ${health.performance.databaseUtilization < 70 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {health.performance.databaseUtilization.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Cache Efficiency</span>
+                    <span className={`font-medium ${health.performance.cacheHitRate > 50 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {health.performance.cacheHitRate.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* System Features */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Active Performance Features</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {health.system.features.map((feature, index) => (
+                  <div key={index} className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span className="text-sm text-gray-700">{feature}</span>
+                  </div>
+                ))}
               </div>
             </div>
 

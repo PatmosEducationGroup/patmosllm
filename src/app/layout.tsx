@@ -16,11 +16,12 @@ export const metadata = {
     shortcut: '/favicon.ico',
     apple: '/apple-touch-icon.png',
   },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-  },
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({
@@ -32,7 +33,7 @@ export default function RootLayout({
     <ClerkProvider
       publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       signInUrl="/sign-in"
-      signInFallbackRedirectUrl="/"
+      fallbackRedirectUrl="/"
     >
       <html lang="en">
         <head>

@@ -444,7 +444,32 @@ export default function ModernChatPage() {
 
     setMessages(prev => [...prev, assistantMessage])
 
+    // Timeout and cleanup management
+    let updateInterval: NodeJS.Timeout | null = null
+    let timeoutId: NodeJS.Timeout | null = null
+    let isStreamComplete = false
+
+    const cleanup = () => {
+      if (updateInterval) {
+        clearInterval(updateInterval)
+        updateInterval = null
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+    }
+
     try {
+      // Create AbortController for request timeout
+      const abortController = new AbortController()
+      
+      // Set overall timeout for the entire request (2 minutes)
+      timeoutId = setTimeout(() => {
+        abortController.abort()
+        console.error('Request timeout - aborting')
+      }, 120000)
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -453,26 +478,50 @@ export default function ModernChatPage() {
         body: JSON.stringify({ 
           question: questionText,
           sessionId: currentSessionId 
-        })
+        }),
+        signal: abortController.signal
       })
 
       if (!response.ok) {
-        throw new Error('Failed to get response')
+        const errorText = await response.text()
+        throw new Error(`HTTP ${response.status}: ${errorText}`)
+      }
+
+      // Check if response is actually streaming
+      const contentType = response.headers.get('content-type')
+      if (!contentType?.includes('text/plain') && !contentType?.includes('text/event-stream')) {
+        // Handle non-streaming JSON response
+        const jsonResponse = await response.json()
+        
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId
+            ? { 
+                ...msg, 
+                content: jsonResponse.answer || 'No response received',
+                sources: jsonResponse.sources || [],
+                isStreaming: false
+              }
+            : msg
+        ))
+        
+        isStreamComplete = true
+        return
       }
 
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
 
       if (!reader) {
-        throw new Error('No response body')
+        throw new Error('No response body available for streaming')
       }
 
       let streamedContent = ''
       let sources: Source[] = []
       let buffer = ''
+      let streamStartTime = Date.now()
 
       const batchUpdate = () => {
-        if (buffer) {
+        if (buffer && !isStreamComplete) {
           streamedContent += buffer
           buffer = ''
           
@@ -484,51 +533,102 @@ export default function ModernChatPage() {
         }
       }
 
-      const updateInterval = setInterval(batchUpdate, 50)
+      updateInterval = setInterval(batchUpdate, 50)
 
-      while (true) {
-        const { done, value } = await reader.read()
-        
-        if (done) {
-          clearInterval(updateInterval)
-          batchUpdate()
+      // Stream reading with additional safety checks
+      let consecutiveEmptyChunks = 0
+      const maxEmptyChunks = 100 // Prevent infinite loops on empty streams
+      
+      while (!isStreamComplete) {
+        // Add timeout check for stream reading
+        if (Date.now() - streamStartTime > 90000) {
+          console.error('Stream timeout - stopping read loop')
           break
         }
 
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n')
+        try {
+          const { done, value } = await reader.read()
+          
+          if (done) {
+            console.log('Stream completed normally')
+            batchUpdate() // Final update
+            break
+          }
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6))
-              
-              if (data.type === 'chunk') {
-                buffer += data.content
-              } else if (data.type === 'sources') {
-                sources = data.sources
-              } else if (data.type === 'complete') {
-                clearInterval(updateInterval)
+          if (!value || value.length === 0) {
+            consecutiveEmptyChunks++
+            if (consecutiveEmptyChunks > maxEmptyChunks) {
+              console.error('Too many empty chunks - stopping stream')
+              break
+            }
+            continue
+          }
+
+          consecutiveEmptyChunks = 0
+          const chunk = decoder.decode(value, { stream: true })
+          
+          if (!chunk.trim()) {
+            continue // Skip empty chunks
+          }
+
+          const lines = chunk.split('\n').filter(line => line.trim())
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const dataStr = line.slice(6).trim()
+                if (!dataStr) continue
                 
-                setMessages(prev => prev.map(msg => 
-                  msg.id === assistantMessageId
-                    ? { 
-                        ...msg, 
-                        content: streamedContent + buffer || data.fullResponse,
-                        sources: sources,
-                        isStreaming: false
-                      }
-                    : msg
-                ))
-              } else if (data.type === 'error') {
-                clearInterval(updateInterval)
-                setError(data.error)
+                const data = JSON.parse(dataStr)
+                
+                if (data.type === 'chunk' && data.content) {
+                  buffer += data.content
+                } else if (data.type === 'sources' && data.sources) {
+                  sources = data.sources
+                } else if (data.type === 'complete') {
+                  isStreamComplete = true
+                  batchUpdate() // Final update
+                  
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === assistantMessageId
+                      ? { 
+                          ...msg, 
+                          content: streamedContent + buffer || data.fullResponse || 'No content received',
+                          sources: sources,
+                          isStreaming: false
+                        }
+                      : msg
+                  ))
+                  break
+                } else if (data.type === 'error') {
+                  isStreamComplete = true
+                  throw new Error(data.error || 'Stream error occurred')
+                }
+              } catch (parseError) {
+                console.error('Error parsing streaming data:', parseError, 'Raw line:', line)
+                // Continue processing other lines instead of failing completely
               }
-            } catch (parseError) {
-              console.error('Error parsing streaming data:', parseError)
             }
           }
+        } catch (readError) {
+          console.error('Stream read error:', readError)
+          break
         }
+      }
+
+      // Ensure we have some content even if stream didn't complete properly
+      if (!isStreamComplete && (streamedContent || buffer)) {
+        console.warn('Stream incomplete but has content - finalizing message')
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId
+            ? { 
+                ...msg, 
+                content: streamedContent + buffer,
+                sources: sources,
+                isStreaming: false
+              }
+            : msg
+        ))
       }
 
       if (messages.length === 0 && currentSessionTitle === 'New Chat') {
@@ -542,10 +642,22 @@ export default function ModernChatPage() {
 
     } catch (err) {
       console.error('Streaming error:', err)
-      setError('Failed to get response')
       
+      let errorMessage = 'Failed to get response'
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          errorMessage = 'Request timed out - please try again'
+        } else {
+          errorMessage = err.message
+        }
+      }
+      
+      setError(errorMessage)
+      
+      // Remove the failed assistant message
       setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId))
     } finally {
+      cleanup()
       setLoading(false)
       setIsStreaming(false)
     }
