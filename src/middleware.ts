@@ -38,7 +38,7 @@ export default clerkMiddleware(async (auth, req) => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.pinecone.io https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.heaven.earth https://accounts.heaven.earth https://challenges.cloudflare.com",
+    "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.pinecone.io https://api.voyageai.com https://*.voyageai.com https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.heaven.earth https://accounts.heaven.earth https://challenges.cloudflare.com https://clerk-telemetry.com",
     "frame-src 'self' https://challenges.cloudflare.com",
     "object-src 'none'",
     "base-uri 'self'"

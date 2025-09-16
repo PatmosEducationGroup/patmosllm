@@ -64,7 +64,25 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null)
   const [scrapingMessage, setScrapingMessage] = useState<string | null>(null)
   const [scrapingMessageType, setScrapingMessageType] = useState<'info' | 'error'>('info')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [uploadQueue, setUploadQueue] = useState<{
+    file: File, 
+    progress: number, 
+    status: 'pending' | 'uploading' | 'completed' | 'error', 
+    error?: string,
+    metadata: {
+      title: string,
+      author: string,
+      amazonUrl: string,
+      resourceUrl: string,
+      contactPerson: string,
+      contactEmail: string,
+      downloadEnabled: boolean
+    }
+  }[]>([])
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false)
+  const [useSharedMetadata, setUseSharedMetadata] = useState(true)
+  const [showMetadataEditor, setShowMetadataEditor] = useState(false)
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadAuthor, setUploadAuthor] = useState('')
   const [uploadAmazonUrl, setUploadAmazonUrl] = useState('')
@@ -456,43 +474,235 @@ export default function AdminPage() {
 
   // File upload functions
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-      if (!allowedTypes.includes(file.type)) {
-        setError('Please select a valid file type (PDF, TXT, MD, DOCX)')
-        return
-      }
-
-      if (file.size > 50 * 1024 * 1024) {
-        setError('File size must be less than 50MB')
-        return
-      }
-
-      setSelectedFile(file)
-      setError(null)
-      
-      if (!uploadTitle) {
-        setUploadTitle(file.name.replace(/\.[^/.]+$/, ''))
-      }
+    const files = Array.from(e.target.files || [])
+    
+    if (files.length === 0) return
+    
+    // Check total files including existing queue
+    if (uploadQueue.length + files.length > 20) {
+      setError(`Maximum 20 files total. Currently have ${uploadQueue.length} files in queue.`)
+      return
     }
+    
+    const allowedTypes = [
+      'application/pdf', 
+      'text/plain', 
+      'text/markdown', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'image/gif',
+      'video/mp4',
+      'video/quicktime',
+      'video/x-msvideo'
+    ]
+    
+    const invalidFiles = files.filter(file => !allowedTypes.includes(file.type))
+    if (invalidFiles.length > 0) {
+      setError(`Invalid file type(s): ${invalidFiles.map(f => f.name).join(', ')}`)
+      return
+    }
+    
+    const oversizedFiles = files.filter(file => file.size > 100 * 1024 * 1024)
+    if (oversizedFiles.length > 0) {
+      setError(`Files too large (>100MB): ${oversizedFiles.map(f => f.name).join(', ')}`)
+      return
+    }
+
+    // Check for duplicates in current queue based on file name and size
+    const existingQueueFiles = uploadQueue.map(item => `${item.file.name}-${item.file.size}`)
+    
+    // Check for duplicates against already uploaded documents in database
+    const existingDocNames = documents.map(doc => doc.title)
+    const fileBasenames = files.map(file => file.name.replace(/\.[^/.]+$/, ''))
+    
+    const queueDuplicates = files.filter(file => existingQueueFiles.includes(`${file.name}-${file.size}`))
+    const dbDuplicates = files.filter(file => {
+      const basename = file.name.replace(/\.[^/.]+$/, '')
+      return existingDocNames.includes(basename)
+    })
+    
+    const allDuplicates = [...queueDuplicates, ...dbDuplicates]
+    const newFiles = files.filter(file => {
+      const inQueue = existingQueueFiles.includes(`${file.name}-${file.size}`)
+      const inDb = existingDocNames.includes(file.name.replace(/\.[^/.]+$/, ''))
+      return !inQueue && !inDb
+    })
+    
+    if (allDuplicates.length > 0) {
+      const queueDupNames = queueDuplicates.map(f => f.name)
+      const dbDupNames = dbDuplicates.map(f => f.name)
+      
+      let errorMsg = ''
+      if (queueDupNames.length > 0) {
+        errorMsg += `Already in queue: ${queueDupNames.join(', ')}`
+      }
+      if (dbDupNames.length > 0) {
+        if (errorMsg) errorMsg += '. '
+        errorMsg += `Already uploaded: ${dbDupNames.join(', ')}`
+      }
+      setError(errorMsg)
+    }
+    
+    if (newFiles.length === 0) return
+    
+    setSelectedFiles(prev => [...prev, ...newFiles])
+    setUploadQueue(prev => [
+      ...prev,
+      ...newFiles.map(file => ({
+        file,
+        progress: 0,
+        status: 'pending' as const,
+        metadata: {
+          title: file.name.replace(/\.[^/.]+$/, ''),
+          author: uploadAuthor,
+          amazonUrl: uploadAmazonUrl,
+          resourceUrl: uploadResourceUrl,
+          contactPerson: uploadContactPerson,
+          contactEmail: uploadContactEmail,
+          downloadEnabled: uploadDownloadEnabled
+        }
+      }))
+    ])
+    if (allDuplicates.length === 0) setError(null)
+    setShowMetadataEditor(true)
+    
+    // Set title from first file if no title set
+    if (!uploadTitle && newFiles.length > 0) {
+      setUploadTitle(newFiles[0].name.replace(/\.[^/.]+$/, ''))
+    }
+
+    // Clear the file input so users can re-select the same files
+    const fileInput = e.target
+    fileInput.value = ''
   }
 
-  const handleUpload = async () => {
-    if (!selectedFile || !userData) return
+  const processUploadQueue = async () => {
+    if (uploadQueue.length === 0 || !userData) return
 
-    setUploading(true)
-    setUploadProgress(0)
-    setError(null)
+    setIsProcessingQueue(true)
+    
+    for (let i = 0; i < uploadQueue.length; i++) {
+      const queueItem = uploadQueue[i]
+      if (queueItem.status !== 'pending') continue
 
-    try {
-      const token = await getToken()
-      if (!token) {
-        throw new Error('Authentication required')
+      // Update status to uploading
+      setUploadQueue(prev => prev.map((item, index) => 
+        index === i ? { ...item, status: 'uploading' as const } : item
+      ))
+
+      try {
+        await uploadSingleFile(queueItem.file, i)
+        
+        // Mark as completed
+        setUploadQueue(prev => prev.map((item, index) => 
+          index === i ? { ...item, status: 'completed' as const, progress: 100 } : item
+        ))
+      } catch (error) {
+        // Mark as error
+        setUploadQueue(prev => prev.map((item, index) => 
+          index === i ? { 
+            ...item, 
+            status: 'error' as const, 
+            error: error instanceof Error ? error.message : 'Upload failed' 
+          } : item
+        ))
       }
 
-      setUploadProgress(10)
+      // Add delay between uploads to avoid rate limiting
+      if (i < uploadQueue.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
+      }
+    }
 
+    setIsProcessingQueue(false)
+    loadDocuments() // Refresh document list
+    loadIngestJobs() // Refresh ingest jobs
+    
+    // Auto-clear completed uploads after a brief delay for better UX
+    setTimeout(() => {
+      setUploadQueue(currentQueue => {
+        const allCompleted = currentQueue.every(item => item.status === 'completed' || item.status === 'error')
+        if (allCompleted) {
+          setSelectedFiles([])
+          setShowMetadataEditor(false)
+          // Reset file input
+          const fileInput = document.getElementById('file-upload') as HTMLInputElement
+          if (fileInput) fileInput.value = ''
+          return [] // Clear the queue
+        }
+        return currentQueue // Keep the current queue if not all completed
+      })
+    }, 3000) // 3 second delay to let users see the completion status
+  }
+
+  const uploadSingleFile = async (file: File, queueIndex: number) => {
+    const token = await getToken()
+    if (!token) throw new Error('Authentication required')
+
+    const maxSupabaseSize = 50 * 1024 * 1024 // 50MB
+    const useBlob = file.size > maxSupabaseSize
+
+    if (useBlob) {
+      // Use Vercel Blob for large files
+      console.log(`Using Vercel Blob for large file: ${file.name} (${file.size} bytes)`)
+      
+      // Create FormData for blob upload
+      const formData = new FormData()
+      formData.append('file', file)
+
+      // Upload to Vercel Blob
+      const blobResponse = await fetch('/api/upload/blob', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      })
+
+      const blobData = await blobResponse.json()
+      if (!blobData.success) {
+        throw new Error(blobData.error || 'Failed to upload to blob storage')
+      }
+
+      // Update progress
+      setUploadQueue(prev => prev.map((item, index) => 
+        index === queueIndex ? { ...item, progress: 60 } : item
+      ))
+
+      // Process the file from blob storage
+      const processResponse = await fetch('/api/upload/process-blob', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          blobUrl: blobData.blobUrl,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+          title: uploadQueue[queueIndex].metadata.title.trim() || file.name,
+          author: uploadQueue[queueIndex].metadata.author.trim() || null,
+          amazon_url: uploadQueue[queueIndex].metadata.amazonUrl.trim() || null,
+          resource_url: uploadQueue[queueIndex].metadata.resourceUrl.trim() || null,
+          download_enabled: uploadQueue[queueIndex].metadata.downloadEnabled,
+          contact_person: uploadQueue[queueIndex].metadata.contactPerson.trim() || null,
+          contact_email: uploadQueue[queueIndex].metadata.contactEmail.trim() || null
+        })
+      })
+
+      const processData = await processResponse.json()
+      if (!processData.success) {
+        throw new Error(processData.error || 'Processing failed')
+      }
+
+    } else {
+      // Use Supabase for smaller files (existing logic)
+      console.log(`Using Supabase for regular file: ${file.name} (${file.size} bytes)`)
+
+      // Get presigned URL
       const presignedResponse = await fetch('/api/upload/presigned', {
         method: 'POST',
         headers: {
@@ -500,35 +710,39 @@ export default function AdminPage() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size,
-          mimeType: selectedFile.type
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type
         })
       })
 
       const presignedData = await presignedResponse.json()
-
       if (!presignedData.success) {
         throw new Error(presignedData.error || 'Failed to get upload URL')
       }
 
-      setUploadProgress(20)
+      // Update progress
+      setUploadQueue(prev => prev.map((item, index) => 
+        index === queueIndex ? { ...item, progress: 20 } : item
+      ))
 
+      // Upload to Supabase
       const uploadResponse = await fetch(presignedData.uploadUrl, {
         method: 'PUT',
-        body: selectedFile,
-        headers: {
-          'Content-Type': selectedFile.type,
-        }
+        body: file,
+        headers: { 'Content-Type': file.type }
       })
 
       if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text()
-        throw new Error(`Upload failed: ${uploadResponse.statusText} - ${errorText}`)
+        throw new Error(`Upload failed: ${uploadResponse.statusText}`)
       }
 
-      setUploadProgress(60)
+      // Update progress
+      setUploadQueue(prev => prev.map((item, index) => 
+        index === queueIndex ? { ...item, progress: 60 } : item
+      ))
 
+      // Process the file
       const processResponse = await fetch('/api/upload/process', {
         method: 'POST',
         headers: {
@@ -537,49 +751,60 @@ export default function AdminPage() {
         },
         body: JSON.stringify({
           storagePath: presignedData.storagePath,
-          fileName: selectedFile.name,
-          fileSize: selectedFile.size,
-          mimeType: selectedFile.type,
-          title: uploadTitle.trim() || selectedFile.name,
-          author: uploadAuthor.trim() || null,
-          amazon_url: uploadAmazonUrl.trim() || null,
-          resource_url: uploadResourceUrl.trim() || null,
-          download_enabled: uploadDownloadEnabled,
-          contact_person: uploadContactPerson.trim() || null,
-          contact_email: uploadContactEmail.trim() || null
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+          title: uploadQueue[queueIndex].metadata.title.trim() || file.name,
+          author: uploadQueue[queueIndex].metadata.author.trim() || null,
+          amazon_url: uploadQueue[queueIndex].metadata.amazonUrl.trim() || null,
+          resource_url: uploadQueue[queueIndex].metadata.resourceUrl.trim() || null,
+          download_enabled: uploadQueue[queueIndex].metadata.downloadEnabled,
+          contact_person: uploadQueue[queueIndex].metadata.contactPerson.trim() || null,
+          contact_email: uploadQueue[queueIndex].metadata.contactEmail.trim() || null
         })
       })
 
       const processData = await processResponse.json()
-
       if (!processData.success) {
         throw new Error(processData.error || 'Processing failed')
       }
-
-      setUploadProgress(100)
-
-      setSelectedFile(null)
-      setUploadTitle('')
-      setUploadAuthor('')
-      setUploadAmazonUrl('')
-      setUploadResourceUrl('')
-      setUploadDownloadEnabled(true)
-      setUploadContactPerson('')
-      setUploadContactEmail('')
-      
-      const fileInput = document.getElementById('file-upload') as HTMLInputElement
-      if (fileInput) fileInput.value = ''
-
-      await loadDocuments()
-      await loadIngestJobs()
-
-    } catch (err) {
-      console.error('Upload error:', err)
-      setError(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setUploading(false)
-      setUploadProgress(0)
     }
+
+    // Final progress update
+    setUploadQueue(prev => prev.map((item, index) => 
+      index === queueIndex ? { ...item, progress: 100 } : item
+    ))
+  }
+
+  const updateQueueItemMetadata = (index: number, field: string, value: string | boolean) => {
+    setUploadQueue(prev => prev.map((item, i) => 
+      i === index ? {
+        ...item,
+        metadata: { ...item.metadata, [field]: value }
+      } : item
+    ))
+  }
+
+  const applySharedMetadata = () => {
+    if (!useSharedMetadata) return
+    
+    setUploadQueue(prev => prev.map(item => ({
+      ...item,
+      metadata: {
+        ...item.metadata,
+        author: uploadAuthor,
+        amazonUrl: uploadAmazonUrl,
+        contactPerson: uploadContactPerson,
+        contactEmail: uploadContactEmail,
+        downloadEnabled: uploadDownloadEnabled
+      }
+    })))
+  }
+
+  const handleUpload = async () => {
+    if (!selectedFiles.length || !userData) return
+
+    await processUploadQueue()
   }
 
   const deleteDocument = async (documentId: string) => {
@@ -825,22 +1050,58 @@ export default function AdminPage() {
               {/* File Selection */}
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                  Select File (PDF, TXT, MD, DOCX - Max 50MB)
+                  Select Files (PDF, TXT, MD, DOCX, JPG, PNG, MP4 - Max 20 files, 100MB each)
                 </label>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
+                  <input
+                    id="file-upload"
+                    type="file"
+                    accept=".pdf,.txt,.md,.docx,.jpg,.jpeg,.png,.gif,.mp4,.mov,.avi"
+                    multiple
+                    onChange={handleFileSelect}
+                    disabled={uploading || isProcessingQueue}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      border: '1px solid rgba(203, 213, 225, 0.6)',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      background: 'rgba(255, 255, 255, 0.8)'
+                    }}
+                  />
+                  {uploadQueue.length > 0 && !isProcessingQueue && (
+                    <button
+                      onClick={() => {
+                        const addFileInput = document.getElementById('add-more-files') as HTMLInputElement
+                        addFileInput?.click()
+                      }}
+                      disabled={uploading || uploadQueue.length >= 20}
+                      style={{
+                        background: uploadQueue.length >= 20 ? '#cbd5e1' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: uploadQueue.length >= 20 ? '#64748b' : 'white',
+                        padding: '12px 16px',
+                        border: 'none',
+                        borderRadius: '12px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: uploadQueue.length >= 20 ? 'not-allowed' : 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Add More
+                    </button>
+                  )}
+                </div>
+                
+                {/* Hidden file input for adding more files */}
                 <input
-                  id="file-upload"
+                  id="add-more-files"
                   type="file"
-                  accept=".pdf,.txt,.md,.docx"
+                  accept=".pdf,.txt,.md,.docx,.jpg,.jpeg,.png,.gif,.mp4,.mov,.avi"
+                  multiple
                   onChange={handleFileSelect}
-                  disabled={uploading}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: '1px solid rgba(203, 213, 225, 0.6)',
-                    borderRadius: '12px',
-                    fontSize: '14px',
-                    background: 'rgba(255, 255, 255, 0.8)'
-                  }}
+                  disabled={uploading || isProcessingQueue}
+                  style={{ display: 'none' }}
                 />
               </div>
 
@@ -993,37 +1254,365 @@ export default function AdminPage() {
                 </label>
               </div>
 
-              {/* File Preview */}
-              {selectedFile && (
+              {/* Shared Metadata Settings */}
+              {uploadQueue.length > 0 && (
                 <div style={{
-                  padding: '12px',
+                  padding: '16px',
                   background: 'rgba(130, 179, 219, 0.1)',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  color: '#64748b'
+                  borderRadius: '12px',
+                  marginBottom: '16px'
                 }}>
-                  Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <h4 style={{ margin: '0', fontSize: '16px', fontWeight: '600' }}>
+                      Upload Queue ({uploadQueue.length} files)
+                    </h4>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+                      <input
+                        type="checkbox"
+                        checked={useSharedMetadata}
+                        onChange={(e) => {
+                          setUseSharedMetadata(e.target.checked)
+                          if (e.target.checked) {
+                            applySharedMetadata()
+                          }
+                        }}
+                        style={{ width: '16px', height: '16px' }}
+                      />
+                      Use shared metadata for all files
+                    </label>
+                  </div>
+
+                  {/* Shared metadata controls */}
+                  {useSharedMetadata && (
+                    <div style={{ 
+                      padding: '16px', 
+                      background: 'rgba(255, 255, 255, 0.6)', 
+                      borderRadius: '8px', 
+                      marginBottom: '16px',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                      gap: '12px'
+                    }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '6px' }}>
+                          Author (applies to all)
+                        </label>
+                        <input
+                          type="text"
+                          value={uploadAuthor}
+                          onChange={(e) => {
+                            setUploadAuthor(e.target.value)
+                            applySharedMetadata()
+                          }}
+                          placeholder="Author name..."
+                          style={{
+                            width: '100%',
+                            padding: '8px',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            fontSize: '13px'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '6px' }}>
+                          Contact Person (applies to all)
+                        </label>
+                        <input
+                          type="text"
+                          value={uploadContactPerson}
+                          onChange={(e) => {
+                            setUploadContactPerson(e.target.value)
+                            applySharedMetadata()
+                          }}
+                          placeholder="Contact person..."
+                          style={{
+                            width: '100%',
+                            padding: '8px',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            fontSize: '13px'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '6px' }}>
+                          Contact Email (applies to all)
+                        </label>
+                        <input
+                          type="email"
+                          value={uploadContactEmail}
+                          onChange={(e) => {
+                            setUploadContactEmail(e.target.value)
+                            applySharedMetadata()
+                          }}
+                          placeholder="contact@example.com"
+                          style={{
+                            width: '100%',
+                            padding: '8px',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            fontSize: '13px'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Individual file metadata */}
+                  <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    {uploadQueue.map((item, index) => (
+                      <div key={index} style={{
+                        padding: '16px',
+                        background: 'rgba(255, 255, 255, 0.8)',
+                        borderRadius: '8px',
+                        marginBottom: '12px',
+                        border: '1px solid rgba(0,0,0,0.1)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                          <div>
+                            <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>
+                              {item.file.name}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#64748b' }}>
+                              {formatFileSize(item.file.size)} • {item.file.type}
+                            </div>
+                          </div>
+                          <div style={{ minWidth: '100px', textAlign: 'right' }}>
+                            {item.status === 'pending' && (
+                              <span style={{ fontSize: '12px', color: '#64748b' }}>Ready to upload</span>
+                            )}
+                            {item.status === 'uploading' && (
+                              <div style={{ fontSize: '12px', color: '#82b3db' }}>
+                                Uploading {item.progress}%
+                              </div>
+                            )}
+                            {item.status === 'completed' && (
+                              <span style={{ fontSize: '12px', color: '#10b981' }}>✓ Completed</span>
+                            )}
+                            {item.status === 'error' && (
+                              <span style={{ fontSize: '12px', color: '#ef4444' }} title={item.error}>
+                                ✗ Error
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Individual metadata controls */}
+                        <div style={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                          gap: '12px' 
+                        }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', marginBottom: '4px' }}>
+                              Title
+                            </label>
+                            <input
+                              type="text"
+                              value={item.metadata.title}
+                              onChange={(e) => updateQueueItemMetadata(index, 'title', e.target.value)}
+                              disabled={item.status === 'uploading' || item.status === 'completed'}
+                              style={{
+                                width: '100%',
+                                padding: '6px',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                background: item.status === 'uploading' || item.status === 'completed' ? '#f8f9fa' : 'white'
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', marginBottom: '4px' }}>
+                              Amazon/Download URL
+                            </label>
+                            <input
+                              type="url"
+                              value={item.metadata.amazonUrl}
+                              onChange={(e) => updateQueueItemMetadata(index, 'amazonUrl', e.target.value)}
+                              disabled={item.status === 'uploading' || item.status === 'completed'}
+                              placeholder="https://amazon.com/..."
+                              style={{
+                                width: '100%',
+                                padding: '6px',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                background: item.status === 'uploading' || item.status === 'completed' ? '#f8f9fa' : 'white'
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', marginBottom: '4px' }}>
+                              Resource URL
+                            </label>
+                            <input
+                              type="url"
+                              value={item.metadata.resourceUrl}
+                              onChange={(e) => updateQueueItemMetadata(index, 'resourceUrl', e.target.value)}
+                              disabled={item.status === 'uploading' || item.status === 'completed'}
+                              placeholder="https://github.com/..."
+                              style={{
+                                width: '100%',
+                                padding: '6px',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                background: item.status === 'uploading' || item.status === 'completed' ? '#f8f9fa' : 'white'
+                              }}
+                            />
+                          </div>
+                          {!useSharedMetadata && (
+                            <>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', marginBottom: '4px' }}>
+                                  Author
+                                </label>
+                                <input
+                                  type="text"
+                                  value={item.metadata.author}
+                                  onChange={(e) => updateQueueItemMetadata(index, 'author', e.target.value)}
+                                  disabled={item.status === 'uploading' || item.status === 'completed'}
+                                  placeholder="Author name..."
+                                  style={{
+                                    width: '100%',
+                                    padding: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    background: item.status === 'uploading' || item.status === 'completed' ? '#f8f9fa' : 'white'
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', marginBottom: '4px' }}>
+                                  Contact Person
+                                </label>
+                                <input
+                                  type="text"
+                                  value={item.metadata.contactPerson}
+                                  onChange={(e) => updateQueueItemMetadata(index, 'contactPerson', e.target.value)}
+                                  disabled={item.status === 'uploading' || item.status === 'completed'}
+                                  placeholder="Contact person..."
+                                  style={{
+                                    width: '100%',
+                                    padding: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    background: item.status === 'uploading' || item.status === 'completed' ? '#f8f9fa' : 'white'
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', marginBottom: '4px' }}>
+                                  Contact Email
+                                </label>
+                                <input
+                                  type="email"
+                                  value={item.metadata.contactEmail}
+                                  onChange={(e) => updateQueueItemMetadata(index, 'contactEmail', e.target.value)}
+                                  disabled={item.status === 'uploading' || item.status === 'completed'}
+                                  placeholder="contact@example.com"
+                                  style={{
+                                    width: '100%',
+                                    padding: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    background: item.status === 'uploading' || item.status === 'completed' ? '#f8f9fa' : 'white'
+                                  }}
+                                />
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Global Progress Bar */}
+                  {isProcessingQueue && (
+                    <div style={{
+                      marginTop: '16px',
+                      padding: '12px',
+                      background: 'rgba(82, 179, 82, 0.1)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(82, 179, 82, 0.2)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: '500', color: '#059669' }}>
+                          Overall Progress
+                        </span>
+                        <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                          {uploadQueue.filter(item => item.status === 'completed').length} / {uploadQueue.length} completed
+                        </span>
+                      </div>
+                      <div style={{
+                        width: '100%',
+                        height: '8px',
+                        background: '#e5e7eb',
+                        borderRadius: '4px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          width: `${uploadQueue.length > 0 ? (uploadQueue.filter(item => item.status === 'completed').length / uploadQueue.length) * 100 : 0}%`,
+                          height: '100%',
+                          background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Upload Button */}
-              <button
-                onClick={handleUpload}
-                disabled={!selectedFile || uploading}
-                style={{
-                  background: !selectedFile || uploading ? '#cbd5e1' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-                  color: !selectedFile || uploading ? '#64748b' : 'white',
-                  padding: '12px 24px',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: !selectedFile || uploading ? 'not-allowed' : 'pointer',
-                  width: 'fit-content'
-                }}
-              >
-                {uploading ? 'Uploading...' : 'Upload Document'}
-              </button>
+              {/* Upload Actions */}
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <button
+                  onClick={handleUpload}
+                  disabled={uploadQueue.length === 0 || isProcessingQueue || uploadQueue.every(item => item.status !== 'pending')}
+                  style={{
+                    background: uploadQueue.length === 0 || isProcessingQueue || uploadQueue.every(item => item.status !== 'pending') ? '#cbd5e1' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                    color: uploadQueue.length === 0 || isProcessingQueue || uploadQueue.every(item => item.status !== 'pending') ? '#64748b' : 'white',
+                    padding: '12px 24px',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: uploadQueue.length === 0 || isProcessingQueue || uploadQueue.every(item => item.status !== 'pending') ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {isProcessingQueue ? 'Processing...' : 
+                   uploadQueue.every(item => item.status === 'completed') && uploadQueue.length > 0 ? '✅ All Uploads Complete' :
+                   uploadQueue.some(item => item.status === 'error') && uploadQueue.every(item => item.status !== 'pending') ? '⚠️ Upload Issues' :
+                   `Upload ${uploadQueue.filter(item => item.status === 'pending').length} Files`}
+                </button>
+                
+                {uploadQueue.length > 0 && !isProcessingQueue && (
+                  <button
+                    onClick={() => {
+                      setUploadQueue([])
+                      setSelectedFiles([])
+                      setShowMetadataEditor(false)
+                      const fileInput = document.getElementById('file-upload') as HTMLInputElement
+                      if (fileInput) fileInput.value = ''
+                    }}
+                    style={{
+                      background: 'transparent',
+                      color: '#64748b',
+                      padding: '12px 16px',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Clear Queue
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}

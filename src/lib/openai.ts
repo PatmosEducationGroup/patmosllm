@@ -1,7 +1,12 @@
 import OpenAI from 'openai'
+import { VoyageAIClient } from 'voyageai'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
+})
+
+const voyage = new VoyageAIClient({
+  apiKey: process.env.VOYAGE_API_KEY
 })
 
 // NATURAL, CONVERSATIONAL SYSTEM PROMPT
@@ -49,13 +54,12 @@ The process takes 15 minutes."
 Remember: Your goal is to have a natural conversation while sharing helpful information, not to create documentation or formal outlines.
 `;
 
-// Create embedding for text
+// Create embedding for text using Voyage AI
 export async function createEmbedding(text: string): Promise<number[]> {
   try {
-    const response = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: text.trim(),
-      encoding_format: 'float'
+    const response = await voyage.embed({
+      input: [text.trim()],
+      model: 'voyage-3-large'
     })
     
     return response.data[0].embedding
@@ -65,16 +69,15 @@ export async function createEmbedding(text: string): Promise<number[]> {
   }
 }
 
-// Create embeddings for multiple texts (batch processing)
+// Create embeddings for multiple texts (batch processing) using Voyage AI
 export async function createEmbeddings(texts: string[]): Promise<number[][]> {
   try {
-    const response = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
+    const response = await voyage.embed({
       input: texts.map(text => text.trim()),
-      encoding_format: 'float'
+      model: 'voyage-3-large'
     })
     
-    return response.data.map(item => item.embedding)
+    return response.data?.map(item => item?.embedding).filter(Boolean) as number[][] || []
   } catch (error) {
     console.error('Error creating embeddings:', error)
     throw new Error(`Failed to create embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`)

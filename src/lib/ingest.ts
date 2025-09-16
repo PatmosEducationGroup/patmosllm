@@ -47,10 +47,10 @@ export async function processDocumentVectors(documentId: string, userId: string)
       throw new Error('No chunks created from document content')
     }
 
-    // Step 2: Create embeddings in batches
+    // Step 2: Create embeddings in batches with Voyage rate limiting
     console.log('Creating embeddings in batches...')
     const embeddings = []
-    const batchSize = 100 // Process 1000 chunks at a time
+    const batchSize = 50 // Voyage AI batch limit
     const chunkContents = chunks.map(chunk => chunk.content)
 
     for (let i = 0; i < chunkContents.length; i += batchSize) {
@@ -59,8 +59,29 @@ export async function processDocumentVectors(documentId: string, userId: string)
       const totalBatches = Math.ceil(chunkContents.length/batchSize)
       
       console.log(`Processing embedding batch ${batchNumber}/${totalBatches} (${batch.length} chunks)`)
-      const batchEmbeddings = await createEmbeddings(batch)
-      embeddings.push(...batchEmbeddings)
+      
+      try {
+        const batchEmbeddings = await createEmbeddings(batch)
+        embeddings.push(...batchEmbeddings)
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('429')) {
+          console.log('Rate limit hit, waiting 30 seconds before retry...')
+          await new Promise(resolve => setTimeout(resolve, 30000)) // Wait 30 seconds
+          
+          // Retry the batch
+          console.log(`Retrying embedding batch ${batchNumber}/${totalBatches}`)
+          const batchEmbeddings = await createEmbeddings(batch)
+          embeddings.push(...batchEmbeddings)
+        } else {
+          throw error
+        }
+      }
+      
+      // Add minimal delay between batches (with payment method, much higher limits)
+      if (batchNumber < totalBatches) {
+        console.log('Waiting 1 second between batches...')
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
     }
 
     console.log(`Created ${embeddings.length} embeddings`)

@@ -121,8 +121,8 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Only ADMIN and CONTRIBUTOR can delete documents
-    if (!['ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
+    // Only ADMIN, CONTRIBUTOR, and SUPER_ADMIN can delete documents
+    if (!['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions to delete documents' },
         { status: 403 }

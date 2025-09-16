@@ -115,7 +115,7 @@ export async function deleteDocumentChunks(documentId: string): Promise<void> {
     
     // First, find all chunk IDs for this document
     const searchResponse = await index.namespace(namespace).query({
-      vector: new Array(1536).fill(0), // Dummy vector
+      vector: new Array(1024).fill(0), // Dummy vector for Voyage embeddings (1024 dimensions)
       topK: 10000, // Large number to get all chunks
       filter: {
         documentId: { $eq: documentId }

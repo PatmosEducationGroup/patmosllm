@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
     // =================================================================
     // SECURITY CHECK: REFUSE IF NO RELEVANT DOCUMENTS FOUND OR LOW CONFIDENCE
     // =================================================================
-    if (context.length === 0 || searchResult.confidence < 40) {
+    if (context.length === 0 || searchResult.confidence < 0.1) {
       console.log(`Security check triggered - context: ${context.length} chunks, confidence: ${searchResult.confidence}% - refusing to answer`)
       return new Response(
         JSON.stringify({
