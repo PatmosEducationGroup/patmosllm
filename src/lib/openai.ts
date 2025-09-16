@@ -62,6 +62,9 @@ export async function createEmbedding(text: string): Promise<number[]> {
       model: 'voyage-3-large'
     })
     
+    if (!response.data || !response.data[0] || !response.data[0].embedding) {
+      throw new Error('No embedding returned from Voyage API')
+    }
     return response.data[0].embedding
   } catch (error) {
     console.error('Error creating embedding:', error)

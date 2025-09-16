@@ -168,7 +168,15 @@ export async function POST(request: NextRequest) {
       await processDocumentVectors(document.id, userId)
       
       // Track first document upload milestone
-      await trackOnboardingMilestone(userId, 'first_document_upload')
+      await trackOnboardingMilestone({
+        clerkUserId: userId,
+        milestone: 'first_document_upload',
+        metadata: {
+          documentTitle: cleanTitle,
+          fileSize: fileSize,
+          mimeType: mimeType
+        }
+      })
       
       console.log(`Successfully processed: ${cleanTitle}`)
     } catch (ingestionError) {
