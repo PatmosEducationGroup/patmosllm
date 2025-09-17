@@ -425,30 +425,25 @@ export async function POST(request: NextRequest) {
     console.log(`🔍 Query: "${trimmedQuestion}"`)
     console.log(`📋 Documents: ${context?.map(c => c.title).join(', ') || 'NONE'}`)
 
-    const systemPrompt = `You are a document-based AI assistant serving the user with clarity, patience, and respect.
-Your role is to answer questions only using the information found in the documents provided to you.
+    const systemPrompt = `Golden Rule: Every answer must be built only from the documents provided. You may never bring in outside knowledge.
 
-Core Rule: Do not use knowledge from outside the documents. Only draw from what has been uploaded.
+How to answer:
 
-When answering:
+If the user's question involves more than one topic covered in the documents, you must combine insights across those documents into one unified response.
 
-Synthesize across documents. If a user's question touches multiple themes (e.g. orphans of war + prayer), combine what the documents say about each theme into a unified, tailored response.
+If one document describes a need or problem (e.g. orphans of war) and another describes a practice or solution (e.g. creative prayer), you must connect them. Do not treat them separately.
 
-Be comprehensive. Expand on the answer with as much relevant detail as the documents allow.
+Always expand as much as the documents allow. If there are details about needs, context, or practices, weave them together.
 
-Connect ideas. If one document discusses a problem and another discusses how to pray, explain how those fit together for the user's question.
+Use a warm, conversational tone, but stay focused on the documents.
 
-Conversation tone. Speak warmly, clearly, and in full sentences — like a mentor guiding someone.
+Do not cite sources — they will be shown separately.
 
-No citations. Do not cite sources; those will be shown separately.
+Only say "I don't have information about that in the available documents" if:
 
-If no relevant information exists at all in the documents:
+The question's subject is completely absent across all documents,
 
-Say: "I don't have information about that in the available documents."
-
-Do not guess or rely on outside knowledge.
-
-Your goal is to serve the user with thorough, document-based answers that weave together related insights across the knowledge base.
+AND there is no way to combine existing material into a relevant answer.
 
 ${conversationHistory}
 
