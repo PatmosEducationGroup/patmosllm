@@ -14,6 +14,8 @@ interface SearchResult {
   tokenCount: number
   searchType: 'semantic' | 'keyword' | 'hybrid'
   relevanceScore: number
+  originalScore?: number  // For debugging title boosting
+  titleBoost?: number     // For debugging title boosting
 }
 
 interface HybridSearchOptions {
@@ -30,8 +32,8 @@ interface HybridSearchOptions {
 const DEFAULT_HYBRID_OPTIONS: HybridSearchOptions = {
   semanticWeight: 0.7,
   keywordWeight: 0.3,
-  minSemanticScore: 0.5, // Increased from 0.3 to 0.5 for stricter matching
-  minKeywordScore: 0.3,  // Increased from 0.1 to 0.3 for stricter matching
+  minSemanticScore: 0.3, // Lowered back to 0.3 for better recall of relevant content
+  minKeywordScore: 0.1,  // Lowered back to 0.1 for better recall of relevant content
   maxResults: 15,
   enableCache: true
 }
@@ -225,13 +227,66 @@ export async function hybridSearch(
       }
     })
 
-    // Convert map back to array and sort by combined score
-    const hybridResults = Array.from(resultMap.values())
+    // Apply title relevance boosting before final sorting
+    const queryTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 2)
+    console.log(`DEBUG TITLE BOOSTING: Query terms extracted: [${queryTerms.join(', ')}]`)
+
+    const boostedResults = Array.from(resultMap.values()).map(result => {
+      let titleBoost = 0
+      const titleLower = result.documentTitle.toLowerCase()
+      const matchedTerms: string[] = []
+
+      // Check for exact title word matches
+      for (const term of queryTerms) {
+        if (titleLower.includes(term)) {
+          titleBoost += 0.15 // Boost per matching term
+          matchedTerms.push(term)
+        }
+      }
+
+      // Apply stronger boost for exact title concept matches
+      const strongMatchTerms = queryTerms.filter(term => titleLower.includes(term))
+      let conceptBonus = 0
+      if (strongMatchTerms.length >= 2) {
+        conceptBonus = 0.3 // Multiple term match bonus
+        titleBoost += conceptBonus
+      } else if (strongMatchTerms.length === 1) {
+        conceptBonus = 0.2 // Single strong term match
+        titleBoost += conceptBonus
+      }
+
+      // Debug logging for title boosting (show all results with boosts)
+      if (titleBoost > 0) {
+        console.log(`DEBUG TITLE BOOST: "${result.documentTitle}"`)
+        console.log(`  - Original score: ${result.score.toFixed(4)}`)
+        console.log(`  - Matched terms: [${matchedTerms.join(', ')}] (${matchedTerms.length}/${queryTerms.length})`)
+        console.log(`  - Term boost: ${(matchedTerms.length * 0.15).toFixed(3)}`)
+        console.log(`  - Concept bonus: ${conceptBonus.toFixed(3)}`)
+        console.log(`  - Total title boost: ${titleBoost.toFixed(3)}`)
+        console.log(`  - Final score: ${(result.score + titleBoost).toFixed(4)}`)
+      }
+
+      return {
+        ...result,
+        score: result.score + titleBoost,
+        originalScore: result.score,
+        titleBoost
+      }
+    })
+
+    // Convert to array and sort by boosted combined score
+    const hybridResults = boostedResults
       .sort((a, b) => b.score - a.score)
       .slice(0, opts.maxResults)
 
     // Add diversity scoring to prevent too many results from the same document
     const diversifiedResults = diversifyResults(hybridResults)
+
+    // Debug: Show final results with titles and scores
+    console.log(`DEBUG FINAL RESULTS (after title boosting and diversity filtering):`)
+    diversifiedResults.slice(0, 10).forEach((result, i) => {
+      console.log(`  ${i+1}. "${result.documentTitle}" - Score: ${result.score.toFixed(4)} (original: ${result.originalScore?.toFixed(4)}, boost: ${result.titleBoost?.toFixed(3)})`)
+    })
 
     // Cache results if enabled
     if (opts.enableCache) {
@@ -246,7 +301,7 @@ export async function hybridSearch(
     }
 
     console.log(`Hybrid search results: ${semanticResults.length} semantic + ${keywordResults.length} keyword = ${diversifiedResults.length} hybrid`)
-    
+
     return diversifiedResults
 
   } catch (error) {
@@ -283,17 +338,28 @@ export async function intelligentSearch(
   confidence: number
   suggestions?: string[]
 }> {
+  // Preprocess query to extract core concepts for better matching
+  const processedQuery = preprocessQuery(query)
+
+  // If query was preprocessed, we need a new embedding for the processed query
+  let finalEmbedding = queryEmbedding
+  if (processedQuery !== query) {
+    console.log(`Creating new embedding for processed query: "${processedQuery}"`)
+    const { createEmbedding } = await import('@/lib/openai')
+    finalEmbedding = await createEmbedding(processedQuery)
+  }
+
   // Analyze query intent to adjust search strategy
-  const queryAnalysis = analyzeQueryIntent(query)
-  
+  const queryAnalysis = analyzeQueryIntent(processedQuery)
+
   // Adjust weights based on query type
   const adjustedOptions = { ...options }
-  
+
   switch (queryAnalysis.type) {
     case 'factual':
-      // Favor keyword search for factual questions
-      adjustedOptions.semanticWeight = 0.4
-      adjustedOptions.keywordWeight = 0.6
+      // Balanced approach for factual questions - semantic is still important
+      adjustedOptions.semanticWeight = 0.7
+      adjustedOptions.keywordWeight = 0.3
       break
     case 'conceptual':
       // Favor semantic search for conceptual questions
@@ -310,7 +376,7 @@ export async function intelligentSearch(
       break
   }
 
-  const results = await hybridSearch(query, queryEmbedding, adjustedOptions)
+  const results = await hybridSearch(processedQuery, finalEmbedding, adjustedOptions)
   
   // Calculate confidence based on top result scores and result consistency
   const confidence = calculateSearchConfidence(results, queryAnalysis)
@@ -339,11 +405,13 @@ function analyzeQueryIntent(query: string): {
     /\b(is|are|was|were|will be|has|have|had)\s/
   ]
   
-  // Conceptual question patterns  
+  // Conceptual question patterns
   const conceptualPatterns = [
-    /^(how|why|explain|describe)/,
+    /^(how|why|explain|describe|teach)/,
     /\b(understand|concept|theory|principle|process|mechanism)\b/,
-    /\b(significance|importance|impact|effect|influence)\b/
+    /\b(significance|importance|impact|effect|influence)\b/,
+    /\b(teach me|show me|guide me|help me)\b/,
+    /\b(learn|learning|instruction|training)\b/
   ]
   
   // Comparative question patterns
@@ -422,6 +490,24 @@ function calculateSearchConfidence(results: SearchResult[], _queryAnalysis: Reco
   }
 
   return Math.min(confidence, 1.0)
+}
+
+// Query preprocessing to extract core concepts and reduce application-specific noise
+function preprocessQuery(query: string): string {
+  const queryLower = query.toLowerCase()
+
+  // Universal pattern: Extract core action before "for [context]"
+  // Example: "teach me to pray creatively for orphans of war" -> "teach me to pray creatively"
+  const forContextPattern = /^(.*?)\s+for\s+.+$/i
+
+  const match = queryLower.match(forContextPattern)
+  if (match) {
+    const coreQuery = match[1].trim()
+    console.log(`DEBUG PREPROCESSING: "${query}" -> "${coreQuery}"`)
+    return coreQuery
+  }
+
+  return query // Return original if no patterns match
 }
 
 export default hybridSearch

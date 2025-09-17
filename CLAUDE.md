@@ -36,7 +36,8 @@ npm run verify            # Overall performance verification
 - **Authentication**: Clerk (with custom role-based access control)
 - **Database**: Supabase (PostgreSQL)
 - **Vector Database**: Pinecone (for semantic search)
-- **AI**: OpenAI GPT models for chat and embeddings
+- **AI**: OpenAI GPT models for chat, Voyage-3-large for embeddings
+- **File Storage**: Vercel Blob for large files (>50MB), Supabase Storage for smaller files
 - **File Processing**: Multiple libraries (mammoth, pdf2json, pptx-parser, tesseract.js, cheerio)
 - **Email**: Resend
 
@@ -105,7 +106,9 @@ PINECONE_API_KEY
 PINECONE_INDEX
 PINECONE_NAMESPACE
 OPENAI_API_KEY
+VOYAGE_API_KEY
 RESEND_API_KEY
+BLOB_READ_WRITE_TOKEN
 ```
 
 ### Development Notes
@@ -126,6 +129,39 @@ RESEND_API_KEY
 - **Testing Documentation**: Complete guides in `PERFORMANCE-TESTING.md` and `VERIFY-IMPROVEMENTS.md`
 
 # COMPLETED IMPROVEMENTS ✅
+
+## ✅ **COMPLETED: Voyage AI Migration & Upload System Overhaul (September 16th)**
+
+### ✅ Embedding System Migration **COMPLETED**
+- ✅ **Voyage-3-large Integration**: Successfully migrated from OpenAI text-embedding-3-small to Voyage-3-large embeddings
+- ✅ **Complete Data Migration**: 65 documents (2,331 chunks) migrated with 100% success rate
+- ✅ **Pinecone Index Update**: New index with 1024 dimensions (patmosllm-voyage)
+- ✅ **Enhanced Rate Limiting**: Robust API handling with 3-second delays and retry logic
+- ✅ **Migration Scripts**: Complete automation tools for future embedding updates
+
+### ✅ Advanced Upload System **COMPLETED**
+- ✅ **Bulk Upload Capability**: Up to 20 files simultaneously with intelligent queueing
+- ✅ **Individual Metadata Controls**: Separate title, author, and links for each document
+- ✅ **Vercel Blob Storage**: Large file support (>50MB) with seamless integration
+- ✅ **Smart Upload UI**: Auto-cleanup, progress tracking, duplicate prevention
+- ✅ **Enhanced Error Handling**: Comprehensive validation and retry mechanisms
+- ✅ **Database Duplicate Detection**: Prevents re-upload of existing documents
+
+### ✅ **Upload System Results Achieved:**
+- **File Processing**: Up to 20 files per batch with individual metadata
+- **Large File Support**: Files >50MB via Vercel Blob storage
+- **UI Experience**: Auto-clearing queues, smart status indicators ("✅ All Uploads Complete")
+- **Duplicate Prevention**: Database-level checking before upload
+- **Processing Reliability**: Enhanced rate limiting prevents API failures
+
+### ✅ **Files Modified/Created:**
+- ✅ `/src/lib/openai.ts` - Updated to use Voyage AI embeddings exclusively
+- ✅ `/src/app/admin/page.tsx` - Enhanced bulk upload UI with individual metadata controls
+- ✅ `/src/lib/ingest.ts` - Improved rate limiting and batch processing
+- ✅ `/src/app/api/upload/process-blob/route.ts` - New Vercel Blob processing route
+- ✅ `/src/app/api/upload/blob/route.ts` - Blob storage upload endpoint
+- ✅ `/scripts/migrate-to-voyage.js` - Complete migration automation
+- ✅ `/src/middleware.ts` - Updated CSP for Voyage API domains
 
 ## ✅ **COMPLETED: High-Priority Scalability Improvements (October 1st)**
 
