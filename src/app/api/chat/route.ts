@@ -22,16 +22,7 @@ const openai = new OpenAI({
 })
 
 export async function POST(request: NextRequest) {
-  // ULTRA-EARLY logging that should ALWAYS appear
-  console.log('🚨 PRODUCTION DEBUG: Function started at', new Date().toISOString())
-  console.log('🚨 Environment check:', {
-    NODE_ENV: process.env.NODE_ENV,
-    VERCEL: process.env.VERCEL,
-    VERCEL_ENV: process.env.VERCEL_ENV
-  })
-
   try {
-    console.log('=== CHAT API CALLED ===')
     // =================================================================
     // RATE LIMITING - Prevent abuse by limiting requests per user/IP
     // =================================================================
@@ -190,7 +181,6 @@ export async function POST(request: NextRequest) {
     // STEP 2: HYBRID SEARCH - Advanced semantic + keyword search
     // =================================================================
     console.log('Starting intelligent hybrid search...')
-    console.log(`DEBUG: About to search for: "${trimmedQuestion}"`)
     const searchResult = await intelligentSearch(
       trimmedQuestion,
       questionEmbedding,
@@ -202,7 +192,6 @@ export async function POST(request: NextRequest) {
         enableCache: true
       }
     )
-    console.log(`DEBUG: Search completed, found ${searchResult.results.length} results`)
 
     const relevantChunks = searchResult.results
     console.log(`Hybrid search completed: ${relevantChunks.length} chunks found using ${searchResult.searchStrategy} (confidence: ${(searchResult.confidence * 100).toFixed(1)}%)`)
@@ -258,7 +247,7 @@ export async function POST(request: NextRequest) {
       }))
       .sort((a, b) => b.chunks[0].score - a.chunks[0].score)
       .flatMap(group => group.chunks)
-      .slice(0, 4) // TEMPORARY: Reduced from 8 to 4 to test token limits in production
+      .slice(0, 8)
       .map(chunk => ({
         content: chunk.content || 'No content available',
         title: chunk.documentTitle,
@@ -270,10 +259,6 @@ export async function POST(request: NextRequest) {
 
     // DEBUG: Log the actual documents being used for complex queries
     if (context.length < 8) {
-      console.log('DEBUG - Documents found:')
-      context.forEach((chunk, i) => {
-        console.log(`  ${i + 1}. "${chunk.title}" by ${chunk.author || 'Unknown'}: ${chunk.content.substring(0, 80)}...`)
-      })
     }
 
     // =================================================================
@@ -406,24 +391,7 @@ export async function POST(request: NextRequest) {
       )
       .join('\n\n')
 
-    // DEBUG: Log context being passed to AI
-    console.log(`DEBUG CONTEXT: Passing ${context.length} documents to AI`)
-    console.log(`DEBUG CONTEXT: Total context length: ${contextDocuments.length} characters`)
-    if (contextDocuments.length === 0) {
-      console.log('ERROR: No context documents found! This will cause "no information" response')
-    } else {
-      console.log(`DEBUG CONTEXT: First document preview: ${context[0]?.title} - ${context[0]?.content?.substring(0, 100)}...`)
-      console.log(`🔍 CONTEXTDOCUMENTS SAMPLE (first 300 chars): "${contextDocuments.substring(0, 300)}..."`)
-    }
       
-    // Debug logging for production (keeping logs but removing early return)
-    console.log(`🔍 PRODUCTION CONTEXT CHECK:`)
-    console.log(`📊 Context length: ${contextDocuments?.length || 0} characters`)
-    console.log(`📚 Documents found: ${context?.length || 0}`)
-    console.log(`🎯 Search confidence: ${searchResult?.confidence || 0}`)
-    console.log(`✅ Security check passed: ${!(context.length === 0 || searchResult.confidence < 0.1)}`)
-    console.log(`🔍 Query: "${trimmedQuestion}"`)
-    console.log(`📋 Documents: ${context?.map(c => c.title).join(', ') || 'NONE'}`)
 
     const systemPrompt = `Golden Rule: Every answer must be built only from the documents provided. You may never bring in outside knowledge.
 
@@ -450,19 +418,10 @@ ${conversationHistory}
 Available documents:
 ${contextDocuments}`
 
-    // TEMPORARY: Log system prompt details for debugging
-    console.log(`🤖 System prompt total length: ${systemPrompt.length} characters`)
-    console.log(`🤖 System prompt ends with: "${systemPrompt.substring(systemPrompt.length - 200)}"`)
 
     // =================================================================
     // STEP 7: STREAMING AI RESPONSE
     // =================================================================
-    console.log('Starting streaming AI response...')
-    console.log(`🤖 OpenAI Request Details:`)
-    console.log(`   Model: gpt-4o-mini`)
-    console.log(`   System prompt length: ${systemPrompt.length} chars`)
-    console.log(`   User question: "${trimmedQuestion}"`)
-    console.log(`   Temperature: 0.3, Max tokens: 2000`)
 
     let stream
     try {
@@ -476,7 +435,6 @@ ${contextDocuments}`
         max_tokens: 2000,
         stream: true,
       })
-      console.log(`✅ OpenAI API call successful, got stream`)
     } catch (openaiError) {
       console.error(`❌ OpenAI API call failed:`, openaiError)
       throw new Error(`OpenAI API failed: ${openaiError instanceof Error ? openaiError.message : 'Unknown error'}`)
@@ -508,10 +466,6 @@ ${contextDocuments}`
             if (content) {
               fullResponse += content
 
-              // Log first few chunks for debugging
-              if (chunkCount <= 3) {
-                console.log(`🔄 Stream chunk ${chunkCount}: "${content}"`)
-              }
 
               // Send each chunk to the frontend
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({
@@ -523,7 +477,6 @@ ${contextDocuments}`
             // Check if streaming is finished
             if (chunk.choices[0]?.finish_reason === 'stop') {
               streamingComplete = true
-              console.log(`✅ Streaming completed after ${chunkCount} chunks, full response length: ${fullResponse.length}`)
               break
             }
           }

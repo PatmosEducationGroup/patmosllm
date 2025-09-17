@@ -11,34 +11,13 @@ const isProtectedRoute = createRouteMatcher([
 ])
 
 export default clerkMiddleware(async (auth, req) => {
-  // PRODUCTION DEBUG: Log middleware activity
-  if (req.nextUrl.pathname === '/api/chat') {
-    console.log('🚨 MIDDLEWARE: Chat API request detected')
-    console.log('🚨 URL:', req.nextUrl.toString())
-    console.log('🚨 Method:', req.method)
-  }
-
   // Create response (either from auth protection or next)
   let response
 
   if (isProtectedRoute(req)) {
-    if (req.nextUrl.pathname === '/api/chat') {
-      console.log('🚨 MIDDLEWARE: Applying auth protection to chat API')
-    }
-
-    try {
-      await auth.protect()
-      if (req.nextUrl.pathname === '/api/chat') {
-        console.log('✅ MIDDLEWARE: Auth protection passed for chat API')
-      }
-    } catch (authError) {
-      if (req.nextUrl.pathname === '/api/chat') {
-        console.error('❌ MIDDLEWARE: Auth protection failed for chat API:', authError)
-      }
-      throw authError
-    }
-
+    await auth.protect()
     response = NextResponse.next()
+
 
   } else {
     response = NextResponse.next()
