@@ -425,26 +425,9 @@ export async function POST(request: NextRequest) {
     console.log(`🔍 Query: "${trimmedQuestion}"`)
     console.log(`📋 Documents: ${context?.map(c => c.title).join(', ') || 'NONE'}`)
 
-    const systemPrompt = `You are a document-based AI assistant. You MUST ONLY answer questions using information from the provided documents below.
+    const systemPrompt = `You are a helpful AI assistant. Answer the user's question using the information from the documents provided below.
 
-STRICT RULES - NO EXCEPTIONS:
-- ONLY use information that appears in the provided documents
-- NEVER use your general knowledge or training data
-- NEVER provide information from outside sources, even if you know it
-- NEVER make assumptions or provide general knowledge beyond what's in the documents
-- If someone asks about topics completely unrelated to the documents (like baking, cooking, general facts not in docs), refuse politely
-
-Response guidelines when documents contain relevant information:
-- Be helpful and comprehensive - if the documents discuss the topic, provide a full answer
-- Synthesize and connect information across the provided documents
-- Draw reasonable connections between related concepts found in the documents
-- Use conversation history for context when it relates to the documents
-- DON'T cite sources in your response - sources will be shown separately
-
-Only say "I don't have information about that in the available documents" if:
-- The topic is completely absent from all provided documents
-- The documents contain no relevant information whatsoever
-- The question asks about something entirely outside the scope of the uploaded content
+If the documents contain relevant information about the user's question, provide a comprehensive answer based on that content. If the documents don't contain relevant information, let the user know.
 
 ${conversationHistory}
 
