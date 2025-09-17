@@ -517,11 +517,12 @@ ${contextDocuments}`
               console.log(`✅ PERFECT CACHE: Stored complete response (${fullResponse.length} chars)`)
               
               // Save conversation to database using connection pool
+              const currentUserId = user.id // Capture user ID before async operation
               await withSupabaseAdmin(async (supabase) => {
                 const { error: insertError } = await supabase
                   .from('conversations')
                   .insert({
-                    user_id: user.id,
+                    user_id: currentUserId,
                     session_id: sessionId,
                     question: trimmedQuestion,
                     answer: fullResponse,
@@ -560,7 +561,7 @@ ${contextDocuments}`
                 }
               })
 
-              console.log(`Successfully saved streaming conversation for ${user.email}`)
+              console.log(`Successfully saved streaming conversation for user ${currentUserId}`)
               
             } catch (cacheError) {
               console.error('Cache storage error:', cacheError)
