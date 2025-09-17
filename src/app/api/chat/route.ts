@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
     // Capture user details for use in async operations
     const currentUserId = user.id
     const userEmail = user.email
+    const clerkUserId = userId // userId is guaranteed non-null at this point
 
     // =================================================================
     // INPUT VALIDATION - Get and sanitize the user's question
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest) {
     // ONBOARDING TRACKING - Track first chat milestone
     // =================================================================
     await trackOnboardingMilestone({
-      clerkUserId: userId,
+      clerkUserId: clerkUserId,
       milestone: 'first_chat',
       metadata: {
         question_length: trimmedQuestion.length,
@@ -553,7 +554,7 @@ ${contextDocuments}`
 
               // Track onboarding milestone
               await trackOnboardingMilestone({
-                clerkUserId: userId,
+                clerkUserId: clerkUserId,
                 milestone: 'first_successful_answer',
                 metadata: {
                   answer_length: fullResponse.length,
