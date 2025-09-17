@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
       }))
       .sort((a, b) => b.chunks[0].score - a.chunks[0].score)
       .flatMap(group => group.chunks)
-      .slice(0, 8)
+      .slice(0, 4) // TEMPORARY: Reduced from 8 to 4 to test token limits in production
       .map(chunk => ({
         content: chunk.content || 'No content available',
         title: chunk.documentTitle,
