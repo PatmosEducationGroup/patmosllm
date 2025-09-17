@@ -23,6 +23,7 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('=== CHAT API CALLED ===')
     // =================================================================
     // RATE LIMITING - Prevent abuse by limiting requests per user/IP
     // =================================================================
@@ -176,6 +177,7 @@ export async function POST(request: NextRequest) {
     // STEP 2: HYBRID SEARCH - Advanced semantic + keyword search
     // =================================================================
     console.log('Starting intelligent hybrid search...')
+    console.log(`DEBUG: About to search for: "${trimmedQuestion}"`)
     const searchResult = await intelligentSearch(
       trimmedQuestion,
       questionEmbedding,
@@ -187,6 +189,7 @@ export async function POST(request: NextRequest) {
         enableCache: true
       }
     )
+    console.log(`DEBUG: Search completed, found ${searchResult.results.length} results`)
 
     const relevantChunks = searchResult.results
     console.log(`Hybrid search completed: ${relevantChunks.length} chunks found using ${searchResult.searchStrategy} (confidence: ${(searchResult.confidence * 100).toFixed(1)}%)`)
@@ -244,7 +247,7 @@ export async function POST(request: NextRequest) {
       .flatMap(group => group.chunks)
       .slice(0, 8)
       .map(chunk => ({
-        content: chunk.content,
+        content: chunk.content || 'No content available',
         title: chunk.documentTitle,
         author: chunk.documentAuthor
       }))
