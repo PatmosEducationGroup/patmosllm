@@ -24,6 +24,13 @@ npm run test:load         # Full Artillery load test (5 minutes)
 npm run monitor           # Real-time performance monitoring
 npm run health            # Quick system health check
 npm run verify            # Overall performance verification
+
+# Backup & Restore Commands
+node scripts/backup-pinecone.js           # Standard backup (≤10K vectors)
+node scripts/backup-pinecone-large.js     # Enhanced backup (any size, multi-strategy)
+node scripts/restore-pinecone.js <backup-file> <target-index> [namespace]
+node scripts/backup-supabase.js           # Complete database backup
+node scripts/restore-supabase.js <backup-file> --confirm [--clear] [--tables table1,table2]
 ```
 
 ## Architecture Overview
@@ -134,10 +141,11 @@ BLOB_READ_WRITE_TOKEN
 
 ### ✅ Embedding System Migration **COMPLETED**
 - ✅ **Voyage-3-large Integration**: Successfully migrated from OpenAI text-embedding-3-small to Voyage-3-large embeddings
-- ✅ **Complete Data Migration**: 65 documents (2,331 chunks) migrated with 100% success rate
+- ✅ **Complete Data Migration**: 65 documents (2,271 chunks) migrated with 100% success rate
 - ✅ **Pinecone Index Update**: New index with 1024 dimensions (patmosllm-voyage)
-- ✅ **Enhanced Rate Limiting**: Robust API handling with 3-second delays and retry logic
+- ✅ **Enhanced Rate Limiting**: Robust API handling with 25-second delays and retry logic for rate limits
 - ✅ **Migration Scripts**: Complete automation tools for future embedding updates
+- ✅ **Comprehensive Backup System**: Enhanced backup tools with multi-strategy retrieval for large indexes
 
 ### ✅ Advanced Upload System **COMPLETED**
 - ✅ **Bulk Upload Capability**: Up to 20 files simultaneously with intelligent queueing
@@ -161,6 +169,11 @@ BLOB_READ_WRITE_TOKEN
 - ✅ `/src/app/api/upload/process-blob/route.ts` - New Vercel Blob processing route
 - ✅ `/src/app/api/upload/blob/route.ts` - Blob storage upload endpoint
 - ✅ `/scripts/migrate-to-voyage.js` - Complete migration automation
+- ✅ `/scripts/backup-pinecone.js` - Standard backup tool for indexes ≤10K vectors
+- ✅ `/scripts/backup-pinecone-large.js` - Enhanced backup for large indexes with multi-strategy retrieval
+- ✅ `/scripts/restore-pinecone.js` - Complete restore functionality with validation
+- ✅ `/scripts/backup-supabase.js` - Complete database backup with batch processing
+- ✅ `/scripts/restore-supabase.js` - Database restore with safety checks and table selection
 - ✅ `/src/middleware.ts` - Updated CSP for Voyage API domains
 
 ## ✅ **COMPLETED: High-Priority Scalability Improvements (October 1st)**
@@ -187,6 +200,65 @@ BLOB_READ_WRITE_TOKEN
 - ✅ `/src/app/api/admin/system-health/route.ts` - Enhanced performance monitoring
 - ✅ `artillery-config.yml`, `test-performance.js` - Comprehensive load testing tools
 - ✅ `PERFORMANCE-TESTING.md`, `VERIFY-IMPROVEMENTS.md` - Testing documentation
+
+## ✅ **COMPLETED: Search System Fixes & Optimizations (September 17th)**
+
+### ✅ Critical Search Issues Resolved **COMPLETED**
+- ✅ **Document Indexing Fix**: Fixed migration script to properly sync chunks table with Pinecone vectors - enabling document discovery
+- ✅ **Hybrid Search Weight Optimization**: Adjusted factual question weights (0.7 semantic / 0.3 keyword) for better relevance ranking
+- ✅ **Prompt Refinement**: Balanced system prompt to be helpful with available content while maintaining strict document-only policy
+- ✅ **Search Threshold Tuning**: Lowered semantic (0.3) and keyword (0.1) minimum scores for better content recall
+- ✅ **Animation Bug Fix**: Resolved React styling warning for animation/animationDelay property conflicts
+
+### ✅ **Search Results Achieved:**
+- **Document Discovery**: "How to Pray the Lord's Prayer" and other prayer documents now properly found and used
+- **Response Quality**: Full, comprehensive answers instead of "I don't have information about that" responses
+- **Relevance Accuracy**: Top semantic matches (0.76+ scores) now properly prioritized over lower-relevance keyword matches
+- **Content Coverage**: System now accessing all 87 uploaded documents including complete prayer resource library
+
+### ✅ **Files Modified:**
+- ✅ `/scripts/migrate-to-voyage.js` - Fixed to create chunks table entries and use proper chunking algorithm
+- ✅ `/src/lib/hybrid-search.ts` - Optimized factual question weights and lowered default search thresholds
+- ✅ `/src/app/api/chat/route.ts` - Refined system prompt for better balance of helpfulness and restrictions
+- ✅ `/src/app/page.tsx` - Fixed animation property conflict in session list styling
+
+## ✅ **COMPLETED: AI System Prompt Optimization (September 17th)**
+
+### ✅ Critical AI Response Issue Resolved **COMPLETED**
+- ✅ **Root Cause Identified**: Overly restrictive system prompt causing AI to reject valid document content
+- ✅ **System Prompt Redesign**: Replaced aggressive "NEVER" rules with positive synthesis instructions
+- ✅ **Document Synthesis Enhancement**: AI now required to combine insights across multiple documents
+- ✅ **Connection Mandate**: AI must connect problems/needs with solutions/practices from different documents
+- ✅ **Comprehensive Debugging**: Added extensive logging to diagnose production vs development differences
+
+### ✅ **AI Response Results Achieved:**
+- **Document Utilization**: AI now properly uses found documents instead of claiming "no information"
+- **Cross-Document Synthesis**: Complex queries like "pray for orphans of war" now combine prayer guidance with specific contexts
+- **Response Quality**: Comprehensive, warm, mentor-like responses using full document content
+- **Search Integration**: Perfect harmony between hybrid search findings and AI response generation
+
+### ✅ **Technical Resolution Process:**
+1. **Eliminated Environment Theories**: Ruled out token limits, authentication, middleware, and infrastructure differences
+2. **Identified Semantic Gap**: AI was finding correct documents but rejecting them due to prompt restrictions
+3. **Network Analysis**: Browser network tab revealed sources were found correctly (8 documents including "How to Pray Creatively")
+4. **Prompt Evolution**: Tested multiple approaches from simple to synthesis-focused
+
+### ✅ **Final System Prompt:**
+```
+Golden Rule: Every answer must be built only from the documents provided. You may never bring in outside knowledge.
+
+How to answer:
+- If the user's question involves more than one topic covered in the documents, you must combine insights across those documents into one unified response.
+- If one document describes a need or problem and another describes a practice or solution, you must connect them. Do not treat them separately.
+- Always expand as much as the documents allow. If there are details about needs, context, or practices, weave them together.
+- Use a warm, conversational tone, but stay focused on the documents.
+- Only say "I don't have information about that in the available documents" if the question's subject is completely absent across all documents AND there is no way to combine existing material into a relevant answer.
+```
+
+### ✅ **Files Modified:**
+- ✅ `/src/app/api/chat/route.ts` - Complete system prompt redesign for document synthesis
+- ✅ `/src/middleware.ts` - Added comprehensive authentication debugging (temporary)
+- ✅ Extensive debug logging added and removed after issue resolution
 
 # PENDING IMPROVEMENTS (PRIORITIZED)
 
