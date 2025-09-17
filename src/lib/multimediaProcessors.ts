@@ -7,6 +7,7 @@ import { writeFileSync, unlinkSync } from 'fs'
 import { randomUUID } from 'crypto'
 
 // Dynamically import ffmpeg modules to handle potential installation issues
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let ffmpeg: any = null
 let ffmpegConfigured = false
 
@@ -157,7 +158,7 @@ export async function extractFromImage(buffer: Buffer, filename: string): Promis
         content,
         wordCount: content.split(/\s+/).filter(word => word.length > 0).length,
         processorUsed: 'sharp (metadata only)',
-        metadata
+        metadata: metadata as unknown as Record<string, unknown>
       }
     } catch (metadataError) {
       throw new Error(`Image processing completely failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -246,7 +247,9 @@ export async function extractFromVideo(buffer: Buffer, filename: string): Promis
     writeFileSync(tempPath, buffer)
 
     // Extract video metadata using ffprobe
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const metadata = await new Promise<any>((resolve, reject) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ffmpegInstance.ffprobe(tempPath!, (err: any, metadata: any) => {
         if (err) {
           console.error('ffprobe error:', err)
