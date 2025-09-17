@@ -22,8 +22,14 @@ const openai = new OpenAI({
 })
 
 export async function POST(request: NextRequest) {
+  // IMMEDIATE DEBUG - Log before any processing
+  console.log('🚨 PRODUCTION DEBUG: Chat API endpoint hit')
+  console.log('🚨 Timestamp:', new Date().toISOString())
+
   try {
-    console.log('=== CHAT API CALLED ===')
+    console.log('=== CHAT API CALLED === (DEBUG MODE)')
+    console.log('Request URL:', request.url)
+    console.log('Request headers:', Object.fromEntries(request.headers.entries()))
     // =================================================================
     // RATE LIMITING - Prevent abuse by limiting requests per user/IP
     // =================================================================
@@ -408,17 +414,38 @@ export async function POST(request: NextRequest) {
     }
       
     // TEMPORARY DEBUG: Show what context is being passed to AI
-    const debugResponse = `DEBUG PRODUCTION CONTEXT:
-Length: ${contextDocuments.length} characters
-Context count: ${context.length} documents
-First 300 chars: "${contextDocuments.substring(0, 300)}..."
-Search confidence: ${searchResult.confidence}
-Security check passed: ${!(context.length === 0 || searchResult.confidence < 0.1)}`
+    try {
+      const debugResponse = `DEBUG PRODUCTION CONTEXT:
+Length: ${contextDocuments?.length || 0} characters
+Context count: ${context?.length || 0} documents
+First 300 chars: "${contextDocuments?.substring(0, 300) || 'NO CONTEXT'}..."
+Search confidence: ${searchResult?.confidence || 0}
+Security check passed: ${!(context.length === 0 || searchResult.confidence < 0.1)}
+Query: "${trimmedQuestion}"
+Search results found: ${searchResult?.results?.length || 0}
+Documents by title: ${context?.map(c => c.title).join(', ') || 'NONE'}`
 
-    return new Response(
-      JSON.stringify({ content: debugResponse }),
-      { headers: { 'Content-Type': 'application/json' } }
-    )
+      return new Response(
+        JSON.stringify({
+          type: 'complete',
+          answer: debugResponse,
+          sources: [],
+          debug: true
+        }),
+        { headers: { 'Content-Type': 'application/json' } }
+      )
+    } catch (debugError) {
+      console.error('Debug error:', debugError)
+      return new Response(
+        JSON.stringify({
+          type: 'complete',
+          answer: `DEBUG ERROR: ${debugError instanceof Error ? debugError.message : 'Unknown debug error'}`,
+          sources: [],
+          debug: true
+        }),
+        { headers: { 'Content-Type': 'application/json' } }
+      )
+    }
 
     const systemPrompt = `You are a document-based AI assistant. You MUST ONLY answer questions using information from the provided documents below.
 
@@ -584,13 +611,20 @@ ${contextDocuments}`
     })
 
   } catch (error) {
-    console.error('Chat error:', error)
+    console.error('🚨 PRODUCTION DEBUG: Chat error caught:', error)
+    console.error('🚨 Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    console.error('🚨 Error type:', typeof error)
+
+    // Return immediate debug response
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Chat request failed' 
+      JSON.stringify({
+        type: 'complete',
+        answer: `🚨 PRODUCTION ERROR DEBUG: ${error instanceof Error ? error.message : 'Unknown error'}\nError type: ${typeof error}\nTimestamp: ${new Date().toISOString()}`,
+        sources: [],
+        debug: true,
+        error: true
       }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
   }
 }
