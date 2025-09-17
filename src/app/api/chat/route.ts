@@ -181,8 +181,8 @@ export async function POST(request: NextRequest) {
       questionEmbedding,
       {
         maxResults: 20,
-        minSemanticScore: 0.3,
-        minKeywordScore: 0.1,
+        minSemanticScore: 0.2, // Lowered from 0.3 for better recall
+        minKeywordScore: 0.05, // Lowered from 0.1 for better recall
         userId: user.id,
         enableCache: true
       }
@@ -251,6 +251,14 @@ export async function POST(request: NextRequest) {
 
     const uniqueDocuments = new Set(context.map(c => c.title)).size
     console.log(`Using context from ${uniqueDocuments} different documents with ${context.length} total chunks`)
+
+    // DEBUG: Log the actual documents being used for complex queries
+    if (context.length < 8) {
+      console.log('DEBUG - Documents found:')
+      context.forEach((chunk, i) => {
+        console.log(`  ${i + 1}. "${chunk.title}" by ${chunk.author || 'Unknown'}: ${chunk.content.substring(0, 80)}...`)
+      })
+    }
 
     // =================================================================
     // SECURITY CHECK: REFUSE IF NO RELEVANT DOCUMENTS FOUND OR LOW CONFIDENCE
@@ -377,28 +385,40 @@ export async function POST(request: NextRequest) {
     // STEP 6: BUILD CONTEXT AND SYSTEM PROMPT WITH HISTORY
     // =================================================================
     const contextDocuments = context
-      .map((item) => 
+      .map((item) =>
         `=== ${item.title}${item.author ? ` by ${item.author}` : ''} ===\n${item.content}`
       )
       .join('\n\n')
+
+    // DEBUG: Log context being passed to AI
+    console.log(`DEBUG CONTEXT: Passing ${context.length} documents to AI`)
+    console.log(`DEBUG CONTEXT: Total context length: ${contextDocuments.length} characters`)
+    if (contextDocuments.length === 0) {
+      console.log('ERROR: No context documents found! This will cause "no information" response')
+    } else {
+      console.log(`DEBUG CONTEXT: First document preview: ${context[0]?.title} - ${context[0]?.content?.substring(0, 100)}...`)
+    }
       
-    const systemPrompt = `You are a strict document-based AI assistant. You MUST ONLY answer questions using information from the provided documents below.
+    const systemPrompt = `You are a document-based AI assistant. You MUST ONLY answer questions using information from the provided documents below.
 
 STRICT RULES - NO EXCEPTIONS:
 - ONLY use information that appears in the provided documents
 - NEVER use your general knowledge or training data
-- If the answer is not in the documents, say "I don't have information about that in the available documents"
 - NEVER provide information from outside sources, even if you know it
-- NEVER make assumptions or provide general knowledge
-- NEVER answer questions about topics not covered in the documents
-- If someone asks about baking, cooking, general facts, etc. that aren't in the docs, refuse politely
+- NEVER make assumptions or provide general knowledge beyond what's in the documents
+- If someone asks about topics completely unrelated to the documents (like baking, cooking, general facts not in docs), refuse politely
 
-Response guidelines:
-- Be helpful and conversational when the information IS in the documents
-- Use conversation history for context only if it relates to the documents
+Response guidelines when documents contain relevant information:
+- Be helpful and comprehensive - if the documents discuss the topic, provide a full answer
+- Synthesize and connect information across the provided documents
+- Draw reasonable connections between related concepts found in the documents
+- Use conversation history for context when it relates to the documents
 - DON'T cite sources in your response - sources will be shown separately
-- Synthesize information across the provided documents when relevant
-- If asked about something not in the documents, politely decline and suggest they contact support
+
+Only say "I don't have information about that in the available documents" if:
+- The topic is completely absent from all provided documents
+- The documents contain no relevant information whatsoever
+- The question asks about something entirely outside the scope of the uploaded content
 
 ${conversationHistory}
 
