@@ -451,17 +451,29 @@ ${contextDocuments}`
     // STEP 7: STREAMING AI RESPONSE
     // =================================================================
     console.log('Starting streaming AI response...')
-    
-    const stream = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: trimmedQuestion }
-      ],
-      temperature: 0.3,
-      max_tokens: 2000,
-      stream: true,
-    })
+    console.log(`🤖 OpenAI Request Details:`)
+    console.log(`   Model: gpt-4o-mini`)
+    console.log(`   System prompt length: ${systemPrompt.length} chars`)
+    console.log(`   User question: "${trimmedQuestion}"`)
+    console.log(`   Temperature: 0.3, Max tokens: 2000`)
+
+    let stream
+    try {
+      stream = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: trimmedQuestion }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000,
+        stream: true,
+      })
+      console.log(`✅ OpenAI API call successful, got stream`)
+    } catch (openaiError) {
+      console.error(`❌ OpenAI API call failed:`, openaiError)
+      throw new Error(`OpenAI API failed: ${openaiError instanceof Error ? openaiError.message : 'Unknown error'}`)
+    }
 
     // =================================================================
     // STEP 8: CREATE STREAMING RESPONSE WITH PERFECT CACHE TIMING
@@ -481,12 +493,19 @@ ${contextDocuments}`
         })}\n\n`))
 
         try {
+          let chunkCount = 0
           for await (const chunk of stream) {
+            chunkCount++
             const content = chunk.choices[0]?.delta?.content || ''
-            
+
             if (content) {
               fullResponse += content
-              
+
+              // Log first few chunks for debugging
+              if (chunkCount <= 3) {
+                console.log(`🔄 Stream chunk ${chunkCount}: "${content}"`)
+              }
+
               // Send each chunk to the frontend
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({
                 type: 'chunk',
@@ -497,6 +516,7 @@ ${contextDocuments}`
             // Check if streaming is finished
             if (chunk.choices[0]?.finish_reason === 'stop') {
               streamingComplete = true
+              console.log(`✅ Streaming completed after ${chunkCount} chunks, full response length: ${fullResponse.length}`)
               break
             }
           }
