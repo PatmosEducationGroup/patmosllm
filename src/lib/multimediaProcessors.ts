@@ -7,7 +7,7 @@ import { writeFileSync, unlinkSync } from 'fs'
 import { randomUUID } from 'crypto'
 
 // Dynamically import ffmpeg modules to handle potential installation issues
-let ffmpeg: Record<string, unknown> | null = null
+let ffmpeg: any = null
 let ffmpegConfigured = false
 
 async function ensureFFmpegLoaded() {
@@ -246,8 +246,8 @@ export async function extractFromVideo(buffer: Buffer, filename: string): Promis
     writeFileSync(tempPath, buffer)
 
     // Extract video metadata using ffprobe
-    const metadata = await new Promise<Record<string, unknown>>((resolve, reject) => {
-      ffmpegInstance.ffprobe(tempPath!, (err: Error | null, metadata: Record<string, unknown>) => {
+    const metadata = await new Promise<any>((resolve, reject) => {
+      ffmpegInstance.ffprobe(tempPath!, (err: any, metadata: any) => {
         if (err) {
           console.error('ffprobe error:', err)
           // If ffprobe fails, use fallback instead of throwing
