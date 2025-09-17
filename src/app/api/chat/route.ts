@@ -402,6 +402,15 @@ export async function POST(request: NextRequest) {
       console.log(`DEBUG CONTEXT: First document preview: ${context[0]?.title} - ${context[0]?.content?.substring(0, 100)}...`)
     }
       
+    // TEMPORARY DEBUG: Show what context is being passed
+    if (contextDocuments.length < 500) {
+      const debugResponse = `DEBUG - Context received (${contextDocuments.length} chars): "${contextDocuments.substring(0, 200)}..."`
+      return new Response(
+        JSON.stringify({ content: debugResponse }),
+        { headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
     const systemPrompt = `You are a document-based AI assistant. You MUST ONLY answer questions using information from the provided documents below.
 
 STRICT RULES - NO EXCEPTIONS:
