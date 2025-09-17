@@ -405,6 +405,7 @@ export async function POST(request: NextRequest) {
       console.log('ERROR: No context documents found! This will cause "no information" response')
     } else {
       console.log(`DEBUG CONTEXT: First document preview: ${context[0]?.title} - ${context[0]?.content?.substring(0, 100)}...`)
+      console.log(`🔍 CONTEXTDOCUMENTS SAMPLE (first 300 chars): "${contextDocuments.substring(0, 300)}..."`)
     }
       
     // Debug logging for production (keeping logs but removing early return)
@@ -441,6 +442,10 @@ ${conversationHistory}
 
 Available documents:
 ${contextDocuments}`
+
+    // TEMPORARY: Log system prompt details for debugging
+    console.log(`🤖 System prompt total length: ${systemPrompt.length} characters`)
+    console.log(`🤖 System prompt ends with: "${systemPrompt.substring(systemPrompt.length - 200)}"`)
 
     // =================================================================
     // STEP 7: STREAMING AI RESPONSE
