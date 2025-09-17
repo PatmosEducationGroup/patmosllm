@@ -22,6 +22,14 @@ const openai = new OpenAI({
 })
 
 export async function POST(request: NextRequest) {
+  // ULTRA-EARLY logging that should ALWAYS appear
+  console.log('🚨 PRODUCTION DEBUG: Function started at', new Date().toISOString())
+  console.log('🚨 Environment check:', {
+    NODE_ENV: process.env.NODE_ENV,
+    VERCEL: process.env.VERCEL,
+    VERCEL_ENV: process.env.VERCEL_ENV
+  })
+
   try {
     console.log('=== CHAT API CALLED ===')
     // =================================================================
