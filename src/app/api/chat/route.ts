@@ -65,6 +65,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Capture user details for use in async operations
+    const currentUserId = user.id
+    const userEmail = user.email
+
     // =================================================================
     // INPUT VALIDATION - Get and sanitize the user's question
     // =================================================================
@@ -93,7 +97,7 @@ export async function POST(request: NextRequest) {
         .from('chat_sessions')
         .select('id')
         .eq('id', sessionId)
-        .eq('user_id', user.id)
+        .eq('user_id', currentUserId)
         .single()
       
       if (error || !data) {
@@ -110,7 +114,7 @@ export async function POST(request: NextRequest) {
     }
 
     const trimmedQuestion = question.trim()
-    console.log(`Processing question: "${trimmedQuestion}" for user: ${user.email}`)
+    console.log(`Processing question: "${trimmedQuestion}" for user: ${userEmail}`)
 
     // =================================================================
     // STEP 1.5: CHECK CACHE FOR INSTANT RESPONSES
@@ -185,7 +189,7 @@ export async function POST(request: NextRequest) {
         maxResults: 20,
         minSemanticScore: 0.2, // Lowered from 0.3 for better recall
         minKeywordScore: 0.05, // Lowered from 0.1 for better recall
-        userId: user.id,
+        userId: currentUserId,
         enableCache: true
       }
     )
@@ -207,7 +211,7 @@ export async function POST(request: NextRequest) {
         await supabase
           .from('conversations')
           .insert({
-            user_id: user.id,
+            user_id: currentUserId,
             session_id: sessionId,
             question: trimmedQuestion,
             answer: noResultsMessage,
@@ -356,7 +360,7 @@ export async function POST(request: NextRequest) {
           .from('conversations')
           .select('question, answer')
           .eq('session_id', sessionId)
-          .eq('user_id', user.id)
+          .eq('user_id', currentUserId)
           .order('created_at', { ascending: true })
           .limit(2) // Get last 2 messages only
         
@@ -517,7 +521,6 @@ ${contextDocuments}`
               console.log(`✅ PERFECT CACHE: Stored complete response (${fullResponse.length} chars)`)
               
               // Save conversation to database using connection pool
-              const currentUserId = user.id // Capture user ID before async operation
               await withSupabaseAdmin(async (supabase) => {
                 const { error: insertError } = await supabase
                   .from('conversations')
