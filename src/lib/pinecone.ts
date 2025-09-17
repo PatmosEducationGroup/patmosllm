@@ -85,6 +85,14 @@ export async function searchChunks(
       return []
     }
 
+    // DEBUG: Log raw Pinecone results for complex queries to understand ranking
+    if (searchResponse.matches.length > 0 && searchResponse.matches[0].score && searchResponse.matches[0].score < 0.7) {
+      console.log(`DEBUG: Raw Pinecone search results (top 5):`)
+      searchResponse.matches.slice(0, 5).forEach((match, i) => {
+        console.log(`  ${i+1}. Score: ${match.score?.toFixed(4)}, Doc: "${match.metadata?.documentTitle}"`)
+      })
+    }
+
     // Filter by minimum score and format results
     const results = searchResponse.matches
       .filter(match => (match.score || 0) >= minScore)
@@ -150,7 +158,7 @@ export async function getIndexStats(): Promise<{
     
     return {
       totalVectors: stats.totalRecordCount || 0,
-      dimension: stats.dimension || 1536,
+      dimension: stats.dimension || 1024,
       namespace
     }
   } catch (error) {

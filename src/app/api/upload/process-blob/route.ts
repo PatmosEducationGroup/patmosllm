@@ -89,14 +89,65 @@ export async function POST(request: NextRequest) {
     const cleanContactPerson = contact_person ? sanitizeInput(contact_person) : null
     const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
 
+    // Check if document with same title already exists
+    const { data: existingDoc } = await supabaseAdmin
+      .from('documents')
+      .select('id, title')
+      .eq('title', cleanTitle)
+      .single()
+
+    if (existingDoc) {
+      return NextResponse.json({
+        success: false,
+        error: `A document with the title "${cleanTitle}" already exists in the database. Please use a different title or delete the existing document first.`
+      }, { status: 409 }) // 409 Conflict
+    }
+
     console.log(`Processing blob file: ${blobUrl}`)
 
-    // Download file from Vercel Blob for processing
-    const response = await fetch(blobUrl)
-    if (!response.ok) {
-      console.error('Error downloading file from blob storage:', response.statusText)
+    // Download file from Vercel Blob for processing with retry logic
+    let response: Response | null = null
+    let downloadError: string | null = null
+
+    // Initial delay to allow Vercel Blob propagation (large files need more time)
+    console.log('Waiting for Vercel Blob propagation...')
+    await new Promise(resolve => setTimeout(resolve, 10000)) // 10 second initial delay
+
+    // Try multiple times with longer delays for blob propagation
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        console.log(`Download attempt ${attempt}/5 for ${blobUrl}`)
+        response = await fetch(blobUrl)
+
+        if (response.ok) {
+          console.log(`Successfully downloaded blob on attempt ${attempt}`)
+          break
+        } else {
+          console.warn(`Download attempt ${attempt} failed with status:`, response.status, response.statusText)
+          downloadError = `${response.status} ${response.statusText}`
+
+          // Wait before retrying with longer delays
+          if (attempt < 5) {
+            const delay = Math.pow(2, attempt) * 3000 // 6s, 12s, 24s, 48s
+            console.log(`Waiting ${delay}ms before retry...`)
+            await new Promise(resolve => setTimeout(resolve, delay))
+          }
+        }
+      } catch (error) {
+        console.error(`Download attempt ${attempt} failed with error:`, error)
+        downloadError = error instanceof Error ? error.message : 'Network error'
+
+        if (attempt < 5) {
+          const delay = Math.pow(2, attempt) * 3000
+          await new Promise(resolve => setTimeout(resolve, delay))
+        }
+      }
+    }
+
+    if (!response || !response.ok) {
+      console.error('Failed to download file from blob storage after all retries:', downloadError)
       return NextResponse.json(
-        { success: false, error: 'Failed to download file from blob storage' },
+        { success: false, error: `Failed to download file from blob storage: ${downloadError}. The file may need time to propagate or there may be a permissions issue.` },
         { status: 500 }
       )
     }
@@ -131,25 +182,37 @@ export async function POST(request: NextRequest) {
 
     // Save document record to database with cleaned content
     console.log('Saving document record to database...')
+
+    // Prepare document record with multimedia support
+    const documentRecord: Record<string, unknown> = {
+      title: cleanTitle,
+      author: cleanAuthor,
+      content: cleanedContent,
+      source_type: sourceType || 'upload',
+      source_url: sourceUrl || null,
+      amazon_url: cleanAmazonUrl,
+      resource_url: cleanResourceUrl,
+      download_enabled: download_enabled || false,
+      contact_person: cleanContactPerson,
+      contact_email: cleanContactEmail,
+      uploaded_by: user.id,
+      file_size: fileSize,
+      mime_type: mimeType,
+      storage_path: blobUrl, // Use storage_path to store blob URL for now
+      word_count: extraction.wordCount,
+      page_count: extraction.pageCount || null,
+      processed_at: new Date().toISOString()
+    }
+
+    // Add multimedia-specific metadata if available
+    if (extraction.metadata) {
+      documentRecord.metadata = extraction.metadata
+    }
+    // Note: duration is stored in metadata.duration for multimedia files
+
     const { data: document, error: dbError } = await supabaseAdmin
       .from('documents')
-      .insert({
-        title: cleanTitle,
-        author: cleanAuthor,
-        content: cleanedContent,
-        source_type: sourceType || 'upload',
-        source_url: sourceUrl || null,
-        amazon_url: cleanAmazonUrl,
-        resource_url: cleanResourceUrl,
-        download_enabled: download_enabled || false,
-        contact_person: cleanContactPerson,
-        contact_email: cleanContactEmail,
-        uploaded_by: user.id,
-        file_size: fileSize,
-        mime_type: mimeType,
-        storage_path: blobUrl, // Use storage_path to store blob URL for now
-        word_count: extraction.wordCount
-      })
+      .insert(documentRecord)
       .select()
       .single()
 

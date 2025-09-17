@@ -60,9 +60,29 @@ export async function GET(request: NextRequest) {
       )
     }
 
+
+    // Transform snake_case to camelCase for frontend compatibility
+    const transformedDocuments = documents?.map(doc => ({
+      id: doc.id,
+      title: doc.title,
+      author: doc.author,
+      wordCount: doc.word_count,
+      pageCount: doc.page_count,
+      fileSize: doc.file_size,
+      mimeType: doc.mime_type,
+      createdAt: doc.created_at,
+      amazon_url: doc.amazon_url,
+      resource_url: doc.resource_url,
+      download_enabled: doc.download_enabled,
+      contact_person: doc.contact_person,
+      contact_email: doc.contact_email,
+      uploaded_by: doc.uploaded_by,
+      users: doc.users
+    })) || []
+
     return NextResponse.json({
       success: true,
-      documents: documents || [],
+      documents: transformedDocuments,
       userRole: user.role
     })
 

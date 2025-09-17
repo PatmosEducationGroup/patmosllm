@@ -172,17 +172,64 @@ export async function POST(request: NextRequest) {
     })
 
     // =================================================================
-    // STEP 1: EMBEDDING GENERATION - Convert question to vector
+    // STEP 1: GET CONVERSATION HISTORY FOR CONTEXTUAL SEARCH
     // =================================================================
-    console.log('Creating question embedding...')
-    const questionEmbedding = await createEmbedding(trimmedQuestion)
+    console.log('Fetching conversation history for contextual search...')
+    let recentConversations = getCachedConversationHistory(sessionId)
+
+    if (!recentConversations) {
+      // Cache miss - fetch from database using optimized connection
+      const conversations = await withSupabaseAdmin(async (supabase) => {
+        const { data, error } = await supabase
+          .from('conversations')
+          .select('question, answer')
+          .eq('session_id', sessionId)
+          .eq('user_id', currentUserId)
+          .order('created_at', { ascending: false })
+          .limit(2) // Get last 2 messages only
+
+        if (error) {
+          console.error('Error fetching conversation history:', error)
+          return []
+        }
+        return data || []
+      })
+
+      recentConversations = conversations
+      cacheConversationHistory(sessionId, conversations)
+      console.log(`Conversation history cached for session ${sessionId}`)
+    } else {
+      console.log(`Using cached conversation history for session ${sessionId}`)
+    }
+
+    // Create contextual search query by combining current question with recent context
+    let contextualSearchQuery = trimmedQuestion
+    if (recentConversations && recentConversations.length > 0) {
+      // Extract key topics from recent conversation to add context
+      const recentTopics = recentConversations.map(conv => conv.question).join(' ')
+      // Only add context if the current question seems like a follow-up (pronouns, incomplete subjects)
+      const isFollowUpQuestion = /^(what|how|why|when|where)['']?s\s+(it|this|that|they|their)/i.test(trimmedQuestion) ||
+                                 /^(and|but|also|so|then)\s/i.test(trimmedQuestion) ||
+                                 trimmedQuestion.length < 30 // Short questions likely need context
+
+      if (isFollowUpQuestion) {
+        contextualSearchQuery = `${recentTopics} ${trimmedQuestion}`
+        console.log(`Enhanced search query with context: "${contextualSearchQuery}"`)
+      }
+    }
 
     // =================================================================
-    // STEP 2: HYBRID SEARCH - Advanced semantic + keyword search
+    // STEP 2: EMBEDDING GENERATION - Convert contextual query to vector
+    // =================================================================
+    console.log('Creating question embedding...')
+    const questionEmbedding = await createEmbedding(contextualSearchQuery)
+
+    // =================================================================
+    // STEP 3: HYBRID SEARCH - Advanced semantic + keyword search with context
     // =================================================================
     console.log('Starting intelligent hybrid search...')
     const searchResult = await intelligentSearch(
-      trimmedQuestion,
+      contextualSearchQuery,
       questionEmbedding,
       {
         maxResults: 20,
@@ -342,36 +389,8 @@ export async function POST(request: NextRequest) {
       .slice(0, 8)
 
     // =================================================================
-    // STEP 5: GET CONVERSATION HISTORY FOR CONTEXT (WITH CACHING)
+    // STEP 5: FORMAT CONVERSATION HISTORY FOR AI PROMPT
     // =================================================================
-    console.log('Fetching conversation history with caching...')
-    let recentConversations = getCachedConversationHistory(sessionId)
-    
-    if (!recentConversations) {
-      // Cache miss - fetch from database using optimized connection
-      const conversations = await withSupabaseAdmin(async (supabase) => {
-        const { data, error } = await supabase
-          .from('conversations')
-          .select('question, answer')
-          .eq('session_id', sessionId)
-          .eq('user_id', currentUserId)
-          .order('created_at', { ascending: true })
-          .limit(2) // Get last 2 messages only
-        
-        if (error) {
-          console.error('Error fetching conversation history:', error)
-          return []
-        }
-        return data || []
-      })
-      
-      recentConversations = conversations
-      cacheConversationHistory(sessionId, conversations)
-      console.log(`Conversation history cached for session ${sessionId}`)
-    } else {
-      console.log(`Using cached conversation history for session ${sessionId}`)
-    }
-
     let conversationHistory = ''
     if (recentConversations && recentConversations.length > 0) {
       conversationHistory = '\n\n=== RECENT CONVERSATION HISTORY ===\n'

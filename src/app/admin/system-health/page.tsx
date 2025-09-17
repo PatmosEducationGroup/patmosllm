@@ -436,7 +436,7 @@ export default function SystemHealthPage() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Embedding Model</span>
-                    <span className="font-medium">text-embedding-3-small</span>
+                    <span className="font-medium">voyage-3-large</span>
                   </div>
                 </div>
               </div>

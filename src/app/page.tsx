@@ -1010,8 +1010,11 @@ export default function ModernChatPage() {
                       transition: 'all 0.2s',
                       backgroundColor: session.id === currentSessionId ? 'rgba(100, 116, 139, 0.4)' : 'transparent',
                       border: session.id === currentSessionId ? '1px solid rgba(130, 179, 219, 0.2)' : '1px solid transparent',
-                      animationDelay: `${index * 100}ms`,
-                      animation: 'slideInLeft 0.5s ease-out forwards'
+                      animationName: 'slideInLeft',
+                      animationDuration: '0.5s',
+                      animationTimingFunction: 'ease-out',
+                      animationFillMode: 'forwards',
+                      animationDelay: `${index * 100}ms`
                     }}
                     onClick={() => loadSession(session.id)}
                     onMouseEnter={(e) => {

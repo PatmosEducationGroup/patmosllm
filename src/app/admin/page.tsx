@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
+import { validateFile } from '@/lib/clientValidation'
 
 interface Document {
   id: string
@@ -484,29 +485,24 @@ export default function AdminPage() {
       return
     }
     
-    const allowedTypes = [
-      'application/pdf', 
-      'text/plain', 
-      'text/markdown', 
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'image/jpeg',
-      'image/jpg', 
-      'image/png',
-      'image/gif',
-      'video/mp4',
-      'video/quicktime',
-      'video/x-msvideo'
-    ]
-    
-    const invalidFiles = files.filter(file => !allowedTypes.includes(file.type))
+    // Validate files using the enhanced validation logic from fileProcessors
+    const validationResults = files.map(file => ({
+      file,
+      validation: validateFile(file)
+    }))
+
+    const invalidFiles = validationResults.filter(result => !result.validation.valid)
     if (invalidFiles.length > 0) {
-      setError(`Invalid file type(s): ${invalidFiles.map(f => f.name).join(', ')}`)
+      const errorMessages = invalidFiles.map(result =>
+        `${result.file.name}: ${result.validation.error}`
+      ).join('; ')
+      setError(`File validation failed: ${errorMessages}`)
       return
     }
     
-    const oversizedFiles = files.filter(file => file.size > 100 * 1024 * 1024)
+    const oversizedFiles = files.filter(file => file.size > 150 * 1024 * 1024)
     if (oversizedFiles.length > 0) {
-      setError(`Files too large (>100MB): ${oversizedFiles.map(f => f.name).join(', ')}`)
+      setError(`Files too large (>150MB): ${oversizedFiles.map(f => f.name).join(', ')}`)
       return
     }
 
@@ -648,11 +644,18 @@ export default function AdminPage() {
       // Use Vercel Blob for large files
       console.log(`Using Vercel Blob for large file: ${file.name} (${file.size} bytes)`)
       
-      // Create FormData for blob upload
+      // Create FormData for blob upload with metadata
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('title', uploadQueue[queueIndex].metadata.title.trim() || file.name)
+      formData.append('author', uploadQueue[queueIndex].metadata.author.trim() || '')
+      formData.append('amazon_url', uploadQueue[queueIndex].metadata.amazonUrl.trim() || '')
+      formData.append('resource_url', uploadQueue[queueIndex].metadata.resourceUrl.trim() || '')
+      formData.append('download_enabled', uploadQueue[queueIndex].metadata.downloadEnabled.toString())
+      formData.append('contact_person', uploadQueue[queueIndex].metadata.contactPerson.trim() || '')
+      formData.append('contact_email', uploadQueue[queueIndex].metadata.contactEmail.trim() || '')
 
-      // Upload to Vercel Blob
+      // Upload to Vercel Blob and process in one call
       const blobResponse = await fetch('/api/upload/blob', {
         method: 'POST',
         headers: {
@@ -663,39 +666,7 @@ export default function AdminPage() {
 
       const blobData = await blobResponse.json()
       if (!blobData.success) {
-        throw new Error(blobData.error || 'Failed to upload to blob storage')
-      }
-
-      // Update progress
-      setUploadQueue(prev => prev.map((item, index) => 
-        index === queueIndex ? { ...item, progress: 60 } : item
-      ))
-
-      // Process the file from blob storage
-      const processResponse = await fetch('/api/upload/process-blob', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          blobUrl: blobData.blobUrl,
-          fileName: file.name,
-          fileSize: file.size,
-          mimeType: file.type,
-          title: uploadQueue[queueIndex].metadata.title.trim() || file.name,
-          author: uploadQueue[queueIndex].metadata.author.trim() || null,
-          amazon_url: uploadQueue[queueIndex].metadata.amazonUrl.trim() || null,
-          resource_url: uploadQueue[queueIndex].metadata.resourceUrl.trim() || null,
-          download_enabled: uploadQueue[queueIndex].metadata.downloadEnabled,
-          contact_person: uploadQueue[queueIndex].metadata.contactPerson.trim() || null,
-          contact_email: uploadQueue[queueIndex].metadata.contactEmail.trim() || null
-        })
-      })
-
-      const processData = await processResponse.json()
-      if (!processData.success) {
-        throw new Error(processData.error || 'Processing failed')
+        throw new Error(blobData.error || 'Upload and processing failed')
       }
 
     } else {
@@ -836,15 +807,19 @@ export default function AdminPage() {
     }
   }
 
-  const formatFileSize = (bytes: number) => {
+  const formatFileSize = (bytes: number | null | undefined) => {
+    if (!bytes || isNaN(bytes)) return 'Unknown size'
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     if (bytes === 0) return '0 Bytes'
     const i = Math.floor(Math.log(bytes) / Math.log(1024))
     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'Unknown date'
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return 'Invalid date'
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -1050,13 +1025,13 @@ export default function AdminPage() {
               {/* File Selection */}
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                  Select Files (PDF, TXT, MD, DOCX, JPG, PNG, MP4 - Max 20 files, 100MB each)
+                  Select Files (PDF, TXT, MD, DOCX, JPG, PNG, MP4 - Max 20 files, 150MB each)
                 </label>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
                   <input
                     id="file-upload"
                     type="file"
-                    accept=".pdf,.txt,.md,.docx,.jpg,.jpeg,.png,.gif,.mp4,.mov,.avi"
+                    accept=".pdf,.txt,.md,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.mp3,.wav,.flac,.ogg,.m4a,.mp4,.mov,.avi,.wmv,.webm"
                     multiple
                     onChange={handleFileSelect}
                     disabled={uploading || isProcessingQueue}
@@ -1097,7 +1072,7 @@ export default function AdminPage() {
                 <input
                   id="add-more-files"
                   type="file"
-                  accept=".pdf,.txt,.md,.docx,.jpg,.jpeg,.png,.gif,.mp4,.mov,.avi"
+                  accept=".pdf,.txt,.md,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.mp3,.wav,.flac,.ogg,.m4a,.mp4,.mov,.avi,.wmv,.webm"
                   multiple
                   onChange={handleFileSelect}
                   disabled={uploading || isProcessingQueue}
@@ -2092,8 +2067,8 @@ export default function AdminPage() {
                         </td>
                         <td style={{ padding: '16px 24px', fontSize: '14px', color: '#64748b' }}>
                           <div>{formatFileSize(doc.fileSize)}</div>
-                          {doc.wordCount && <div>{doc.wordCount.toLocaleString()} words</div>}
-                          {doc.pageCount && <div>{doc.pageCount} pages</div>}
+                          {doc.wordCount && !isNaN(doc.wordCount) && <div>{doc.wordCount.toLocaleString()} words</div>}
+                          {doc.pageCount && !isNaN(doc.pageCount) && <div>{doc.pageCount} pages</div>}
                           <div style={{ fontSize: '12px', marginTop: '4px' }}>
                             {formatDate(doc.createdAt)}
                           </div>

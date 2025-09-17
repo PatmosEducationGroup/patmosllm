@@ -143,28 +143,38 @@ const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
 
     // Save document record to database with cleaned content
     console.log('Saving document record to database...')
+
+    // Prepare document record with multimedia support
+    const documentRecord: Record<string, unknown> = {
+      title: cleanTitle,
+      author: cleanAuthor,
+      storage_path: storagePath,
+      mime_type: mimeType,
+      file_size: fileSize,
+      content: cleanedContent,
+      word_count: extraction.wordCount,
+      page_count: extraction.pageCount || null,
+      uploaded_by: user.id,
+      processed_at: new Date().toISOString(),
+      source_type: sourceType || 'upload',
+      source_url: sourceUrl || null,
+      // Add new metadata fields
+      amazon_url: cleanAmazonUrl,
+      resource_url: cleanResourceUrl,
+      download_enabled: download_enabled !== undefined ? Boolean(download_enabled) : true,
+      contact_person: cleanContactPerson,
+      contact_email: cleanContactEmail
+    }
+
+    // Add multimedia-specific metadata if available
+    if (extraction.metadata) {
+      documentRecord.metadata = extraction.metadata
+    }
+    // Note: duration is stored in metadata.duration for multimedia files
+
     const { data: document, error: dbError } = await supabaseAdmin
-  .from('documents')
-  .insert({
-    title: cleanTitle,
-    author: cleanAuthor,
-    storage_path: storagePath,
-    mime_type: mimeType,
-    file_size: fileSize,
-    content: cleanedContent,
-    word_count: extraction.wordCount,
-    page_count: extraction.pageCount || null,
-    uploaded_by: user.id,
-    processed_at: new Date().toISOString(),
-    source_type: sourceType || 'upload',
-    source_url: sourceUrl || null,
-    // Add new metadata fields
-    amazon_url: cleanAmazonUrl,
-    resource_url: cleanResourceUrl,
-    download_enabled: download_enabled !== undefined ? Boolean(download_enabled) : true,
-    contact_person: cleanContactPerson,
-    contact_email: cleanContactEmail
-  })
+      .from('documents')
+      .insert(documentRecord)
   .select()
   .single()
 

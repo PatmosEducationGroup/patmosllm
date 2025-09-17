@@ -1,0 +1,27 @@
+
+Supabase Database Backup Summary
+===============================
+Date: 2025-09-16T22:51:41.313Z
+Database: https://wxcvjiytvttjysbtghlr.supabase.co
+Total records: 2168
+Total tables: 8
+Backup file: supabase-backup-2025-09-16T22-51-47-871Z.json
+File size: 13.98 MB
+
+Table Details:
+- users: 7 records
+- user_onboarding_status: ERROR - Assignment to constant variable.
+- documents: 87 records
+- chunks: 1768 records
+- ingest_jobs: 74 records
+- chat_sessions: 11 records
+- conversations: 109 records
+- upload_sessions: 112 records
+
+Large Content Tables:
+- documents: 87 records
+- chunks: 1768 records
+- conversations: 109 records
+
+Backup Status: PARTIAL
+Some tables failed to backup. Check logs for details.

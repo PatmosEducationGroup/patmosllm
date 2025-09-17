@@ -1,0 +1,20 @@
+
+Enhanced Pinecone Backup Summary
+===============================
+Date: 2025-09-16T22:46:37.769Z
+Index: patmosllm-voyage
+Namespace: default
+Dimension: 1024
+Total vectors in index: 2271
+Expected vectors in namespace: 2271
+Vectors backed up: 2271
+Coverage: 100.0%
+Backup file: pinecone-backup-large-patmosllm-voyage-default-2025-09-16T22-46-37-770Z.json
+File size: 56.80 MB
+Strategy: multi-query
+
+Status: COMPLETE
+
+
+Note: This backup used multiple query strategies to maximize vector retrieval.
+For indexes >10K vectors, some vectors may be unreachable due to Pinecone API limitations.

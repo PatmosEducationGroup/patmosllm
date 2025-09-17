@@ -3,6 +3,37 @@ import { Pinecone } from '@pinecone-database/pinecone'
 import { createClient } from '@supabase/supabase-js'
 import { VoyageAIClient } from 'voyageai'
 import dotenv from 'dotenv'
+import fs from 'fs'
+import path from 'path'
+
+// Import the proper chunking function
+const chunkTextCode = fs.readFileSync(path.join(process.cwd(), 'src/lib/fileProcessors.ts'), 'utf8')
+const chunkTextMatch = chunkTextCode.match(/export function chunkText\([\s\S]*?\n\}/);
+if (!chunkTextMatch) {
+  throw new Error('Could not find chunkText function in fileProcessors.ts')
+}
+
+// Create a simple version of chunkText function inline
+function chunkText(text, chunkSize = 1000, overlap = 200) {
+  const words = text.split(/\s+/)
+  const chunks = []
+  let currentIndex = 0
+
+  for (let i = 0; i < words.length; i += chunkSize - overlap) {
+    const chunkWords = words.slice(i, i + chunkSize)
+    const content = chunkWords.join(' ')
+
+    if (content.trim()) {
+      chunks.push({
+        content: content.trim(),
+        index: currentIndex++,
+        tokenCount: chunkWords.length
+      })
+    }
+  }
+
+  return chunks.length > 0 ? chunks : [{ content: text, index: 0, tokenCount: words.length }]
+}
 
 dotenv.config({ path: '.env.local' })
 
@@ -77,16 +108,15 @@ async function migrateToVoyage() {
       console.log(`\n📝 Processing document ${i + 1}/${documents.length}: ${doc.title}`)
       
       try {
-        // Check if document was already successfully migrated
-        const { data: existingJob } = await supabase
-          .from('ingest_jobs')
-          .select('status, chunks_created')
+        // Check if document was already successfully migrated by checking chunks table
+        const { data: existingChunks, error: chunksCheckError } = await supabase
+          .from('chunks')
+          .select('id')
           .eq('document_id', doc.id)
-          .eq('status', 'completed')
-          .single()
-        
-        if (existingJob && existingJob.chunks_created > 0) {
-          console.log(`   ✅ Document "${doc.title}" already migrated successfully (${existingJob.chunks_created} chunks) - skipping`)
+          .limit(1)
+
+        if (!chunksCheckError && existingChunks && existingChunks.length > 0) {
+          console.log(`   ✅ Document "${doc.title}" already has chunks in database - skipping`)
           continue
         }
         
@@ -112,28 +142,54 @@ async function migrateToVoyage() {
           continue
         }
         
-        // Split content into chunks (simplified chunking)
-        const chunks = splitIntoChunks(doc.content, 1000) // ~1000 chars per chunk
+        // Split content into chunks using proper chunking with overlap
+        const chunks = chunkText(doc.content, 1000, 200) // Match main system
         console.log(`   📊 Created ${chunks.length} chunks`)
-        
-        // Create embeddings for all chunks
-        const embeddings = await createEmbeddingsInBatches(chunks)
+
+        // Step 1: Store chunks in database first (critical for search)
+        console.log(`   💾 Storing chunks in database...`)
+        const chunkRecords = []
+
+        for (let i = 0; i < chunks.length; i++) {
+          const { data: chunkRecord, error: chunkError } = await supabase
+            .from('chunks')
+            .insert({
+              document_id: doc.id,
+              content: chunks[i].content,
+              chunk_index: chunks[i].index,
+              token_count: chunks[i].tokenCount,
+            })
+            .select()
+            .single()
+
+          if (chunkError) {
+            throw new Error(`Failed to store chunk ${i}: ${chunkError.message}`)
+          }
+
+          chunkRecords.push(chunkRecord)
+        }
+        console.log(`   ✅ Stored ${chunkRecords.length} chunks in database`)
+
+        // Step 2: Create embeddings for all chunks
+        const chunkContents = chunks.map(chunk => chunk.content)
+        const embeddings = await createEmbeddingsInBatches(chunkContents)
         console.log(`   🧠 Generated ${embeddings.length} embeddings`)
-        
-        // Prepare vectors for Pinecone
-        const vectors = chunks.map((chunk, index) => ({
-          id: `${doc.id}-chunk-${index}`,
+
+        // Step 3: Prepare vectors for Pinecone with proper IDs
+        const vectors = chunkRecords.map((chunkRecord, index) => ({
+          id: chunkRecord.id, // Use database chunk ID
           values: embeddings[index],
           metadata: {
             documentId: doc.id,
             documentTitle: doc.title,
             documentAuthor: doc.author || '',
-            chunkIndex: index,
-            content: chunk
+            chunkIndex: chunks[index].index,
+            tokenCount: chunks[index].tokenCount,
+            content: chunks[index].content
           }
         }))
-        
-        // Upload to new Pinecone index
+
+        // Step 4: Upload to new Pinecone index
         await newIndex.namespace(namespace).upsert(vectors)
         console.log(`   ✅ Uploaded ${vectors.length} vectors to Pinecone`)
         
@@ -178,31 +234,6 @@ async function migrateToVoyage() {
   }
 }
 
-// Helper function to split text into chunks
-function splitIntoChunks(text, maxChunkSize = 1000) {
-  const chunks = []
-  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0)
-  
-  let currentChunk = ''
-  
-  for (const sentence of sentences) {
-    const trimmedSentence = sentence.trim()
-    if (currentChunk.length + trimmedSentence.length + 1 <= maxChunkSize) {
-      currentChunk += (currentChunk ? '. ' : '') + trimmedSentence
-    } else {
-      if (currentChunk) {
-        chunks.push(currentChunk + '.')
-      }
-      currentChunk = trimmedSentence
-    }
-  }
-  
-  if (currentChunk) {
-    chunks.push(currentChunk + '.')
-  }
-  
-  return chunks.length > 0 ? chunks : [text] // Fallback to original text if no chunks
-}
 
 // Helper function to create embeddings in batches
 async function createEmbeddingsInBatches(chunks) {

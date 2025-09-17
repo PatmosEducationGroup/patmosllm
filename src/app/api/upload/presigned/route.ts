@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { uploadRateLimit } from '@/lib/rate-limiter'
 import { getIdentifier } from '@/lib/get-identifier'
 import { sanitizeInput } from '@/lib/input-sanitizer'
+import { SUPPORTED_MIME_TYPES, SUPPORTED_EXTENSIONS } from '@/lib/clientValidation'
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,25 +47,26 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       )
     }
 
-    // Validate file size (50MB limit)
-    if (fileSize > 50 * 1024 * 1024) {
+    // Validate file size (150MB limit for multimedia content)
+    if (fileSize > 150 * 1024 * 1024) {
       return NextResponse.json(
-        { success: false, error: 'File size exceeds 50MB limit' },
+        { success: false, error: 'File size exceeds 150MB limit' },
         { status: 400 }
       )
     }
 
-    // Validate file type
-    const allowedTypes = [
-      'application/pdf',
-      'text/plain', 
-      'text/markdown',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ]
-    
-    if (!allowedTypes.includes(mimeType)) {
+    // Enhanced file type validation with extension fallback
+    const getFileExtension = (filename: string): string => {
+      return filename.toLowerCase().substring(filename.lastIndexOf('.'))
+    }
+
+    const fileExtension = getFileExtension(fileName)
+    const isSupportedMimeType = SUPPORTED_MIME_TYPES.includes(mimeType)
+    const isSupportedExtension = SUPPORTED_EXTENSIONS.includes(fileExtension)
+
+    if (!isSupportedMimeType && !isSupportedExtension) {
       return NextResponse.json(
-        { success: false, error: 'Invalid file type' },
+        { success: false, error: `Unsupported file type: ${fileName} (${mimeType}). Supported types: TXT, MD, PDF, DOCX, PPTX, Images, Audio, Video` },
         { status: 400 }
       )
     }
