@@ -206,7 +206,7 @@ export const AvatarGroup = React.forwardRef<HTMLDivElement, AvatarGroupProps>(
             ...element.props,
             className: cn(
               'border-2 border-white',
-              element.props.className
+              element.props.className as string
             )
           });
         })}
