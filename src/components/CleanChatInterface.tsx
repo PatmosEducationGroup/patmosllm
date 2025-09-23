@@ -99,7 +99,7 @@ export default function CleanChatInterface() {
     }, 2000);
   };
 
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffTime = Math.abs(now - date);
