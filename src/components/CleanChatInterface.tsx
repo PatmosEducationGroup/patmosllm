@@ -34,7 +34,7 @@ export default function CleanChatInterface() {
   const [messages, setMessages] = useState([]);
   const [currentSession, setCurrentSession] = useState('1');
   const [isTyping, setIsTyping] = useState(false);
-  const messagesEndRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
