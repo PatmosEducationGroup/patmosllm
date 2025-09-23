@@ -12,15 +12,24 @@ let ffmpegConfigured = false
 async function ensureFFmpegLoaded() {
   if (!ffmpegConfigured) {
     try {
-      // Mark as configured - we'll use direct binary calls when needed
-      console.log('FFmpeg binaries available via @ffmpeg-installer/ffmpeg')
+      // Import FFmpeg installers to get binary paths
+      const ffmpegInstaller = await import('@ffmpeg-installer/ffmpeg')
+      const ffprobeInstaller = await import('@ffprobe-installer/ffprobe')
+
+      const ffmpegPath = ffmpegInstaller.default.path || ffmpegInstaller.path
+      const ffprobePath = ffprobeInstaller.default.path || ffprobeInstaller.path
+
+      console.log('FFmpeg binaries configured:', { ffmpegPath, ffprobePath })
       ffmpegConfigured = true
+
+      return { ffmpegPath, ffprobePath }
     } catch (error) {
       console.warn('FFmpeg not available:', error)
       ffmpegConfigured = true // Mark as attempted
+      return null
     }
   }
-  return null // Return null since we're not using fluent-ffmpeg wrapper
+  return ffmpegConfigured ? { ffmpegPath: null, ffprobePath: null } : null
 }
 
 // Enhanced multimedia file type support
@@ -201,23 +210,124 @@ export async function extractFromAudio(buffer: Buffer, filename: string): Promis
 
 // Extract metadata and analysis from video files
 export async function extractFromVideo(buffer: Buffer, filename: string): Promise<MultimediaExtractionResult> {
+  let tempPath: string | null = null
 
   try {
     console.log(`Processing video: ${filename}`)
 
-    // Ensure ffmpeg is loaded
-    await ensureFFmpegLoaded()
-    // FFmpeg is not available, use fallback
-    console.log('Using basic video file analysis (FFmpeg wrapper not available)')
-    return await extractVideoMetadataFallback(buffer, filename)
+    // Try to load FFmpeg binaries
+    const ffmpegPaths = await ensureFFmpegLoaded()
+
+    if (!ffmpegPaths || !ffmpegPaths.ffprobePath) {
+      console.log('FFmpeg not available, using fallback video analysis')
+      return await extractVideoMetadataFallback(buffer, filename)
+    }
+
+    // Create temporary file for FFprobe analysis
+    tempPath = join(tmpdir(), `temp-${randomUUID()}.video`)
+    writeFileSync(tempPath, buffer)
+
+    // Use direct ffprobe binary execution
+    const { exec } = await import('child_process')
+    const { promisify } = await import('util')
+    const execAsync = promisify(exec)
+
+    const ffprobeCmd = `"${ffmpegPaths.ffprobePath}" -v quiet -print_format json -show_format -show_streams "${tempPath}"`
+
+    try {
+      const { stdout } = await execAsync(ffprobeCmd)
+      const metadata = JSON.parse(stdout)
+
+      console.log(`Video metadata extracted for ${filename}`)
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const videoStream = metadata.streams?.find((s: any) => s.codec_type === 'video')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const audioStream = metadata.streams?.find((s: any) => s.codec_type === 'audio')
+
+      let content = `Video File Analysis: ${filename}\n`
+      content += `Duration: ${metadata.format?.duration ? Math.round(parseFloat(metadata.format.duration)) : 'Unknown'} seconds\n`
+      content += `Format: ${metadata.format?.format_name || 'Unknown'}\n`
+      content += `File Size: ${metadata.format?.size ? (parseInt(metadata.format.size) / (1024 * 1024)).toFixed(2) : 'Unknown'} MB\n`
+      content += `Bitrate: ${metadata.format?.bit_rate ? Math.round(parseInt(metadata.format.bit_rate) / 1000) : 'Unknown'} kbps\n\n`
+
+      if (videoStream) {
+        content += `Video Track:\n`
+        content += `- Resolution: ${videoStream.width}x${videoStream.height}\n`
+        content += `- Codec: ${videoStream.codec_name}\n`
+        content += `- Frame Rate: ${videoStream.r_frame_rate}\n`
+        content += `- Aspect Ratio: ${videoStream.display_aspect_ratio || 'Unknown'}\n\n`
+      }
+
+      if (audioStream) {
+        content += `Audio Track:\n`
+        content += `- Codec: ${audioStream.codec_name}\n`
+        content += `- Sample Rate: ${audioStream.sample_rate} Hz\n`
+        content += `- Channels: ${audioStream.channels}\n`
+        content += `- Bitrate: ${audioStream.bit_rate ? Math.round(parseInt(audioStream.bit_rate) / 1000) : 'Unknown'} kbps\n\n`
+      }
+
+      // Add placeholder for future video analysis capabilities
+      content += `Video Content Analysis:\n`
+      content += `[Video frame analysis and content recognition capabilities available for future integration with AI vision services]\n\n`
+      content += `[Audio track transcription available for integration with speech-to-text services]\n\n`
+
+      // Add technical metadata
+      content += `Technical Metadata:\n`
+      content += `- Container Format: ${metadata.format?.format_long_name || 'Unknown'}\n`
+      content += `- Creation Time: ${metadata.format?.tags?.creation_time || 'Unknown'}\n`
+      content += `- Title: ${metadata.format?.tags?.title || 'Not specified'}\n`
+
+      if (metadata.format?.tags) {
+        const tags = Object.entries(metadata.format.tags)
+          .filter(([key]) => !['creation_time', 'title'].includes(key))
+          .map(([key, value]) => `- ${key}: ${value}`)
+          .join('\n')
+        if (tags) {
+          content += `\nAdditional Metadata:\n${tags}\n`
+        }
+      }
+
+      const wordCount = content.split(/\s+/).filter(word => word.length > 0).length
+
+      return {
+        content,
+        wordCount,
+        processorUsed: 'ffprobe',
+        metadata: {
+          duration: metadata.format?.duration ? parseFloat(metadata.format.duration) : 0,
+          format: metadata.format?.format_name,
+          fileSize: metadata.format?.size ? parseInt(metadata.format.size) : buffer.length,
+          bitrate: metadata.format?.bit_rate ? parseInt(metadata.format.bit_rate) : 0,
+          videoCodec: videoStream?.codec_name,
+          audioCodec: audioStream?.codec_name,
+          resolution: videoStream ? `${videoStream.width}x${videoStream.height}` : undefined,
+          frameRate: videoStream?.r_frame_rate
+        }
+      }
+
+    } catch (ffprobeError) {
+      console.warn('FFprobe failed, using fallback:', ffprobeError)
+      return await extractVideoMetadataFallback(buffer, filename)
+    }
+
   } catch (error) {
     console.error('Video processing error:', error)
-    // Use fallback since FFmpeg is not available
+    // Try fallback
     try {
       return await extractVideoMetadataFallback(buffer, filename)
     } catch (fallbackError) {
       console.error('Fallback video processing also failed:', fallbackError)
       throw new Error(`Video processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  } finally {
+    // Clean up temp file
+    if (tempPath) {
+      try {
+        unlinkSync(tempPath)
+      } catch (e) {
+        console.warn('Failed to clean up temp video file:', e)
+      }
     }
   }
 }

@@ -153,11 +153,58 @@ async function extractFromPowerPoint(buffer: Buffer, filename: string): Promise<
   try {
     console.log(`Attempting to process PowerPoint: ${filename}`)
 
-    // Try alternative approach - basic content extraction for now
-    // Since pptx-parser has browser dependencies, we'll provide a simple fallback
+    // Use pptx-parser for accurate text extraction
+    const pptxParser = await import('pptx-parser')
 
-    // For now, create a basic content analysis
-    const content = `PowerPoint Presentation: ${filename}
+    try {
+      const slides = await pptxParser.parse(buffer)
+      console.log(`PowerPoint parsed successfully: ${slides.length} slides found`)
+
+      let content = `PowerPoint Presentation: ${filename}\n`
+      content += `File Type: Microsoft PowerPoint (.pptx)\n`
+      content += `Size: ${Math.round(buffer.length / 1024)} KB\n`
+      content += `Number of Slides: ${slides.length}\n\n`
+
+      // Extract text from each slide
+      slides.forEach((slide, index: number) => {
+        content += `--- Slide ${index + 1} ---\n`
+
+        if (slide.text && slide.text.length > 0) {
+          content += slide.text.join('\n') + '\n'
+        } else {
+          content += '[No text content on this slide]\n'
+        }
+
+        // Add slide notes if available
+        if (slide.notes && slide.notes.length > 0) {
+          content += `\nSlide Notes:\n${slide.notes.join('\n')}\n`
+        }
+
+        content += '\n'
+      })
+
+      // Add technical details
+      content += `\nTechnical Details:\n`
+      content += `- File format: OpenXML Presentation (.pptx)\n`
+      content += `- Processing method: Full text extraction with pptx-parser\n`
+      content += `- Slides processed: ${slides.length}\n`
+      content += `- Status: Successfully processed and indexed\n`
+
+      const wordCount = content.split(/\s+/).filter(word => word.length > 0).length
+
+      console.log(`PowerPoint processed successfully: ${filename}, extracted ${wordCount} words`)
+
+      return {
+        content,
+        wordCount,
+        processorUsed: 'pptx-parser'
+      }
+
+    } catch (parseError) {
+      console.warn('PPTX parser failed, using basic analysis:', parseError)
+
+      // Fallback to basic analysis
+      const content = `PowerPoint Presentation: ${filename}
 
 File Type: Microsoft PowerPoint (.pptx)
 Size: ${Math.round(buffer.length / 1024)} KB
@@ -166,22 +213,22 @@ Content Analysis:
 This PowerPoint presentation has been uploaded and is ready for processing.
 The file contains slides with potential text content, images, and formatting.
 
-Note: Enhanced PowerPoint text extraction is available for future implementation
-with server-compatible PowerPoint processing libraries.
+Note: Full text extraction temporarily unavailable, using basic file analysis.
 
 Technical Details:
 - File format: OpenXML Presentation (.pptx)
-- Processing method: Basic file analysis
+- Processing method: Basic file analysis (fallback)
 - Status: Successfully uploaded and indexed`
 
-    const wordCount = content.split(/\s+/).filter(word => word.length > 0).length
+      const wordCount = content.split(/\s+/).filter(word => word.length > 0).length
 
-    console.log(`PowerPoint processed successfully: ${filename}`)
+      console.log(`PowerPoint processed with fallback: ${filename}`)
 
-    return {
-      content: content.trim(),
-      wordCount,
-      processorUsed: 'basic-pptx-analysis'
+      return {
+        content: content.trim(),
+        wordCount,
+        processorUsed: 'basic-pptx-analysis'
+      }
     }
 
   } catch (error) {
