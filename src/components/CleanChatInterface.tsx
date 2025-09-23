@@ -7,6 +7,7 @@ interface Message {
   type: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  sources?: any[];
 }
 
 interface Session {
@@ -62,7 +63,7 @@ export default function CleanChatInterface() {
   const handleSend = () => {
     if (!input.trim()) return;
 
-    const userMessage = {
+    const userMessage: Message = {
       id: Date.now(),
       type: 'user',
       content: input,
@@ -75,7 +76,7 @@ export default function CleanChatInterface() {
 
     // Simulate AI response
     setTimeout(() => {
-      const aiMessage = {
+      const aiMessage: Message = {
         id: Date.now() + 1,
         type: 'assistant',
         content: "Prayer is one of the most powerful spiritual practices available to us. Based on the documents in our knowledge base, here are some effective approaches to prayer that can deepen your spiritual connection...",
