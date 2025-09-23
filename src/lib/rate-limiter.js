@@ -64,8 +64,8 @@ export const chatRateLimit = createRateLimit({
 
 export const uploadRateLimit = createRateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 20, // 20 uploads per hour
-  message: 'Upload limit exceeded. You can upload up to 20 files per hour.',
+  max: 100, // 100 uploads per hour for bulk uploads
+  message: 'Upload limit exceeded. You can upload up to 100 files per hour.',
     exemptUsers: [
     'user_31VtkWmZ1hKvQ7XKK8EgGtTYUtx', // Your current active Clerk ID
     '8fe756a4-d5c4-4b6b-87d9-5ada1e579bff', // Your database ID

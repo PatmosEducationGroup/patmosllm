@@ -574,41 +574,64 @@ export default function AdminPage() {
     fileInput.value = ''
   }
 
+  // Retry wrapper for API calls with exponential backoff
+  const retryWithBackoff = async (fn: () => Promise<Response>, maxRetries = 3): Promise<Response> => {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fn()
+        if (response.status === 429 && attempt < maxRetries) {
+          // Rate limited, wait with exponential backoff
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000) // Max 10 seconds
+          console.log(`Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        return response
+      } catch (error) {
+        if (attempt === maxRetries) throw error
+        // Wait before retry
+        const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+    throw new Error('Max retries exceeded')
+  }
+
   const processUploadQueue = async () => {
     if (uploadQueue.length === 0 || !userData) return
 
     setIsProcessingQueue(true)
-    
+
     for (let i = 0; i < uploadQueue.length; i++) {
       const queueItem = uploadQueue[i]
       if (queueItem.status !== 'pending') continue
 
       // Update status to uploading
-      setUploadQueue(prev => prev.map((item, index) => 
+      setUploadQueue(prev => prev.map((item, index) =>
         index === i ? { ...item, status: 'uploading' as const } : item
       ))
 
       try {
         await uploadSingleFile(queueItem.file, i)
-        
+
         // Mark as completed
-        setUploadQueue(prev => prev.map((item, index) => 
+        setUploadQueue(prev => prev.map((item, index) =>
           index === i ? { ...item, status: 'completed' as const, progress: 100 } : item
         ))
       } catch (error) {
         // Mark as error
-        setUploadQueue(prev => prev.map((item, index) => 
-          index === i ? { 
-            ...item, 
-            status: 'error' as const, 
-            error: error instanceof Error ? error.message : 'Upload failed' 
+        setUploadQueue(prev => prev.map((item, index) =>
+          index === i ? {
+            ...item,
+            status: 'error' as const,
+            error: error instanceof Error ? error.message : 'Upload failed'
           } : item
         ))
       }
 
       // Add delay between uploads to avoid rate limiting
       if (i < uploadQueue.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
+        await new Promise(resolve => setTimeout(resolve, 2000)) // 2 second delay (increased)
       }
     }
 
@@ -655,14 +678,14 @@ export default function AdminPage() {
       formData.append('contact_person', uploadQueue[queueIndex].metadata.contactPerson.trim() || '')
       formData.append('contact_email', uploadQueue[queueIndex].metadata.contactEmail.trim() || '')
 
-      // Upload to Vercel Blob and process in one call
-      const blobResponse = await fetch('/api/upload/blob', {
+      // Upload to Vercel Blob and process in one call with retry logic
+      const blobResponse = await retryWithBackoff(() => fetch('/api/upload/blob', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
         },
         body: formData
-      })
+      }))
 
       const blobData = await blobResponse.json()
       if (!blobData.success) {
@@ -673,8 +696,8 @@ export default function AdminPage() {
       // Use Supabase for smaller files (existing logic)
       console.log(`Using Supabase for regular file: ${file.name} (${file.size} bytes)`)
 
-      // Get presigned URL
-      const presignedResponse = await fetch('/api/upload/presigned', {
+      // Get presigned URL with retry logic
+      const presignedResponse = await retryWithBackoff(() => fetch('/api/upload/presigned', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -685,7 +708,7 @@ export default function AdminPage() {
           fileSize: file.size,
           mimeType: file.type
         })
-      })
+      }))
 
       const presignedData = await presignedResponse.json()
       if (!presignedData.success) {
@@ -713,8 +736,8 @@ export default function AdminPage() {
         index === queueIndex ? { ...item, progress: 60 } : item
       ))
 
-      // Process the file
-      const processResponse = await fetch('/api/upload/process', {
+      // Process the file with retry logic
+      const processResponse = await retryWithBackoff(() => fetch('/api/upload/process', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -733,7 +756,7 @@ export default function AdminPage() {
           contact_person: uploadQueue[queueIndex].metadata.contactPerson.trim() || null,
           contact_email: uploadQueue[queueIndex].metadata.contactEmail.trim() || null
         })
-      })
+      }))
 
       const processData = await processResponse.json()
       if (!processData.success) {
