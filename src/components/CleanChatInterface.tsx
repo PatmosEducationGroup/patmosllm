@@ -2,12 +2,23 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Plus, Menu, X, MessageCircle, User, Settings, Search, Clock, Globe, Download, ShoppingCart, Zap } from 'lucide-react';
 
 // TypeScript interfaces
+interface Source {
+  title: string;
+  author?: string;
+  chunk_id: string;
+  amazon_url?: string;
+  resource_url?: string;
+  download_enabled: boolean;
+  contact_person?: string;
+  contact_email?: string;
+}
+
 interface Message {
   id: number;
   type: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  sources?: any[];
+  sources?: Source[];
 }
 
 interface Session {
