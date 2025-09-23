@@ -102,7 +102,7 @@ export default function CleanChatInterface() {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffTime = Math.abs(now - date);
+    const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays === 0) return 'Today';
@@ -381,8 +381,7 @@ export default function CleanChatInterface() {
                     }
                   }}
                   placeholder="Ask me anything about your documents..."
-                  className="w-full resize-none border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent max-h-32"
-                  style={{ focusRingColor: '#82b3db' }}
+                  className="w-full resize-none border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent max-h-32"
                   rows={1}
                 />
               </div>

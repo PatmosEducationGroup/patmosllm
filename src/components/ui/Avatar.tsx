@@ -199,16 +199,17 @@ export const AvatarGroup = React.forwardRef<HTMLDivElement, AvatarGroupProps>(
         )}
         {...props}
       >
-        {displayChildren.map((child, index) =>
-          React.cloneElement(child as React.ReactElement, {
+        {displayChildren.map((child, index) => {
+          const element = child as React.ReactElement<Record<string, unknown>>;
+          return React.cloneElement(element, {
             key: index,
-            size,
+            ...element.props,
             className: cn(
               'border-2 border-white',
-              (child as React.ReactElement).props.className
+              element.props.className
             )
-          })
-        )}
+          });
+        })}
 
         {remainingCount > 0 && (
           <Avatar
