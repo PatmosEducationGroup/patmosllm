@@ -1,8 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Plus, Menu, X, MessageCircle, User, Settings, Search, Clock, Globe, Download, ShoppingCart, Zap } from 'lucide-react';
 
+// TypeScript interfaces
+interface Message {
+  id: number;
+  type: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+interface Session {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
 // Sample data for demonstration
-const sampleSessions = [
+const sampleSessions: Session[] = [
   { id: '1', title: 'How to pray effectively', updatedAt: '2024-01-15', messageCount: 8 },
   { id: '2', title: 'Bible study methods', updatedAt: '2024-01-14', messageCount: 12 },
   { id: '3', title: 'Finding spiritual guidance', updatedAt: '2024-01-14', messageCount: 5 },
@@ -31,7 +46,7 @@ const sampleSources = [
 export default function CleanChatInterface() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [currentSession, setCurrentSession] = useState('1');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
