@@ -229,7 +229,7 @@ export async function hybridSearch(
 
     // Apply title relevance boosting before final sorting
     const queryTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 2)
-    console.log(`DEBUG TITLE BOOSTING: Query terms extracted: [${queryTerms.join(', ')}]`)
+    // console.log(`DEBUG TITLE BOOSTING: Query terms extracted: [${queryTerms.join(', ')}]`)
 
     const boostedResults = Array.from(resultMap.values()).map(result => {
       let titleBoost = 0
@@ -256,15 +256,15 @@ export async function hybridSearch(
       }
 
       // Debug logging for title boosting (show all results with boosts)
-      if (titleBoost > 0) {
-        console.log(`DEBUG TITLE BOOST: "${result.documentTitle}"`)
-        console.log(`  - Original score: ${result.score.toFixed(4)}`)
-        console.log(`  - Matched terms: [${matchedTerms.join(', ')}] (${matchedTerms.length}/${queryTerms.length})`)
-        console.log(`  - Term boost: ${(matchedTerms.length * 0.15).toFixed(3)}`)
-        console.log(`  - Concept bonus: ${conceptBonus.toFixed(3)}`)
-        console.log(`  - Total title boost: ${titleBoost.toFixed(3)}`)
-        console.log(`  - Final score: ${(result.score + titleBoost).toFixed(4)}`)
-      }
+      // if (titleBoost > 0) {
+      //   console.log(`DEBUG TITLE BOOST: "${result.documentTitle}"`)
+      //   console.log(`  - Original score: ${result.score.toFixed(4)}`)
+      //   console.log(`  - Matched terms: [${matchedTerms.join(', ')}] (${matchedTerms.length}/${queryTerms.length})`)
+      //   console.log(`  - Term boost: ${(matchedTerms.length * 0.15).toFixed(3)}`)
+      //   console.log(`  - Concept bonus: ${conceptBonus.toFixed(3)}`)
+      //   console.log(`  - Total title boost: ${titleBoost.toFixed(3)}`)
+      //   console.log(`  - Final score: ${(result.score + titleBoost).toFixed(4)}`)
+      // }
 
       return {
         ...result,
@@ -283,10 +283,10 @@ export async function hybridSearch(
     const diversifiedResults = diversifyResults(hybridResults)
 
     // Debug: Show final results with titles and scores
-    console.log(`DEBUG FINAL RESULTS (after title boosting and diversity filtering):`)
-    diversifiedResults.slice(0, 10).forEach((result, i) => {
-      console.log(`  ${i+1}. "${result.documentTitle}" - Score: ${result.score.toFixed(4)} (original: ${result.originalScore?.toFixed(4)}, boost: ${result.titleBoost?.toFixed(3)})`)
-    })
+    // console.log(`DEBUG FINAL RESULTS (after title boosting and diversity filtering):`)
+    // diversifiedResults.slice(0, 10).forEach((result, i) => {
+    //   console.log(`  ${i+1}. "${result.documentTitle}" - Score: ${result.score.toFixed(4)} (original: ${result.originalScore?.toFixed(4)}, boost: ${result.titleBoost?.toFixed(3)})`)
+    // })
 
     // Cache results if enabled
     if (opts.enableCache) {
@@ -503,7 +503,7 @@ function preprocessQuery(query: string): string {
   const match = queryLower.match(forContextPattern)
   if (match) {
     const coreQuery = match[1].trim()
-    console.log(`DEBUG PREPROCESSING: "${query}" -> "${coreQuery}"`)
+    // console.log(`DEBUG PREPROCESSING: "${query}" -> "${coreQuery}"`)
     return coreQuery
   }
 

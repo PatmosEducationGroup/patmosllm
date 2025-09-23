@@ -8,13 +8,12 @@ import { useAuth, UserButton } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
-import { 
-  MessageCircle, 
-  Send, 
-  Menu, 
-  X, 
-  Plus, 
-  Trash2, 
+import {
+  MessageCircle,
+  Menu,
+  X,
+  Plus,
+  Trash2,
   Search,
   Download,
   ShoppingCart,
@@ -158,6 +157,17 @@ export default function ModernChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // AUTO-RESIZE TEXTAREA - Reset height when input is cleared
+  // =================================================================
+  useEffect(() => {
+    if (!input) {
+      const textarea = document.querySelector('textarea')
+      if (textarea) {
+        textarea.style.height = 'auto'
+      }
+    }
+  }, [input])
 
   // =================================================================
   // FEEDBACK FORM HANDLERS - Handle beta feedback submission
@@ -684,36 +694,12 @@ export default function ModernChatPage() {
   // =================================================================
   if (!isLoaded || !userId) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div 
-            style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '16px',
-              background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '24px',
-              fontWeight: 'bold',
-              marginBottom: '16px',
-              marginLeft: 'auto',
-              marginRight: 'auto',
-              animation: 'pulse 2s infinite',
-              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
-            }}
-          >
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto animate-pulse shadow-2xl">
             H.E
           </div>
-          <div style={{ color: '#64748b', fontSize: '18px', fontWeight: '500' }}>
+          <div className="text-slate-600 text-lg font-medium">
             Loading your workspace...
           </div>
         </div>
@@ -725,216 +711,37 @@ export default function ModernChatPage() {
   // MAIN UI RENDER - Complete modern chat interface layout
   // =================================================================
   return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      height: '100vh', 
-      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-      overflow: 'hidden'
-    }}>
+    <div className="flex flex-col h-screen bg-white overflow-hidden">
       
       {/* Modern Beta Banner */}
-      <div 
-        style={{ 
-          background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-          color: 'white',
-          padding: '12px 24px',
-          textAlign: 'center',
-          fontSize: '14px',
-          fontWeight: '500',
-          position: 'relative',
-          overflow: 'hidden'
-        }}
-      >
-        <div style={{ 
-          position: 'absolute', 
-          inset: 0, 
-          background: 'rgba(255,255,255,0.1)', 
-          animation: 'pulse 2s infinite' 
-        }}></div>
-        <div style={{ 
-          position: 'relative', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          gap: '12px' 
-        }}>
-          <span style={{ 
-            backgroundColor: '#9ecd55', 
-            color: '#1e293b',
-            padding: '4px 12px', 
-            borderRadius: '9999px', 
-            fontSize: '12px', 
-            fontWeight: 'bold', 
-            letterSpacing: '0.05em'
-          }}>
+      <div className="bg-gradient-to-r from-[#82b3db] to-[#5a9bd4] text-white px-6 py-3 text-center text-sm font-medium relative overflow-hidden">
+        <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+        <div className="relative flex items-center justify-center gap-3">
+          <span className="bg-[#9ecd55] text-slate-800 px-3 py-1 rounded-full text-xs font-bold tracking-wider">
             BETA
           </span>
           <span>This system is in beta testing - Your feedback helps us improve</span>
           <button
             onClick={() => setShowFeedbackModal(true)}
-            style={{
-              textDecoration: 'underline',
-              fontWeight: '600',
-              background: 'transparent',
-              border: 'none',
-              color: 'white',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'none'}
-            onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'underline'}
+            className="bg-gradient-to-r from-white/20 to-white/10 hover:from-white/30 hover:to-white/20 px-3 py-1 rounded-lg font-semibold border border-white/30 text-white cursor-pointer transition-all duration-200"
           >
             Share Feedback
           </button>
         </div>
       </div>
 
-      {/* Modern Header */}
-      <header style={{ 
-        background: 'rgba(255, 255, 255, 0.8)', 
-        backdropFilter: 'blur(12px)', 
-        borderBottom: '1px solid rgba(226, 232, 240, 0.4)', 
-        padding: '16px 24px' 
-      }}>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between', 
-          maxWidth: '1280px', 
-          margin: '0 auto' 
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div 
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontWeight: 'bold',
-                fontSize: '18px',
-                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
-                cursor: 'pointer',
-                transition: 'transform 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            >
-              H.E
-            </div>
-            <div>
-              <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>
-                Heaven.Earth
-              </h1>
-              <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>
-                Knowledge Base Assistant
-              </p>
-            </div>
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <button
-              onClick={() => setShowFeedbackModal(true)}
-              style={{
-                background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-                color: 'white',
-                padding: '8px 16px',
-                borderRadius: '12px',
-                fontSize: '14px',
-                fontWeight: '500',
-                border: 'none',
-                cursor: 'pointer',
-                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = '0 20px 40px -12px rgba(0, 0, 0, 0.25)'
-                e.currentTarget.style.transform = 'scale(1.05)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
-                e.currentTarget.style.transform = 'scale(1)'
-              }}
-            >
-              Feedback
-            </button>
-            <Link
-              href="/admin"
-              style={{
-                fontSize: '14px',
-                color: '#64748b',
-                textDecoration: 'none',
-                fontWeight: '500',
-                transition: 'color 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = '#1e293b'
-                e.currentTarget.style.textDecoration = 'underline'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = '#64748b'
-                e.currentTarget.style.textDecoration = 'none'
-              }}
-            >
-              Admin Tools
-            </Link>
-            <UserButton afterSignOutUrl="/" />
-          </div>
-        </div>
-      </header>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="flex flex-1 overflow-hidden">
         {/* Modern Animated Sidebar */}
-        <div 
-          style={{ 
-            width: sidebarOpen ? '320px' : '0px',
-            background: 'linear-gradient(180deg, rgba(130, 179, 219, 0.1) 0%, rgba(158, 205, 85, 0.05) 100%), #1e293b',
-            backdropFilter: 'blur(12px)',
-            transition: 'all 0.3s ease-out',
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
+        <div
+          className={`bg-white border-r border-slate-200 transition-all duration-300 ease-out flex flex-col relative overflow-hidden md:relative ${sidebarOpen ? 'w-64 fixed inset-y-0 left-0 z-40 md:static' : 'w-0 md:w-0'}`}
         >
-          <div style={{ 
-            opacity: sidebarOpen ? 1 : 0, 
-            transition: 'opacity 0.3s', 
-            display: 'flex', 
-            flexDirection: 'column', 
-            height: '100%' 
-          }}>
+          <div className={`transition-opacity duration-300 flex flex-col h-full ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>
             {/* New Chat Button */}
-            <div style={{ padding: '16px', borderBottom: '1px solid rgba(100, 116, 139, 0.5)' }}>
+            <div className="p-4 border-b border-slate-200">
               <button
                 onClick={handleNewChatClick}
-                style={{
-                  width: '100%',
-                  background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-                  color: 'white',
-                  padding: '12px 16px',
-                  borderRadius: '12px',
-                  fontWeight: '500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.boxShadow = '0 20px 40px -12px rgba(0, 0, 0, 0.25)'
-                  e.currentTarget.style.transform = 'scale(1.02)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
-                  e.currentTarget.style.transform = 'scale(1)'
-                }}
+                className="w-full bg-gradient-to-r from-[#82b3db] to-[#6ba3d0] text-white px-4 py-3 rounded-xl font-medium flex items-center gap-3 shadow-lg border-none cursor-pointer transition-all duration-200 hover:shadow-xl hover:scale-105"
               >
                 <Plus size={20} />
                 New Conversation
@@ -942,120 +749,52 @@ export default function ModernChatPage() {
             </div>
 
             {/* Search Bar */}
-            <div style={{ padding: '16px', borderBottom: '1px solid rgba(100, 116, 139, 0.5)' }}>
-              <div style={{ position: 'relative' }}>
-                <Search 
-                  style={{ 
-                    position: 'absolute', 
-                    left: '12px', 
-                    top: '50%', 
-                    transform: 'translateY(-50%)', 
-                    width: '16px', 
-                    height: '16px', 
-                    color: '#94a3b8' 
-                  }} 
-                />
+            <div className="p-4 border-b border-slate-200">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input
                   type="text"
                   placeholder="Search conversations..."
-                  style={{
-                    width: '100%',
-                    background: 'rgba(30, 41, 59, 0.5)',
-                    color: 'white',
-                    paddingLeft: '40px',
-                    paddingRight: '16px',
-                    paddingTop: '8px',
-                    paddingBottom: '8px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(100, 116, 139, 0.3)',
-                    outline: 'none',
-                    transition: 'border-color 0.2s',
-                    fontSize: '14px'
-                  }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(100, 116, 139, 0.3)'}
+                  className="w-full bg-slate-50 text-slate-900 pl-10 pr-4 py-2 rounded-lg border border-slate-300 outline-none transition-colors duration-200 text-sm focus:border-[#82b3db] focus:ring-2 focus:ring-[#82b3db]/20"
                 />
               </div>
             </div>
 
             {/* Sessions List */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+            <div className="flex-1 overflow-y-auto p-2">
               {loadingSessions ? (
-                <div style={{ padding: '16px', color: '#94a3b8', textAlign: 'center' }}>
-                  <div style={{ 
-                    width: '24px', 
-                    height: '24px', 
-                    border: '2px solid #94a3b8', 
-                    borderTopColor: 'transparent', 
-                    borderRadius: '50%', 
-                    margin: '0 auto 8px', 
-                    animation: 'spin 1s linear infinite' 
-                  }}></div>
+                <div className="p-4 text-slate-600 text-center">
+                  <div className="w-6 h-6 border-2 border-slate-400 border-t-transparent rounded-full mx-auto mb-2 animate-spin"></div>
                   Loading conversations...
                 </div>
               ) : sessions.length === 0 ? (
-                <div style={{ padding: '16px', color: '#94a3b8', textAlign: 'center' }}>
-                  <MessageCircle style={{ width: '32px', height: '32px', margin: '0 auto 8px', opacity: 0.5 }} />
+                <div className="p-4 text-slate-600 text-center">
+                  <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   No conversations yet
                 </div>
               ) : (
                 sessions.map((session, index) => (
                   <div
                     key={session.id}
-                    style={{
-                      padding: '16px',
-                      borderRadius: '12px',
-                      marginBottom: '8px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      backgroundColor: session.id === currentSessionId ? 'rgba(100, 116, 139, 0.4)' : 'transparent',
-                      border: session.id === currentSessionId ? '1px solid rgba(130, 179, 219, 0.2)' : '1px solid transparent',
-                      animationName: 'slideInLeft',
-                      animationDuration: '0.5s',
-                      animationTimingFunction: 'ease-out',
-                      animationFillMode: 'forwards',
-                      animationDelay: `${index * 100}ms`
-                    }}
+                    className={`group p-4 rounded-xl mb-2 cursor-pointer transition-all duration-200 animate-slide-up border ${
+                      session.id === currentSessionId
+                        ? 'bg-[#82b3db]/10 border-[#82b3db]/30'
+                        : 'bg-transparent border-transparent hover:bg-slate-50'
+                    }`}
+                    style={{ animationDelay: `${index * 100}ms` }}
                     onClick={() => loadSession(session.id)}
-                    onMouseEnter={(e) => {
-                      if (session.id !== currentSessionId) {
-                        e.currentTarget.style.backgroundColor = 'rgba(100, 116, 139, 0.3)'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (session.id !== currentSessionId) {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                      }
-                    }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <h3 style={{ 
-                          color: 'white', 
-                          fontWeight: '500', 
-                          fontSize: '14px', 
-                          marginBottom: '4px', 
-                          overflow: 'hidden', 
-                          textOverflow: 'ellipsis', 
-                          whiteSpace: 'nowrap',
-                          transition: 'color 0.2s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = '#9ecd55'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = 'white'}
-                        >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-slate-900 font-medium text-sm mb-1 overflow-hidden text-ellipsis whitespace-nowrap transition-colors duration-200 hover:text-[#82b3db]">
                           {session.title}
                         </h3>
-                        <p style={{ 
-                          color: '#94a3b8', 
-                          fontSize: '12px', 
-                          marginBottom: '8px', 
-                          margin: '8px 0' 
-                        }}>
+                        <p className="text-slate-600 text-xs my-2">
                           {formatDate(session.updatedAt)} • {session.messageCount} messages
                         </p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <MessageCircle style={{ width: '12px', height: '12px', color: '#64748b' }} />
-                          <span style={{ fontSize: '12px', color: '#64748b' }}>{session.messageCount}</span>
+                        <div className="flex items-center gap-2">
+                          <MessageCircle className="w-3 h-3 text-slate-600" />
+                          <span className="text-xs text-slate-600">{session.messageCount}</span>
                         </div>
                       </div>
                       <button
@@ -1063,317 +802,180 @@ export default function ModernChatPage() {
                           e.stopPropagation()
                           deleteSession(session.id)
                         }}
-                        style={{
-                          opacity: 0,
-                          color: '#94a3b8',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          padding: '4px',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = '#ef4444'
-                          e.currentTarget.style.opacity = '1'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = '#94a3b8'
-                        }}
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 bg-transparent border-none cursor-pointer p-1 transition-all duration-200 hover:text-red-500"
                       >
-                        <Trash2 style={{ width: '16px', height: '16px' }} />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
                 ))
               )}
             </div>
+
+            {/* Sidebar Footer */}
+            <div className="border-t border-slate-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#82b3db] to-[#6ba3d0] flex items-center justify-center text-white font-bold text-sm">
+                    H.E
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-slate-900">Heaven.Earth</div>
+                    <div className="text-xs text-slate-600">Knowledge Assistant</div>
+                  </div>
+                </div>
+                <UserButton afterSignOutUrl="/" />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowFeedbackModal(true)}
+                  className="flex-1 bg-gradient-to-r from-[#82b3db] to-[#6ba3d0] text-white px-3 py-2 rounded-lg text-xs font-medium border-none cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105"
+                >
+                  Feedback
+                </button>
+                <Link
+                  href="/admin"
+                  className="flex-1 text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg no-underline font-medium text-center transition-colors duration-200"
+                >
+                  Admin Tools
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Main Chat Area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
-          {/* Chat Header */}
-          <div style={{ 
-            background: 'rgba(255, 255, 255, 0.6)', 
-            backdropFilter: 'blur(12px)', 
-            borderBottom: '1px solid rgba(226, 232, 240, 0.4)', 
-            padding: '16px 24px' 
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <button
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
-                  style={{
-                    padding: '8px',
-                    borderRadius: '8px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#64748b',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                >
-                  {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-                </button>
-                <div>
-                  <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1e293b', margin: 0 }}>
-                    {currentSessionTitle}
-                  </h2>
-                  <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>
-                    AI Assistant • Online
-                  </p>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div 
-                  style={{ 
-                    width: '12px', 
-                    height: '12px', 
-                    borderRadius: '50%', 
-                    backgroundColor: '#9ecd55',
-                    animation: 'pulse 2s infinite'
-                  }}
-                ></div>
-                <span style={{ fontSize: '14px', color: '#64748b' }}>Active</span>
-              </div>
-            </div>
+        <div className="flex-1 flex flex-col relative">
+          {/* Mobile Menu Button */}
+          <div className="md:hidden bg-white border-b border-slate-200 px-4 py-3">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-lg bg-transparent border-none text-slate-600 cursor-pointer transition-all duration-200 hover:bg-slate-100"
+            >
+              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
           </div>
 
-          {/* Messages Container */}
-          <div style={{ 
-            flex: 1, 
-            overflowY: 'auto', 
-            padding: '24px', 
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '24px'
-          }}>
+          {/* Messages Container - COMPLETELY FIXED */}
+          <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6">
+            <div className="max-w-4xl mx-auto flex flex-col gap-4 md:gap-6">
             {messages.length === 0 && !loading && (
-              <div style={{ textAlign: 'center', paddingTop: '80px', paddingBottom: '80px' }}>
-                <div 
-                  style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '16px',
-                    background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    fontSize: '24px',
-                    fontWeight: 'bold',
-                    marginBottom: '24px',
-                    marginLeft: 'auto',
-                    marginRight: 'auto',
-                    animation: 'pulse 2s infinite',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
-                  }}
-                >
+              <div className="text-center py-20">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold mb-6 mx-auto animate-pulse shadow-2xl">
                   H.E
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>
+                <h3 className="text-xl font-semibold text-slate-800 mb-2">
                   Welcome to Heaven.Earth
                 </h3>
-                <p style={{ color: '#64748b', fontSize: '18px' }}>
+                <p className="text-slate-600 text-lg">
                   Ask any question about our knowledge base to get started
                 </p>
               </div>
             )}
 
-            {/* Chat Messages */}
+            {/* Chat Messages - FIXED ALIGNMENT */}
             {messages.map((message, index) => (
               <div
                 key={message.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start',
-                  animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`
-                }}
+                className={`flex w-full animate-slide-up ${
+                  message.type === 'user' ? 'justify-end' : 'justify-start'
+                }`}
+                style={{ animationDelay: `${index * 0.1}s` }}
               >
-                <div style={{ 
-                  maxWidth: '896px', 
-                  order: message.type === 'user' ? 2 : 1 
-                }}>
+                <div className={`${
+                  message.type === 'user' ? 'max-w-2xl' : 'w-full'
+                }`}>
                   <div
-                    style={{
-                      borderRadius: '16px',
-                      padding: '24px',
-                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
-                      marginLeft: message.type === 'user' ? '48px' : '0',
-                      marginRight: message.type === 'user' ? '0' : '48px',
-                      background: message.type === 'user' 
-                        ? 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)' 
-                        : 'rgba(255, 255, 255, 0.8)',
-                      backdropFilter: message.type === 'assistant' ? 'blur(12px)' : 'none',
-                      border: message.type === 'assistant' ? '1px solid rgba(226, 232, 240, 0.4)' : 'none',
-                      color: message.type === 'user' ? 'white' : '#1e293b'
-                    }}
+                    className={`rounded-2xl p-4 md:p-6 shadow-lg ${
+                      message.type === 'user'
+                        ? 'bg-gradient-to-br from-[#82b3db] to-[#6ba3d0] text-white'
+                        : 'bg-white border border-slate-200 text-slate-900'
+                    }`}
                   >
                     {/* Message Content */}
                     {message.type === 'assistant' ? (
                       <div>
                         <ReactMarkdown
                           components={{
-                            p: ({children}) => <div style={{ marginBottom: '12px', color: '#334155' }}>{children}</div>,
-                            strong: ({children}) => <strong style={{ fontWeight: '600', color: '#1e293b' }}>{children}</strong>,
-                            ul: ({children}) => <ul style={{ listStyleType: 'disc', paddingLeft: '24px', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>{children}</ul>,
-                            ol: ({children}) => <ol style={{ listStyleType: 'decimal', paddingLeft: '24px', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>{children}</ol>,
-                            li: ({children}) => <li style={{ color: '#334155' }}>{children}</li>,
-                            h1: ({children}) => <h1 style={{ fontSize: '20px', fontWeight: '600', color: '#1e293b', marginBottom: '12px' }}>{children}</h1>,
-                            h2: ({children}) => <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1e293b', marginBottom: '12px' }}>{children}</h2>,
-                            h3: ({children}) => <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>{children}</h3>,
-                            code: ({children}) => <code style={{ backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontSize: '14px', fontFamily: 'monospace', color: '#1e293b' }}>{children}</code>
+                            p: ({children}) => <div className="mb-3 text-slate-700">{children}</div>,
+                            strong: ({children}) => <strong className="font-semibold text-slate-800">{children}</strong>,
+                            ul: ({children}) => <ul className="list-disc pl-6 mb-3 flex flex-col gap-1">{children}</ul>,
+                            ol: ({children}) => <ol className="list-decimal pl-6 mb-3 flex flex-col gap-1">{children}</ol>,
+                            li: ({children}) => <li className="text-slate-700">{children}</li>,
+                            h1: ({children}) => <h1 className="text-xl font-semibold text-slate-800 mb-3">{children}</h1>,
+                            h2: ({children}) => <h2 className="text-lg font-semibold text-slate-800 mb-3">{children}</h2>,
+                            h3: ({children}) => <h3 className="text-base font-semibold text-slate-800 mb-2">{children}</h3>,
+                            code: ({children}) => <code className="bg-slate-100 px-2 py-0.5 rounded text-sm font-mono text-slate-800">{children}</code>
                           }}
                         >
                           {message.content}
                         </ReactMarkdown>
-                        
+
                         {/* Streaming Cursor */}
                         {message.isStreaming && (
-                          <span 
-                            style={{ 
-                              display: 'inline-block',
-                              width: '2px',
-                              height: '20px',
-                              marginLeft: '4px',
-                              backgroundColor: '#82b3db',
-                              animation: 'pulse 2s infinite'
-                            }}
-                          />
+                          <span className="inline-block w-0.5 h-5 ml-1 bg-primary-400 animate-pulse" />
                         )}
                       </div>
                     ) : (
-                      <div style={{ whiteSpace: 'pre-wrap', color: 'rgba(255,255,255,0.95)' }}>
+                      <div className="whitespace-pre-wrap text-white/95">
                         {message.content}
                       </div>
                     )}
 
                     {/* Enhanced Source Citations */}
                     {message.sources && message.sources.length > 0 && !message.isStreaming && (
-                      <div style={{ 
-                        marginTop: '24px', 
-                        paddingTop: '16px', 
-                        borderTop: '1px solid rgba(226, 232, 240, 0.3)' 
-                      }}>
-                        <div style={{ 
-                          fontSize: '14px', 
-                          fontWeight: '600', 
-                          color: '#334155', 
-                          marginBottom: '12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px'
-                        }}>
-                          <Globe style={{ width: '16px', height: '16px' }} />
+                      <div className="mt-6 pt-4 border-t border-slate-200/30">
+                        <div className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                          <Globe className="w-4 h-4" />
                           Sources:
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div className="flex flex-col gap-3">
                           {message.sources.map((source, i) => (
-                            <div 
-                              key={i} 
-                              style={{ 
-                                backgroundColor: 'rgba(248, 250, 252, 0.8)',
-                                borderRadius: '12px',
-                                padding: '16px',
-                                border: '1px solid rgba(226, 232, 240, 0.4)',
-                                transition: 'all 0.2s',
-                                animation: `slideInRight 0.5s ease-out ${i * 0.1}s both`
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1)'}
-                              onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                            <div
+                              key={i}
+                              className="bg-slate-50/80 rounded-xl p-4 border border-slate-200/40 transition-all duration-200 animate-slide-up hover:shadow-lg"
+                              style={{ animationDelay: `${i * 0.1}s` }}
                             >
-                              <div style={{ 
-                                display: 'flex', 
-                                alignItems: 'start', 
-                                justifyContent: 'space-between', 
-                                marginBottom: '12px' 
-                              }}>
+                              <div className="flex items-start justify-between mb-3">
                                 <div>
-                                  <h4 style={{ 
-                                    fontWeight: '600', 
-                                    color: '#1e293b', 
-                                    fontSize: '14px', 
-                                    margin: 0 
-                                  }}>
+                                  <h4 className="font-semibold text-slate-800 text-sm m-0">
                                     {source.title}
                                   </h4>
                                   {source.author && (
-                                    <p style={{ 
-                                      fontSize: '12px', 
-                                      color: '#64748b', 
-                                      marginTop: '4px', 
-                                      margin: 0 
-                                    }}>
+                                    <p className="text-xs text-slate-600 mt-1 m-0">
                                       by {source.author}
                                     </p>
                                   )}
                                 </div>
                               </div>
-                              
-                              <div style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '8px', 
-                                flexWrap: 'wrap' 
-                              }}>
+
+                              <div className="flex items-center gap-2 flex-wrap">
                                 {source.amazon_url && (
                                   <a
                                     href={ensureHttps(source.amazon_url)}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '8px',
-                                      padding: '6px 12px',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      borderRadius: '8px',
-                                      textDecoration: 'none',
-                                      transition: 'all 0.2s',
-                                      background: 'linear-gradient(135deg, rgba(130, 179, 219, 0.2) 0%, rgba(130, 179, 219, 0.1) 100%)',
-                                      color: '#82b3db',
-                                      border: '1px solid rgba(130, 179, 219, 0.3)'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg no-underline transition-all duration-200 bg-gradient-to-r from-primary-400/20 to-primary-400/10 text-primary-600 border border-primary-400/30 hover:scale-105"
                                   >
-                                    <ShoppingCart style={{ width: '12px', height: '12px' }} />
+                                    <ShoppingCart className="w-3 h-3" />
                                     Store
                                   </a>
                                 )}
-                                
+
                                 {source.resource_url && source.download_enabled && (
                                   <a
                                     href={ensureHttps(source.resource_url)}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '8px',
-                                      padding: '6px 12px',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      borderRadius: '8px',
-                                      textDecoration: 'none',
-                                      transition: 'all 0.2s',
-                                      background: 'linear-gradient(135deg, rgba(158, 205, 85, 0.2) 0%, rgba(158, 205, 85, 0.1) 100%)',
-                                      color: '#9ecd55',
-                                      border: '1px solid rgba(158, 205, 85, 0.3)'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg no-underline transition-all duration-200 bg-gradient-to-r from-secondary-400/20 to-secondary-400/10 text-secondary-600 border border-secondary-400/30 hover:scale-105"
                                   >
-                                    <Download style={{ width: '12px', height: '12px' }} />
+                                    <Download className="w-3 h-3" />
                                     Download
                                   </a>
                                 )}
-                                
+
                                 {source.contact_person && source.contact_email && (
-                                  <button 
+                                  <button
                                     onClick={() => {
                                       setContactInfo({
                                         person: source.contact_person!,
@@ -1382,32 +984,9 @@ export default function ModernChatPage() {
                                       })
                                       setShowContactModal(true)
                                     }}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '8px',
-                                      padding: '6px 12px',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      color: '#64748b',
-                                      backgroundColor: 'white',
-                                      borderRadius: '8px',
-                                      border: '1px solid #cbd5e1',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.color = '#1e293b'
-                                      e.currentTarget.style.borderColor = '#94a3b8'
-                                      e.currentTarget.style.transform = 'scale(1.05)'
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.color = '#64748b'
-                                      e.currentTarget.style.borderColor = '#cbd5e1'
-                                      e.currentTarget.style.transform = 'scale(1)'
-                                    }}
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white rounded-lg border border-slate-300 cursor-pointer transition-all duration-200 hover:text-slate-800 hover:border-slate-400 hover:scale-105"
                                   >
-                                    <User style={{ width: '12px', height: '12px' }} />
+                                    <User className="w-3 h-3" />
                                     Contact {source.contact_person}
                                   </button>
                                 )}
@@ -1419,15 +998,10 @@ export default function ModernChatPage() {
                     )}
 
                     {/* Message Timestamp */}
-                    <div style={{
-                      fontSize: '12px',
-                      marginTop: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      color: message.type === 'user' ? 'rgba(255,255,255,0.7)' : '#94a3b8'
-                    }}>
-                      <Clock style={{ width: '12px', height: '12px' }} />
+                    <div className={`text-xs mt-3 flex items-center gap-1 ${
+                      message.type === 'user' ? 'text-white/70' : 'text-slate-400'
+                    }`}>
+                      <Clock className="w-3 h-3" />
                       {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
@@ -1437,160 +1011,75 @@ export default function ModernChatPage() {
 
             {/* Modern Loading Animation */}
             {isStreaming && (
-              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.8)',
-                  backdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(226, 232, 240, 0.4)',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
-                  marginRight: '48px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+              <div className="flex w-full">
+                <div className="w-full max-w-4xl">
+                  <div className="w-full flex justify-start">
+                    <div className="max-w-3xl bg-white border border-slate-200 rounded-2xl p-6 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1">
                       {[0, 1, 2].map(i => (
                         <div
                           key={i}
-                          style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            backgroundColor: '#82b3db',
-                            animation: `bounce 1.4s ease-in-out ${i * 0.2}s infinite`
-                          }}
+                          className="w-2 h-2 rounded-full bg-[#82b3db] animate-bounce"
+                          style={{ animationDelay: `${i * 0.2}s` }}
                         ></div>
                       ))}
                     </div>
-                    <span style={{ 
-                      fontSize: '14px', 
-                      color: '#64748b', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '8px',
-                      animation: 'pulse 2s infinite' 
-                    }}>
-                      <Zap style={{ width: '16px', height: '16px' }} />
+                    <span className="text-sm text-slate-700 flex items-center gap-2 animate-pulse">
+                      <Zap className="w-4 h-4" />
                       AI is thinking...
                     </span>
+                  </div>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
 
             {error && (
-              <div style={{
-                background: 'rgba(254, 242, 242, 0.8)',
-                backdropFilter: 'blur(12px)',
-                border: '1px solid #fecaca',
-                color: '#dc2626',
-                padding: '24px',
-                borderRadius: '12px',
-                textAlign: 'center',
-                boxShadow: '0 10px 25px -5px rgba(220, 38, 38, 0.1)'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                  <Shield style={{ width: '20px', height: '20px' }} />
+              <div className="flex w-full">
+                <div className="w-full max-w-4xl mx-auto">
+                  <div className="w-full flex justify-start">
+                    <div className="max-w-3xl bg-red-50 border border-red-200 text-red-600 p-6 rounded-xl text-center shadow-lg">
+                <div className="flex items-center justify-center gap-2">
+                  <Shield className="w-5 h-5" />
                   {error}
+                </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
 
             <div ref={messagesEndRef} />
+            </div>
           </div>
 
           {/* Modern Input Area */}
-          <div style={{ 
-            background: 'rgba(255, 255, 255, 0.6)', 
-            backdropFilter: 'blur(12px)', 
-            borderTop: '1px solid rgba(226, 232, 240, 0.4)', 
-            padding: '24px' 
-          }}>
-            <div style={{ maxWidth: '896px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
-                <div style={{ flex: 1, position: 'relative' }}>
-                  <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        handleSubmit(e as React.FormEvent)
-                      }
-                    }}
-                    placeholder="Ask a question about the documents..."
-                    disabled={loading || !currentSessionId || isStreaming}
-                    rows={1}
-                    style={{
-                      width: '100%',
-                      padding: '24px',
-                      background: 'rgba(255, 255, 255, 0.8)',
-                      backdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(226, 232, 240, 0.6)',
-                      borderRadius: '16px',
-                      resize: 'none',
-                      outline: 'none',
-                      fontSize: '16px',
-                      color: '#334155',
-                      minHeight: '56px',
-                      transition: 'all 0.2s'
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.outline = '2px solid rgba(130, 179, 219, 0.5)'
-                      e.currentTarget.style.borderColor = '#82b3db'
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.outline = 'none'
-                      e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'
-                    }}
-                  />
-                </div>
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading || !input.trim() || !currentSessionId || isStreaming}
-                  style={{
-                    padding: '16px 24px',
-                    borderRadius: '16px',
-                    fontWeight: '500',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    transition: 'all 0.2s',
-                    border: 'none',
-                    cursor: loading || !input.trim() || !currentSessionId || isStreaming ? 'not-allowed' : 'pointer',
-                    background: loading || !input.trim() || !currentSessionId || isStreaming
-                      ? '#cbd5e1'
-                      : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-                    color: loading || !input.trim() || !currentSessionId || isStreaming ? '#64748b' : 'white'
+          <div className="bg-white border-t border-slate-200 flex justify-center">
+            <div className="w-full max-w-4xl px-4 md:px-6 py-4 md:py-6">
+              <div className="max-w-4xl w-full">
+                <textarea
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value)
+                    // Auto-resize textarea
+                    const textarea = e.target as HTMLTextAreaElement
+                    textarea.style.height = 'auto'
+                    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px'
                   }}
-                  onMouseEnter={(e) => {
-                    if (!loading && input.trim() && currentSessionId && !isStreaming) {
-                      e.currentTarget.style.boxShadow = '0 20px 40px -12px rgba(0, 0, 0, 0.25)'
-                      e.currentTarget.style.transform = 'scale(1.05)'
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSubmit(e as React.FormEvent)
                     }
                   }}
-                  onMouseLeave={(e) => {
-                    if (!loading && input.trim() && currentSessionId && !isStreaming) {
-                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
-                      e.currentTarget.style.transform = 'scale(1)'
-                    }
-                  }}
-                >
-                  {loading ? (
-                    <div style={{ 
-                      width: '20px', 
-                      height: '20px', 
-                      border: '2px solid #94a3b8', 
-                      borderTopColor: 'transparent', 
-                      borderRadius: '50%', 
-                      animation: 'spin 1s linear infinite' 
-                    }}></div>
-                  ) : (
-                    <Send style={{ width: '20px', height: '20px' }} />
-                  )}
-                  {isStreaming ? 'Streaming...' : loading ? 'Sending...' : 'Send'}
-                </button>
+                  placeholder="Ask a question about the documents..."
+                  disabled={loading || !currentSessionId || isStreaming}
+                  rows={1}
+                  className="w-full p-4 md:p-6 bg-slate-50 border border-slate-300 rounded-2xl resize-none outline-none text-sm md:text-base text-slate-900 min-h-12 md:min-h-14 max-h-50 transition-all duration-200 focus:ring-2 focus:ring-[#82b3db]/50 focus:border-[#82b3db]"
+                  style={{ overflow: 'hidden' }}
+                />
               </div>
             </div>
           </div>
@@ -1599,80 +1088,34 @@ export default function ModernChatPage() {
 
       {/* Feedback Modal */}
       {showFeedbackModal && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '16px',
-          zIndex: 50
-        }}>
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.9)',
-            backdropFilter: 'blur(12px)',
-            borderRadius: '16px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            maxWidth: '512px',
-            width: '100%',
-            padding: '24px',
-            border: '1px solid rgba(226, 232, 240, 0.4)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#1e293b', margin: 0 }}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200/40">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-semibold text-slate-800 m-0">
                 Beta Feedback
               </h3>
               <button
                 onClick={() => setShowFeedbackModal(false)}
-                style={{
-                  color: '#94a3b8',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'color 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#64748b'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                className="text-slate-400 bg-transparent border-none cursor-pointer transition-colors duration-200 hover:text-slate-600"
               >
-                <X style={{ width: '24px', height: '24px' }} />
+                <X className="w-6 h-6" />
               </button>
             </div>
 
             {feedbackSubmitStatus === 'success' ? (
-              <div style={{ textAlign: 'center', padding: '32px 0' }}>
-                <div 
-                  style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    fontSize: '24px',
-                    margin: '0 auto 16px'
-                  }}
-                >
+              <div className="text-center py-8">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl mx-auto mb-4">
                   ✓
                 </div>
-                <h4 style={{ fontSize: '18px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>
+                <h4 className="text-lg font-semibold text-slate-800 mb-2">
                   Thank you for your feedback!
                 </h4>
-                <p style={{ color: '#64748b' }}>This helps us improve the system.</p>
+                <p className="text-slate-600">This helps us improve the system.</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="flex flex-col gap-4">
                 <div>
-                  <label style={{ 
-                    display: 'block', 
-                    fontSize: '14px', 
-                    fontWeight: '500', 
-                    color: '#374151', 
-                    marginBottom: '8px'
-                  }}>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Name
                   </label>
                   <input
@@ -1681,36 +1124,12 @@ export default function ModernChatPage() {
                     value={feedbackForm.name}
                     onChange={handleFeedbackInputChange}
                     required
-                    style={{
-                      width: '100%',
-                      padding: '16px',
-                      background: 'rgba(255, 255, 255, 0.8)',
-                      backdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(226, 232, 240, 0.6)',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      outline: 'none',
-                      transition: 'all 0.2s'
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#82b3db'
-                      e.currentTarget.style.outline = '2px solid rgba(130, 179, 219, 0.5)'
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'
-                      e.currentTarget.style.outline = 'none'
-                    }}
+                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-xl text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                   />
                 </div>
 
                 <div>
-                  <label style={{ 
-                    display: 'block', 
-                    fontSize: '14px', 
-                    fontWeight: '500', 
-                    color: '#374151', 
-                    marginBottom: '8px'
-                  }}>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Email
                   </label>
                   <input
@@ -1719,34 +1138,12 @@ export default function ModernChatPage() {
                     value={feedbackForm.email}
                     onChange={handleFeedbackInputChange}
                     required
-                    style={{
-                      width: '100%',
-                      padding: '16px',
-                      background: 'rgba(255, 255, 255, 0.8)',
-                      backdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(226, 232, 240, 0.6)',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      outline: 'none',
-                      transition: 'all 0.2s'
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#82b3db'
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'
-                    }}
+                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-xl text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                   />
                 </div>
 
                 <div>
-                  <label style={{ 
-                    display: 'block', 
-                    fontSize: '14px', 
-                    fontWeight: '500', 
-                    color: '#374151', 
-                    marginBottom: '8px'
-                  }}>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Feedback
                   </label>
                   <textarea
@@ -1756,75 +1153,32 @@ export default function ModernChatPage() {
                     required
                     rows={4}
                     placeholder="Share your thoughts, bugs you've found, or suggestions for improvement..."
-                    style={{
-                      width: '100%',
-                      padding: '16px',
-                      background: 'rgba(255, 255, 255, 0.8)',
-                      backdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(226, 232, 240, 0.6)',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      outline: 'none',
-                      resize: 'vertical',
-                      transition: 'all 0.2s'
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#82b3db'
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'
-                    }}
+                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-xl text-sm outline-none resize-vertical transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                   />
                 </div>
 
                 {feedbackSubmitStatus === 'error' && (
-                  <p style={{ color: '#dc2626', fontSize: '14px' }}>
+                  <p className="text-red-600 text-sm">
                     There was an error sending your feedback. Please try again.
                   </p>
                 )}
 
-                <div style={{ display: 'flex', gap: '12px', paddingTop: '8px' }}>
+                <div className="flex gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setShowFeedbackModal(false)}
-                    style={{
-                      flex: 1,
-                      padding: '12px 16px',
-                      border: '1px solid #cbd5e1',
-                      color: '#334155',
-                      borderRadius: '12px',
-                      backgroundColor: 'white',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                    className="flex-1 px-4 py-3 border border-slate-300 text-slate-700 rounded-xl bg-white cursor-pointer text-sm font-medium transition-all duration-200 hover:bg-slate-50"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleFeedbackSubmit}
                     disabled={isSubmittingFeedback}
-                    style={{
-                      flex: 1,
-                      background: isSubmittingFeedback ? '#cbd5e1' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-                      color: isSubmittingFeedback ? '#64748b' : 'white',
-                      padding: '12px 16px',
-                      borderRadius: '12px',
-                      border: 'none',
-                      cursor: isSubmittingFeedback ? 'not-allowed' : 'pointer',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSubmittingFeedback) e.currentTarget.style.transform = 'scale(1.05)'
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSubmittingFeedback) e.currentTarget.style.transform = 'scale(1)'
-                    }}
+                    className={`flex-1 px-4 py-3 rounded-xl border-none text-sm font-medium transition-all duration-200 ${
+                      isSubmittingFeedback
+                        ? 'bg-slate-300 text-slate-600 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-primary-400 to-primary-600 text-white cursor-pointer hover:scale-105'
+                    }`}
                   >
                     {isSubmittingFeedback ? 'Sending...' : 'Send Feedback'}
                   </button>
@@ -1837,55 +1191,19 @@ export default function ModernChatPage() {
 
       {/* Contact Modal */}
       {showContactModal && contactInfo && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '16px',
-          zIndex: 50
-        }}>
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.9)',
-            backdropFilter: 'blur(12px)',
-            borderRadius: '16px',
-            padding: '24px',
-            maxWidth: '500px',
-            width: '100%',
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            border: '1px solid rgba(226, 232, 240, 0.4)'
-          }}>
-            <h3 style={{
-              fontSize: '20px',
-              fontWeight: '600',
-              marginBottom: '8px',
-              color: '#1e293b'
-            }}>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto border border-slate-200/40">
+            <h3 className="text-xl font-semibold mb-2 text-slate-800">
               Contact {contactInfo.person}
             </h3>
-            
-            <p style={{
-              fontSize: '14px',
-              color: '#64748b',
-              marginBottom: '24px'
-            }}>
+            <p className="text-sm text-slate-600 mb-6">
               Send a message about &ldquo;{contactInfo.documentTitle}&rdquo;
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    marginBottom: '8px',
-                    color: '#374151'
-                  }}>
+                  <label className="block text-sm font-medium mb-2 text-gray-700">
                     Your Name *
                   </label>
                   <input
@@ -1893,29 +1211,12 @@ export default function ModernChatPage() {
                     value={contactForm.senderName}
                     onChange={(e) => setContactForm(prev => ({ ...prev, senderName: e.target.value }))}
                     required
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      background: 'rgba(255, 255, 255, 0.8)',
-                      border: '1px solid rgba(226, 232, 240, 0.6)',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      outline: 'none',
-                      transition: 'all 0.2s'
-                    }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
-                    onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'}
+                    className="w-full p-3 bg-white/80 border border-slate-200/60 rounded-lg text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                   />
                 </div>
                 
                 <div>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    marginBottom: '8px',
-                    color: '#374151'
-                  }}>
+                  <label className="block text-sm font-medium mb-2 text-gray-700">
                     Your Email *
                   </label>
                   <input
@@ -1923,30 +1224,13 @@ export default function ModernChatPage() {
                     value={contactForm.senderEmail}
                     onChange={(e) => setContactForm(prev => ({ ...prev, senderEmail: e.target.value }))}
                     required
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      background: 'rgba(255, 255, 255, 0.8)',
-                      border: '1px solid rgba(226, 232, 240, 0.6)',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      outline: 'none',
-                      transition: 'all 0.2s'
-                    }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
-                    onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'}
+                    className="w-full p-3 bg-white/80 border border-slate-200/60 rounded-lg text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                   />
                 </div>
               </div>
 
               <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  marginBottom: '8px',
-                  color: '#374151'
-                }}>
+                <label className="block text-sm font-medium mb-2 text-gray-700">
                   Subject *
                 </label>
                 <input
@@ -1955,29 +1239,12 @@ export default function ModernChatPage() {
                   onChange={(e) => setContactForm(prev => ({ ...prev, subject: e.target.value }))}
                   required
                   placeholder="Question about the document..."
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    background: 'rgba(255, 255, 255, 0.8)',
-                    border: '1px solid rgba(226, 232, 240, 0.6)',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    outline: 'none',
-                    transition: 'all 0.2s'
-                  }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'}
+                  className="w-full p-3 bg-white/80 border border-slate-200/60 rounded-lg text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                 />
               </div>
 
               <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  marginBottom: '8px',
-                  color: '#374151'
-                }}>
+                <label className="block text-sm font-medium mb-2 text-gray-700">
                   Message *
                 </label>
                 <textarea
@@ -1986,23 +1253,11 @@ export default function ModernChatPage() {
                   required
                   rows={4}
                   placeholder="Your question or comment..."
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    background: 'rgba(255, 255, 255, 0.8)',
-                    border: '1px solid rgba(226, 232, 240, 0.6)',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    outline: 'none',
-                    resize: 'vertical',
-                    transition: 'all 0.2s'
-                  }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.6)'}
+                  className="w-full p-3 bg-white/80 border border-slate-200/60 rounded-lg text-sm outline-none resize-vertical transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -2011,45 +1266,20 @@ export default function ModernChatPage() {
                     setContactForm({ senderName: '', senderEmail: '', subject: '', message: '' })
                   }}
                   disabled={sendingContact}
-                  style={{
-                    padding: '12px 16px',
-                    fontSize: '14px',
-                    color: '#64748b',
-                    backgroundColor: 'white',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '8px',
-                    cursor: sendingContact ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!sendingContact) e.currentTarget.style.backgroundColor = '#f8fafc'
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!sendingContact) e.currentTarget.style.backgroundColor = 'white'
-                  }}
+                  className={`px-4 py-3 text-sm text-slate-600 bg-white border border-slate-300 rounded-lg transition-all duration-200 ${
+                    sendingContact ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'
+                  }`}
                 >
                   Cancel
                 </button>
-                
                 <button
                   onClick={handleContactSubmit}
                   disabled={sendingContact}
-                  style={{
-                    padding: '12px 16px',
-                    fontSize: '14px',
-                    color: sendingContact ? '#64748b' : 'white',
-                    background: sendingContact ? '#cbd5e1' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: sendingContact ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!sendingContact) e.currentTarget.style.transform = 'scale(1.05)'
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!sendingContact) e.currentTarget.style.transform = 'scale(1)'
-                  }}
+                  className={`px-4 py-3 text-sm border-none rounded-lg transition-all duration-200 ${
+                    sendingContact
+                      ? 'bg-slate-300 text-slate-600 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-primary-400 to-primary-600 text-white cursor-pointer hover:scale-105'
+                  }`}
                 >
                   {sendingContact ? 'Sending...' : 'Send Message'}
                 </button>
@@ -2059,59 +1289,6 @@ export default function ModernChatPage() {
         </div>
       )}
 
-      {/* CSS Animations */}
-      <style jsx>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        @keyframes slideInLeft {
-          from {
-            opacity: 0;
-            transform: translateX(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        
-        @keyframes slideInRight {
-          from {
-            opacity: 0;
-            transform: translateX(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-
-        @keyframes bounce {
-          0%, 80%, 100% {
-            transform: translateY(0);
-          }
-          40% {
-            transform: translateY(-10px);
-          }
-        }
-
-        @keyframes spin {
-          0% {
-            transform: rotate(0deg);
-          }
-          100% {
-            transform: rotate(360deg);
-          }
-        }
-      `}</style>
     </div>
   )
 }

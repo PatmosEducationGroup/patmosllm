@@ -17,3 +17,10 @@
 .chat-container::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+
+/* Custom focus ring color for PatmosLLM brand */
+.focus-ring-primary:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: #82b3db;
+}
