@@ -931,11 +931,6 @@ export default function AdminPage() {
             </CardTitle>
             <CardDescription className="text-base">
               Upload documents, scrape websites, and manage document metadata
-              {userData && (
-                <span className="ml-4 text-sm text-primary-400">
-                  Logged in as {userData.role}: {userData.email}
-                </span>
-              )}
             </CardDescription>
           </CardHeader>
         </Card>

@@ -51,10 +51,10 @@ const buttonVariants = {
 }
 
 const buttonSizes = {
-  sm: 'px-3 py-1.5 text-sm font-medium rounded-md',
-  md: 'px-4 py-2 text-sm font-medium rounded-lg',
-  lg: 'px-6 py-3 text-base font-medium rounded-lg',
-  xl: 'px-8 py-4 text-lg font-semibold rounded-xl'
+  sm: 'px-4 py-2.5 text-sm font-medium rounded-md min-h-[44px]',
+  md: 'px-4 py-2 text-sm font-medium rounded-lg min-h-[44px]',
+  lg: 'px-6 py-3 text-base font-medium rounded-lg min-h-[44px]',
+  xl: 'px-8 py-4 text-lg font-semibold rounded-xl min-h-[48px]'
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(

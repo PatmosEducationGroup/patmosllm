@@ -49,10 +49,10 @@ export default function AdminNavbar() {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '0 24px'
+        padding: '0 16px'
       }}>
         {/* Left side - Logo/Brand and Navigation */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {/* Brand */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
@@ -98,7 +98,7 @@ export default function AdminNavbar() {
           </div>
 
           {/* Navigation Links */}
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
             {navItems.map((item, index) => {
               const Icon = item.icon
               const active = isActive(item.href)
@@ -111,7 +111,7 @@ export default function AdminNavbar() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    padding: '10px 16px',
+                    padding: '8px 12px',
                     borderRadius: '12px',
                     textDecoration: 'none',
                     fontSize: '14px',
@@ -151,13 +151,18 @@ export default function AdminNavbar() {
           <button
             style={{
               position: 'relative',
-              padding: '8px',
+              padding: '10px',
+              minWidth: '44px',
+              minHeight: '44px',
               color: '#64748b',
               backgroundColor: 'transparent',
               border: 'none',
               borderRadius: '8px',
               cursor: 'pointer',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.6)'
@@ -185,13 +190,18 @@ export default function AdminNavbar() {
 
           <button
             style={{
-              padding: '8px',
+              padding: '10px',
+              minWidth: '44px',
+              minHeight: '44px',
               color: '#64748b',
               backgroundColor: 'transparent',
               border: 'none',
               borderRadius: '8px',
               cursor: 'pointer',
-              transition: 'all 0.2s'
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.6)'
