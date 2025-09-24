@@ -869,6 +869,11 @@ function AdminPageContent() {
       return
     }
 
+    if (!documentToDelete) {
+      setError('No document selected for deletion')
+      return
+    }
+
     try {
       const response = await fetch(`/api/documents?id=${documentToDelete.id}`, {
         method: 'DELETE',
