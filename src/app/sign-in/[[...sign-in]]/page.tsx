@@ -40,7 +40,28 @@ export default function Page() {
             appearance={{
               elements: {
                 rootBox: "mx-auto",
-                card: "bg-transparent shadow-none",
+                card: "bg-transparent shadow-none border-0",
+                headerTitle: "text-xl font-bold text-slate-800 mb-2",
+                headerSubtitle: "text-neutral-600 text-sm mb-4",
+                socialButtonsBlockButton: "border border-neutral-200/60 hover:bg-neutral-50 rounded-xl transition-colors duration-200 text-neutral-700",
+                socialButtonsBlockButtonText: "font-medium",
+                dividerLine: "bg-neutral-200",
+                dividerText: "text-neutral-500 text-sm",
+                formButtonPrimary: "bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-xl",
+                formFieldInput: "border border-neutral-200/60 rounded-xl focus:border-primary-400 focus:ring-2 focus:ring-primary-200 transition-all duration-200 bg-white/50",
+                formFieldLabel: "text-neutral-700 font-medium text-sm",
+                footerActionLink: "text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200",
+                identityPreviewText: "text-neutral-600",
+                formResendCodeLink: "text-primary-600 hover:text-primary-700",
+                otpCodeFieldInput: "border border-neutral-200/60 rounded-lg focus:border-primary-400"
+              },
+              variables: {
+                colorPrimary: "#6366f1",
+                colorBackground: "transparent",
+                colorInputBackground: "rgba(255, 255, 255, 0.5)",
+                colorInputText: "#374151",
+                borderRadius: "12px",
+                spacingUnit: "1rem"
               }
             }}
           />

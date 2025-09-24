@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
+import {
+  advancedCache,
+  CACHE_NAMESPACES,
+  CACHE_TTL
+} from '@/lib/advanced-cache'
 
 // Get all chat sessions for user
 export async function GET(request: NextRequest) {
@@ -22,7 +27,23 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get user's chat sessions with message count
+    // Check cache for user sessions first
+    const cacheKey = `sessions-${user.id}`
+    const cachedSessions = advancedCache.get<Array<any>>(
+      CACHE_NAMESPACES.USER_SESSIONS,
+      cacheKey
+    )
+
+    if (cachedSessions) {
+      console.log(`Cache hit for user sessions: ${user.id}`)
+      return NextResponse.json({
+        success: true,
+        sessions: cachedSessions,
+        cached: true
+      })
+    }
+
+    // Get user's chat sessions with message count from database
     const { data: sessions, error } = await supabaseAdmin
       .from('chat_sessions')
       .select(`
@@ -50,6 +71,16 @@ export async function GET(request: NextRequest) {
       updatedAt: session.updated_at,
       messageCount: session.conversations?.[0]?.count || 0
     }))
+
+    // Cache the formatted sessions for future requests
+    advancedCache.set(
+      CACHE_NAMESPACES.USER_SESSIONS,
+      cacheKey,
+      formattedSessions,
+      CACHE_TTL.SHORT // 5 minutes for session lists
+    )
+
+    console.log(`Cached user sessions: ${user.id} (${formattedSessions.length} sessions)`)
 
     return NextResponse.json({
       success: true,
@@ -105,6 +136,11 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    // Invalidate cached sessions since we created a new one
+    const cacheKey = `sessions-${user.id}`
+    advancedCache.delete(CACHE_NAMESPACES.USER_SESSIONS, cacheKey)
+    console.log(`Cache invalidated for user sessions: ${user.id}`)
 
     return NextResponse.json({
       success: true,

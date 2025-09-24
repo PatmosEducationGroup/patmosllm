@@ -4,13 +4,13 @@ import { useState, useEffect } from 'react'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
-import { 
-  Users, 
-  Mail, 
-  Shield, 
-  Trash2, 
-  UserCheck, 
-  UserX, 
+import {
+  Users,
+  Mail,
+  Shield,
+  Trash2,
+  UserCheck,
+  UserX,
   AlertCircle,
   RefreshCw,
   Clock,
@@ -19,6 +19,10 @@ import {
   Eye,
   Activity
 } from 'lucide-react'
+import { Select } from '@/components/ui/Select'
+import { Input } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
 
 interface User {
   id: string
@@ -87,6 +91,8 @@ export default function AdminUsersPage() {
   const [timelineUser, setTimelineUser] = useState<User | null>(null)
   const [userTimeline, setUserTimeline] = useState<UserTimeline | null>(null)
   const [loadingTimeline, setLoadingTimeline] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<{id: string, email: string, isActive: boolean} | null>(null)
 
   // Check authentication and permissions
   useEffect(() => {
@@ -240,16 +246,15 @@ export default function AdminUsersPage() {
     }
   }
 
-  const handleDeleteUser = async (userId: string, userEmail: string, isActive: boolean) => {
-    const confirmMessage = isActive 
-      ? `Are you sure you want to delete user ${userEmail}? This will permanently remove their account and all associated data.`
-      : `Are you sure you want to retract the invitation for ${userEmail}?`
-    
-    if (!confirm(confirmMessage)) {
-      return
-    }
+  const openDeleteModal = (userId: string, userEmail: string, isActive: boolean) => {
+    setUserToDelete({ id: userId, email: userEmail, isActive })
+    setShowDeleteModal(true)
+  }
 
-    setDeleting(userId)
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return
+
+    setDeleting(userToDelete.id)
     setError(null)
 
     try {
@@ -258,15 +263,15 @@ export default function AdminUsersPage() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ userId })
+        body: JSON.stringify({ userId: userToDelete.id })
       })
 
       const data = await response.json()
 
       if (data.success) {
-        setUsers(users.filter(user => user.id !== userId))
-        const actionText = isActive ? 'deleted' : 'retracted'
-        alert(`Successfully ${actionText} ${userEmail}`)
+        setUsers(users.filter(user => user.id !== userToDelete.id))
+        const actionText = userToDelete.isActive ? 'deleted' : 'retracted'
+        // Toast notification would be added here instead of alert
       } else {
         setError(data.error)
       }
@@ -274,6 +279,8 @@ export default function AdminUsersPage() {
       setError('Failed to delete user')
     } finally {
       setDeleting(null)
+      setShowDeleteModal(false)
+      setUserToDelete(null)
     }
   }
 
@@ -437,64 +444,41 @@ export default function AdminUsersPage() {
             <form onSubmit={handleInviteUser} style={{ display: 'grid', gap: '1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
-                    Email Address *
-                  </label>
-                  <input
+                  <Input
+                    label="Email Address *"
                     type="email"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     required
                     placeholder="user@example.com"
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
-                    }}
+                    size="sm"
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
-                    Name (Optional)
-                  </label>
-                  <input
+                  <Input
+                    label="Name (Optional)"
                     type="text"
                     value={inviteName}
                     onChange={(e) => setInviteName(e.target.value)}
                     placeholder="Full Name"
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
-                    }}
+                    size="sm"
                   />
                 </div>
               </div>
               
               <div style={{ maxWidth: '200px' }}>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem' }}>
-                  Role
-                </label>
-                <select
+                <Select
+                  label="Role"
                   value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  <option value="USER">User (Chat only)</option>
-                  <option value="CONTRIBUTOR">Contributor (Chat + Upload)</option>
-                  <option value="ADMIN">Admin (Full access)</option>
-                  <option value="SUPER_ADMIN">Super Admin (Full access)</option>
-                </select>
+                  onValueChange={setInviteRole}
+                  options={[
+                    { value: 'USER', label: 'User (Chat only)' },
+                    { value: 'CONTRIBUTOR', label: 'Contributor (Chat + Upload)' },
+                    { value: 'ADMIN', label: 'Admin (Full access)' },
+                    { value: 'SUPER_ADMIN', label: 'Super Admin (Full access)' }
+                  ]}
+                  size="sm"
+                />
               </div>
 
               <div>
@@ -583,26 +567,19 @@ export default function AdminUsersPage() {
                             {user.role} (You)
                           </span>
                         ) : (
-                          <select
+                          <Select
                             value={user.role}
-                            onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                            onValueChange={(newRole) => handleRoleChange(user.id, newRole)}
                             disabled={updatingRole === user.id}
-                            style={{
-                              padding: '0.25rem 0.5rem',
-                              fontSize: '0.75rem',
-                              fontWeight: '600',
-                              borderRadius: '0.375rem',
-                              border: '1px solid #d1d5db',
-                              backgroundColor: updatingRole === user.id ? '#f3f4f6' : 'white',
-                              color: '#374151',
-                              cursor: updatingRole === user.id ? 'not-allowed' : 'pointer'
-                            }}
-                          >
-                            <option value="USER">USER</option>
-                            <option value="CONTRIBUTOR">CONTRIBUTOR</option>
-                            <option value="ADMIN">ADMIN</option>
-                            <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                          </select>
+                            options={[
+                              { value: 'USER', label: 'USER' },
+                              { value: 'CONTRIBUTOR', label: 'CONTRIBUTOR' },
+                              { value: 'ADMIN', label: 'ADMIN' },
+                              { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN' }
+                            ]}
+                            size="sm"
+                            className="min-w-[140px]"
+                          />
                         )}
                         {updatingRole === user.id && (
                           <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
@@ -654,7 +631,7 @@ export default function AdminUsersPage() {
 
                           {currentUser && user.id !== currentUser.id && (
                             <button
-                              onClick={() => handleDeleteUser(user.id, user.email, user.isActive)}
+                              onClick={() => openDeleteModal(user.id, user.email, user.isActive)}
                               disabled={deleting === user.id}
                               style={{
                                 padding: '0.25rem 0.75rem',
@@ -822,6 +799,77 @@ export default function AdminUsersPage() {
             </div>
           </div>
         )}
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false)
+            setUserToDelete(null)
+          }}
+          title={userToDelete?.isActive ? "Delete User" : "Retract Invitation"}
+          size="md"
+        >
+          {userToDelete && (
+            <div className="space-y-4">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
+                <div>
+                  <p className="text-sm text-gray-900">
+                    {userToDelete.isActive ? (
+                      <>
+                        Are you sure you want to <strong>permanently delete</strong> the user <strong>{userToDelete.email}</strong>?
+                        <br /><br />
+                        This will:
+                      </>
+                    ) : (
+                      <>
+                        Are you sure you want to <strong>retract the invitation</strong> for <strong>{userToDelete.email}</strong>?
+                      </>
+                    )}
+                  </p>
+                  {userToDelete.isActive && (
+                    <ul className="mt-2 text-sm text-gray-600 space-y-1">
+                      <li>• Remove their account permanently</li>
+                      <li>• Delete all associated data</li>
+                      <li>• Revoke their access immediately</li>
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                <p className="text-sm text-red-800">
+                  <strong>Warning:</strong> This action cannot be undone.
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowDeleteModal(false)
+                    setUserToDelete(null)
+                  }}
+                  disabled={deleting === userToDelete.id}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteUser}
+                  disabled={deleting === userToDelete.id}
+                >
+                  {deleting === userToDelete.id ? (
+                    userToDelete.isActive ? 'Deleting...' : 'Retracting...'
+                  ) : (
+                    userToDelete.isActive ? 'Delete User' : 'Retract Invitation'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </Modal>
       </div>
     </div>
   )

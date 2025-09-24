@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
+import {
+  advancedCache,
+  CACHE_NAMESPACES,
+  CACHE_TTL,
+  getCachedConversationHistory,
+  cacheConversationHistory
+} from '@/lib/advanced-cache'
 
 // Get conversation history for a specific session
 export async function GET(
@@ -42,7 +49,22 @@ export async function GET(
       )
     }
 
-    // Get conversation history
+    // Check cache for conversation history first
+    const cachedConversations = getCachedConversationHistory(sessionId)
+    if (cachedConversations) {
+      console.log(`Cache hit for conversation history: ${sessionId}`)
+      return NextResponse.json({
+        success: true,
+        session: {
+          id: session.id,
+          title: session.title
+        },
+        conversations: cachedConversations,
+        cached: true
+      })
+    }
+
+    // Get conversation history from database
     const { data: conversations, error: conversationsError } = await supabaseAdmin
       .from('conversations')
       .select('*')
@@ -57,13 +79,19 @@ export async function GET(
       )
     }
 
+    const conversationList = conversations || []
+
+    // Cache the conversation history for future requests
+    cacheConversationHistory(sessionId, conversationList)
+    console.log(`Cached conversation history: ${sessionId} (${conversationList.length} conversations)`)
+
     return NextResponse.json({
       success: true,
       session: {
         id: session.id,
         title: session.title
       },
-      conversations: conversations || []
+      conversations: conversationList
     })
 
   } catch (error) {
@@ -129,6 +157,11 @@ export async function PUT(
       )
     }
 
+    // Invalidate session list cache since we updated the title
+    const sessionCacheKey = `sessions-${user.id}`
+    advancedCache.delete(CACHE_NAMESPACES.USER_SESSIONS, sessionCacheKey)
+    console.log(`Cache invalidated for user sessions after title update: ${user.id}`)
+
     return NextResponse.json({
       success: true,
       session: {
@@ -188,6 +221,12 @@ export async function DELETE(
         { status: 500 }
       )
     }
+
+    // Invalidate both session list and conversation history cache
+    const sessionCacheKey = `sessions-${user.id}`
+    advancedCache.delete(CACHE_NAMESPACES.USER_SESSIONS, sessionCacheKey)
+    advancedCache.delete(CACHE_NAMESPACES.CHAT_HISTORY, sessionId)
+    console.log(`Cache invalidated after session deletion: ${sessionId} and user sessions: ${user.id}`)
 
     return NextResponse.json({
       success: true,

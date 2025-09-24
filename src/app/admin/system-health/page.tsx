@@ -3,18 +3,22 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import AdminNavbar from '@/components/AdminNavbar'
-import { 
-  Database, 
-  Users, 
-  FileText, 
-  MessageSquare, 
+import {
+  Database,
+  Users,
+  FileText,
+  MessageSquare,
   CheckCircle,
   AlertCircle,
   RefreshCw,
   Zap,
   Activity,
-  Gauge
+  Gauge,
+  Info,
+  HelpCircle
 } from 'lucide-react'
+import { Tooltip } from '@/components/ui/Tooltip'
+import { Modal } from '@/components/ui/Modal'
 
 interface SystemHealth {
   database: {
@@ -87,6 +91,8 @@ export default function SystemHealthPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string>('')
+  const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
 
   const fetchHealth = async () => {
     try {
@@ -174,6 +180,13 @@ export default function SystemHealthPage() {
               Last updated: {lastUpdated}
             </span>
             <button
+              onClick={() => setShowDetailsModal(true)}
+              className="inline-flex items-center px-3 py-2 border border-blue-300 shadow-sm text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100"
+            >
+              <Info className="h-4 w-4 mr-2" />
+              Learn More
+            </button>
+            <button
               onClick={fetchHealth}
               disabled={loading}
               className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
@@ -216,26 +229,46 @@ export default function SystemHealthPage() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">{health.database.responseTime}ms</div>
-                  <div className="text-sm text-gray-600">Database Response</div>
-                </div>
-                <div className="text-center">
-                  <div className={`text-2xl font-bold ${health.cache.hitRate > 50 ? 'text-green-600' : health.cache.hitRate > 25 ? 'text-yellow-600' : 'text-red-600'}`}>
-                    {health.cache.hitRate.toFixed(1)}%
+                <Tooltip content="Time it takes for the database to respond to queries. Lower is better. <50ms is excellent.">
+                  <div className="text-center cursor-help">
+                    <div className="text-2xl font-bold text-gray-900">{health.database.responseTime}ms</div>
+                    <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
+                      Database Response
+                      <HelpCircle className="h-3 w-3 text-gray-400" />
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-600">Cache Hit Rate</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{health.performance.estimatedConcurrentCapacity}</div>
-                  <div className="text-sm text-gray-600">Concurrent Capacity</div>
-                </div>
-                <div className="text-center">
-                  <div className={`text-2xl font-bold ${health.database.connectionPool.utilization < 70 ? 'text-green-600' : 'text-yellow-600'}`}>
-                    {health.database.connectionPool.utilization.toFixed(0)}%
+                </Tooltip>
+                <Tooltip content="Percentage of requests served from cache vs database. Higher is better for performance. >50% is good.">
+                  <div className="text-center cursor-help">
+                    <div className={`text-2xl font-bold ${health.cache.hitRate > 50 ? 'text-green-600' : health.cache.hitRate > 25 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {health.cache.hitRate.toFixed(1)}%
+                    </div>
+                    <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
+                      Cache Hit Rate
+                      <HelpCircle className="h-3 w-3 text-gray-400" />
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-600">DB Utilization</div>
-                </div>
+                </Tooltip>
+                <Tooltip content="Estimated number of users that can use the system simultaneously based on current performance metrics.">
+                  <div className="text-center cursor-help">
+                    <div className="text-2xl font-bold text-green-600">{health.performance.estimatedConcurrentCapacity}</div>
+                    <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
+                      Concurrent Capacity
+                      <HelpCircle className="h-3 w-3 text-gray-400" />
+                    </div>
+                  </div>
+                </Tooltip>
+                <Tooltip content="Percentage of database connections in use. <70% is good, >85% indicates high load.">
+                  <div className="text-center cursor-help">
+                    <div className={`text-2xl font-bold ${health.database.connectionPool.utilization < 70 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {health.database.connectionPool.utilization.toFixed(0)}%
+                    </div>
+                    <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
+                      DB Utilization
+                      <HelpCircle className="h-3 w-3 text-gray-400" />
+                    </div>
+                  </div>
+                </Tooltip>
               </div>
             </div>
 
@@ -510,6 +543,84 @@ export default function SystemHealthPage() {
             </div>
           </div>
         )}
+
+        {/* System Health Details Modal */}
+        <Modal
+          isOpen={showDetailsModal}
+          onClose={() => setShowDetailsModal(false)}
+          title="System Health Metrics Explained"
+          size="lg"
+        >
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Performance Metrics</h3>
+              <div className="space-y-3">
+                <div className="border-l-4 border-blue-500 pl-4">
+                  <h4 className="font-medium text-gray-900">Database Response Time</h4>
+                  <p className="text-sm text-gray-600">Time it takes for database queries to complete. Lower values indicate better performance.</p>
+                  <div className="text-xs text-gray-500 mt-1">
+                    • &lt;50ms: Excellent • 50-100ms: Good • &gt;100ms: Needs attention
+                  </div>
+                </div>
+                <div className="border-l-4 border-green-500 pl-4">
+                  <h4 className="font-medium text-gray-900">Cache Hit Rate</h4>
+                  <p className="text-sm text-gray-600">Percentage of requests served from cache instead of database. Higher values reduce load and improve speed.</p>
+                  <div className="text-xs text-gray-500 mt-1">
+                    • &gt;70%: Excellent • 50-70%: Good • &lt;50%: Consider cache optimization
+                  </div>
+                </div>
+                <div className="border-l-4 border-purple-500 pl-4">
+                  <h4 className="font-medium text-gray-900">Database Utilization</h4>
+                  <p className="text-sm text-gray-600">Percentage of database connections currently in use. Monitors system load.</p>
+                  <div className="text-xs text-gray-500 mt-1">
+                    • &lt;70%: Healthy • 70-85%: High load • &gt;85%: Critical - may need scaling
+                  </div>
+                </div>
+                <div className="border-l-4 border-orange-500 pl-4">
+                  <h4 className="font-medium text-gray-900">Concurrent Capacity</h4>
+                  <p className="text-sm text-gray-600">Estimated number of users who can simultaneously use the system based on current performance metrics.</p>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Calculated from: DB connection pool size, response times, and cache efficiency
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Understanding the Dashboard</h3>
+              <div className="space-y-2 text-sm text-gray-600">
+                <div className="flex items-start space-x-2">
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">Green indicators:</span> System is performing optimally
+                  </div>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">Yellow indicators:</span> Performance is acceptable but could be improved
+                  </div>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-medium">Red indicators:</span> Issues detected that may affect user experience
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">What to Watch For</h3>
+              <div className="space-y-2 text-sm text-gray-600">
+                <div>• Database response times consistently above 100ms may indicate performance issues</div>
+                <div>• Cache hit rates below 50% suggest cache configuration could be optimized</div>
+                <div>• Database utilization above 85% indicates the system is approaching capacity limits</div>
+                <div>• Sudden changes in these metrics may indicate system problems or unusual usage patterns</div>
+              </div>
+            </div>
+          </div>
+        </Modal>
       </div>
     </div>
   )

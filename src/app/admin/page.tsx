@@ -11,6 +11,10 @@ import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription }
 import { Badge } from '@/components/ui/Badge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Alert } from '@/components/ui/Alert'
+import { ToastProvider, useToast } from '@/components/ui/Toast'
+import { Checkbox } from '@/components/ui/Checkbox'
+import { Modal } from '@/components/ui/Modal'
+import { AlertCircle } from 'lucide-react'
 
 interface Document {
   id: string
@@ -58,10 +62,11 @@ interface ScrapedPage {
   selected?: boolean
 }
 
-export default function AdminPage() {
+function AdminPageContent() {
   const { isLoaded, userId, getToken } = useAuth()
   const { user: clerkUser } = useUser()
   const router = useRouter()
+  const { addToast } = useToast()
   const [documents, setDocuments] = useState<Document[]>([])
   const [ingestJobs, setIngestJobs] = useState<IngestJob[]>([])
   const [userData, setUserData] = useState<UserData | null>(null)
@@ -98,6 +103,8 @@ export default function AdminPage() {
   const [uploadContactPerson, setUploadContactPerson] = useState('')
   const [uploadContactEmail, setUploadContactEmail] = useState('')
   const [accessDenied, setAccessDenied] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<{id: string, title: string} | null>(null)
 
   // Metadata editing states
   const [editingDoc, setEditingDoc] = useState<Document | null>(null)
@@ -624,6 +631,14 @@ export default function AdminPage() {
         setUploadQueue(prev => prev.map((item, index) =>
           index === i ? { ...item, status: 'completed' as const, progress: 100 } : item
         ))
+
+        // Show success toast for individual file
+        addToast({
+          type: 'success',
+          title: 'Upload Complete',
+          message: `"${queueItem.metadata.title}" uploaded successfully`,
+          duration: 3000
+        })
       } catch (error) {
         // Mark as error
         setUploadQueue(prev => prev.map((item, index) =>
@@ -633,6 +648,15 @@ export default function AdminPage() {
             error: error instanceof Error ? error.message : 'Upload failed'
           } : item
         ))
+
+        // Show error toast for individual file
+        const errorMessage = error instanceof Error ? error.message : 'Upload failed'
+        addToast({
+          type: 'error',
+          title: 'Upload Failed',
+          message: `"${queueItem.metadata.title}": ${errorMessage}`,
+          duration: 8000
+        })
       }
 
       // Add delay between uploads to avoid rate limiting
@@ -644,7 +668,36 @@ export default function AdminPage() {
     setIsProcessingQueue(false)
     loadDocuments() // Refresh document list
     loadIngestJobs() // Refresh ingest jobs
-    
+
+    // Show completion summary toast
+    const completedCount = uploadQueue.filter(item => item.status === 'completed').length
+    const errorCount = uploadQueue.filter(item => item.status === 'error').length
+
+    if (completedCount > 0 || errorCount > 0) {
+      if (errorCount === 0) {
+        addToast({
+          type: 'success',
+          title: 'All Uploads Complete',
+          message: `Successfully uploaded ${completedCount} file${completedCount > 1 ? 's' : ''}`,
+          duration: 5000
+        })
+      } else if (completedCount === 0) {
+        addToast({
+          type: 'error',
+          title: 'All Uploads Failed',
+          message: `${errorCount} file${errorCount > 1 ? 's' : ''} failed to upload`,
+          duration: 8000
+        })
+      } else {
+        addToast({
+          type: 'warning',
+          title: 'Upload Complete with Errors',
+          message: `${completedCount} successful, ${errorCount} failed`,
+          duration: 8000
+        })
+      }
+    }
+
     // Auto-clear completed uploads after a brief delay for better UX
     setTimeout(() => {
       setUploadQueue(currentQueue => {
@@ -817,7 +870,7 @@ export default function AdminPage() {
     }
 
     try {
-      const response = await fetch(`/api/documents?id=${documentId}`, {
+      const response = await fetch(`/api/documents?id=${documentToDelete.id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
@@ -1013,44 +1066,22 @@ export default function AdminPage() {
               {/* Basic Document Info */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                    Title (Optional)
-                  </label>
-                  <input
-                    type="text"
+                  <Input
+                    label="Title (Optional)"
                     value={uploadTitle}
                     onChange={(e) => setUploadTitle(e.target.value)}
                     disabled={uploading}
                     placeholder="Document title..."
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid rgba(203, 213, 225, 0.6)',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      background: 'rgba(255, 255, 255, 0.8)'
-                    }}
                   />
                 </div>
                 
                 <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                    Author (Optional)
-                  </label>
-                  <input
-                    type="text"
+                  <Input
+                    label="Author (Optional)"
                     value={uploadAuthor}
                     onChange={(e) => setUploadAuthor(e.target.value)}
                     disabled={uploading}
                     placeholder="Author name..."
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid rgba(203, 213, 225, 0.6)',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      background: 'rgba(255, 255, 255, 0.8)'
-                    }}
                   />
                 </div>
               </div>
@@ -1103,60 +1134,35 @@ export default function AdminPage() {
               {/* Contact Information Section */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                    Contact Person (Optional)
-                  </label>
-                  <input
-                    type="text"
+                  <Input
+                    label="Contact Person (Optional)"
                     value={uploadContactPerson}
                     onChange={(e) => setUploadContactPerson(e.target.value)}
                     disabled={uploading}
                     placeholder="John Doe"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid rgba(203, 213, 225, 0.6)',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      background: 'rgba(255, 255, 255, 0.8)'
-                    }}
                   />
                 </div>
                 
                 <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                    Contact Email (Optional)
-                  </label>
-                  <input
+                  <Input
+                    label="Contact Email (Optional)"
                     type="email"
                     value={uploadContactEmail}
                     onChange={(e) => setUploadContactEmail(e.target.value)}
                     disabled={uploading}
                     placeholder="contact@example.com"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid rgba(203, 213, 225, 0.6)',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      background: 'rgba(255, 255, 255, 0.8)'
-                    }}
                   />
                 </div>
               </div>
 
               {/* Download Enabled Checkbox */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="checkbox"
+              <div>
+                <Checkbox
                   checked={uploadDownloadEnabled}
-                  onChange={(e) => setUploadDownloadEnabled(e.target.checked)}
+                  onCheckedChange={setUploadDownloadEnabled}
                   disabled={uploading}
-                  style={{ width: '16px', height: '16px' }}
+                  label="Enable resource access for users"
                 />
-                <label style={{ fontSize: '14px' }}>
-                  Enable resource access for users
-                </label>
               </div>
 
               {/* Shared Metadata Settings */}
@@ -1171,20 +1177,17 @@ export default function AdminPage() {
                     <h4 style={{ margin: '0', fontSize: '16px', fontWeight: '600' }}>
                       Upload Queue ({uploadQueue.length} files)
                     </h4>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-                      <input
-                        type="checkbox"
-                        checked={useSharedMetadata}
-                        onChange={(e) => {
-                          setUseSharedMetadata(e.target.checked)
-                          if (e.target.checked) {
-                            applySharedMetadata()
-                          }
-                        }}
-                        style={{ width: '16px', height: '16px' }}
-                      />
-                      Use shared metadata for all files
-                    </label>
+                    <Checkbox
+                      checked={useSharedMetadata}
+                      onCheckedChange={(checked) => {
+                        setUseSharedMetadata(checked)
+                        if (checked) {
+                          applySharedMetadata()
+                        }
+                      }}
+                      label="Use shared metadata for all files"
+                      size="sm"
+                    />
                   </div>
 
                   {/* Shared metadata controls */}
@@ -2110,7 +2113,7 @@ export default function AdminPage() {
                             </button>
                             {userData?.role === 'SUPER_ADMIN' && (
                               <button
-                                onClick={() => deleteDocument(doc.id)}
+                                onClick={() => openDeleteModal(doc.id, doc.title)}
                                 style={{
                                   padding: '4px 12px',
                                   fontSize: '12px',
@@ -2397,6 +2400,68 @@ export default function AdminPage() {
           50% { opacity: 0.5; }
         }
       `}</style>
+
+      {/* Delete Document Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false)
+          setDocumentToDelete(null)
+        }}
+        title="Delete Document"
+        size="md"
+      >
+        {documentToDelete && (
+          <div className="space-y-4">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
+              <div>
+                <p className="text-sm text-gray-900">
+                  Are you sure you want to <strong>permanently delete</strong> the document <strong>"{documentToDelete.title}"</strong>?
+                </p>
+                <ul className="mt-3 text-sm text-gray-600 space-y-1">
+                  <li>• The document file will be permanently removed</li>
+                  <li>• All associated chat history will remain but lose document references</li>
+                  <li>• Vector embeddings will be deleted from the search index</li>
+                  <li>• This cannot be undone</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <p className="text-sm text-red-800">
+                <strong>Warning:</strong> This action is permanent and cannot be reversed.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setDocumentToDelete(null)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={deleteDocument}
+              >
+                Delete Document
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
+  )
+}
+
+export default function AdminPage() {
+  return (
+    <ToastProvider>
+      <AdminPageContent />
+    </ToastProvider>
   )
 }

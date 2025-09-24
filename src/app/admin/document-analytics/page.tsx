@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import AdminNavbar from '@/components/AdminNavbar'
+import { Modal } from '@/components/ui/Modal'
 import { 
   FileText, 
   TrendingUp, 
@@ -308,57 +309,58 @@ export default function DocumentAnalyticsPage() {
           </div>
         )}
 
-        {/* Document Detail Modal */}
-        {selectedDocument && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-96 overflow-y-auto p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Document Details: {selectedDocument.title}
-                </h3>
-                <button
-                  onClick={() => setSelectedDocument(null)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <span className="text-2xl">×</span>
-                </button>
+        {/* Enhanced Document Detail Modal */}
+        <Modal
+          isOpen={!!selectedDocument}
+          onClose={() => setSelectedDocument(null)}
+          title={selectedDocument ? `Document Details: ${selectedDocument.title}` : 'Document Details'}
+          size="lg"
+        >
+          {selectedDocument && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-xl border border-green-200">
+                  <div className="text-green-800 font-medium">Health Score</div>
+                  <div className="text-2xl font-bold text-green-900">{selectedDocument.stats.healthScore}/100</div>
+                </div>
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200">
+                  <div className="text-blue-800 font-medium">Total References</div>
+                  <div className="text-2xl font-bold text-blue-900">{selectedDocument.stats.totalReferences}</div>
+                </div>
+                <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-xl border border-purple-200">
+                  <div className="text-purple-800 font-medium">Recent Usage (30 days)</div>
+                  <div className="text-2xl font-bold text-purple-900">{selectedDocument.stats.recentReferences30d}</div>
+                </div>
+                <div className="bg-gradient-to-r from-amber-50 to-amber-100 p-4 rounded-xl border border-amber-200">
+                  <div className="text-amber-800 font-medium">Daily Average</div>
+                  <div className="text-2xl font-bold text-amber-900">{selectedDocument.stats.avgQuestionsPerDay}</div>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Health Score:</span> {selectedDocument.stats.healthScore}/100
+              <div className="border-t pt-6">
+                <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Recent Questions ({selectedDocument.recentQuestions.length})
+                </h4>
+                {selectedDocument.recentQuestions.length > 0 ? (
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {selectedDocument.recentQuestions.map((q, index) => (
+                      <div key={index} className="p-4 bg-neutral-50 border border-neutral-200 rounded-xl hover:bg-neutral-100 transition-colors">
+                        <div className="font-medium text-neutral-800 mb-2">{q.question}</div>
+                        <div className="text-neutral-500 text-sm">{formatDate(q.created_at)}</div>
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <span className="font-medium">Total References:</span> {selectedDocument.stats.totalReferences}
+                ) : (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+                    <p className="text-neutral-500">No recent questions</p>
                   </div>
-                  <div>
-                    <span className="font-medium">Recent Usage:</span> {selectedDocument.stats.recentReferences30d} (30 days)
-                  </div>
-                  <div>
-                    <span className="font-medium">Daily Average:</span> {selectedDocument.stats.avgQuestionsPerDay}
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Recent Questions ({selectedDocument.recentQuestions.length})</h4>
-                  {selectedDocument.recentQuestions.length > 0 ? (
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {selectedDocument.recentQuestions.map((q, index) => (
-                        <div key={index} className="p-2 bg-gray-50 rounded text-sm">
-                          <div className="font-medium">{q.question}</div>
-                          <div className="text-gray-500 text-xs">{formatDate(q.created_at)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 text-sm">No recent questions</p>
-                  )}
-                </div>
+                )}
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </Modal>
       </div>
     </div>
   )

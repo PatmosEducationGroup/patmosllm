@@ -8,18 +8,65 @@ import { chatRateLimit } from '@/lib/rate-limiter';
 import { getIdentifier } from '@/lib/get-identifier';
 import { sanitizeInput } from '@/lib/input-sanitizer';
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
-import { 
-  advancedCache, 
-  CACHE_NAMESPACES, 
+import {
+  advancedCache,
+  CACHE_NAMESPACES,
+  CACHE_TTL,
   getCachedConversationHistory,
-  cacheConversationHistory 
+  cacheConversationHistory
 } from '@/lib/advanced-cache'
 import OpenAI from 'openai'
-import { hashQuestion, getCachedResponse, setCachedResponse } from '@/lib/cache'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 })
+
+// Advanced cache helper functions for chat responses
+function generateQuestionCacheKey(question: string, userId: string): string {
+  // Normalize question for better cache hits while maintaining user context
+  const normalized = question
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+
+  return `${normalized}-${userId.substring(0, 8)}`
+}
+
+interface CachedChatResponse {
+  answer: string
+  sources: Array<{title: string; author?: string; chunk_id: string}>
+  timestamp: number
+}
+
+function getCachedChatResponse(question: string, userId: string): CachedChatResponse | null {
+  const cacheKey = generateQuestionCacheKey(question, userId)
+  return advancedCache.get<CachedChatResponse>(
+    CACHE_NAMESPACES.CHAT_HISTORY,
+    cacheKey
+  )
+}
+
+function setCachedChatResponse(
+  question: string,
+  userId: string,
+  answer: string,
+  sources: Array<{title: string; author?: string; chunk_id: string}>
+): void {
+  const cacheKey = generateQuestionCacheKey(question, userId)
+  const responseData: CachedChatResponse = {
+    answer,
+    sources,
+    timestamp: Date.now()
+  }
+
+  advancedCache.set(
+    CACHE_NAMESPACES.CHAT_HISTORY,
+    cacheKey,
+    responseData,
+    CACHE_TTL.MEDIUM // 30 minutes for chat responses
+  )
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -117,14 +164,13 @@ export async function POST(request: NextRequest) {
     console.log(`Processing question: "${trimmedQuestion}" for user: ${userEmail}`)
 
     // =================================================================
-    // STEP 1.5: CHECK CACHE FOR INSTANT RESPONSES
+    // STEP 1.5: CHECK ADVANCED CACHE FOR INSTANT RESPONSES
     // =================================================================
-    const questionHash = hashQuestion(trimmedQuestion)
-    const cachedResponse = getCachedResponse(questionHash)
+    const cachedResponse = getCachedChatResponse(trimmedQuestion, currentUserId)
 
     if (cachedResponse) {
-      console.log(`Cache hit! Returning instant response for hash: ${questionHash}`)
-      
+      console.log(`Advanced cache hit! Returning instant response for user: ${currentUserId}`)
+
       // Return cached response immediately as streaming format
       const encoder = new TextEncoder()
       const readable = new ReadableStream({
@@ -156,7 +202,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    console.log(`Cache miss for hash: ${questionHash}, proceeding with full processing`)
+    console.log(`Cache miss for user ${currentUserId}, proceeding with full processing`)
 
     // =================================================================
     // ONBOARDING TRACKING - Track first chat milestone
@@ -518,8 +564,8 @@ ${contextDocuments}`
           // ✅ PERFECT CACHE TIMING - Only cache after streaming is 100% complete
           if (streamingComplete && fullResponse.trim()) {
             try {
-              await setCachedResponse(questionHash, fullResponse, sources)
-              console.log(`✅ PERFECT CACHE: Stored complete response (${fullResponse.length} chars)`)
+              setCachedChatResponse(trimmedQuestion, currentUserId, fullResponse, sources)
+              console.log(`✅ ADVANCED CACHE: Stored complete response (${fullResponse.length} chars) for user ${currentUserId}`)
               
               // Save conversation to database using connection pool
               await withSupabaseAdmin(async (supabase) => {

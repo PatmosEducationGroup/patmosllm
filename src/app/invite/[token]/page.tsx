@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { SignUp } from '@clerk/nextjs'
+import { Button } from '@/components/ui/Button'
+import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/Card'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { Alert } from '@/components/ui/Alert'
 
 interface InvitationData {
   email: string
@@ -46,94 +50,115 @@ export default function InvitePage() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <div>Validating invitation...</div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <LoadingSpinner size="lg" />
+          <div className="text-neutral-600 font-medium">Validating invitation...</div>
+        </div>
       </div>
     )
   }
 
   if (error || !invitation) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <div style={{ textAlign: 'center', maxWidth: '400px', padding: '2rem' }}>
-          <h1 style={{ color: '#dc2626', marginBottom: '1rem' }}>Invalid Invitation</h1>
-          <p style={{ color: '#6b7280', marginBottom: '2rem' }}>
-            {error || 'This invitation link is invalid or has expired.'}
-          </p>
-          <button 
-            onClick={() => router.push('/')}
-            style={{
-              backgroundColor: '#2563eb',
-              color: 'white',
-              padding: '0.75rem 1.5rem',
-              border: 'none',
-              borderRadius: '0.375rem',
-              cursor: 'pointer'
-            }}
-          >
-            Go to Homepage
-          </button>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center p-6">
+        <Card className="max-w-md w-full bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
+          <CardContent className="pt-8 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 text-2xl mb-6 mx-auto">
+              ⚠️
+            </div>
+            <CardTitle className="text-xl text-red-600 mb-4">Invalid Invitation</CardTitle>
+            <CardDescription className="text-neutral-600 mb-6">
+              {error || 'This invitation link is invalid or has expired.'}
+            </CardDescription>
+            <Button
+              onClick={() => router.push('/')}
+              className="w-full"
+            >
+              Go to Homepage
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   if (invitation.expired) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <div style={{ textAlign: 'center', maxWidth: '400px', padding: '2rem' }}>
-          <h1 style={{ color: '#dc2626', marginBottom: '1rem' }}>Invitation Expired</h1>
-          <p style={{ color: '#6b7280', marginBottom: '2rem' }}>
-            This invitation has expired. Please contact your administrator for a new invitation.
-          </p>
-          <button 
-            onClick={() => router.push('/')}
-            style={{
-              backgroundColor: '#2563eb',
-              color: 'white',
-              padding: '0.75rem 1.5rem',
-              border: 'none',
-              borderRadius: '0.375rem',
-              cursor: 'pointer'
-            }}
-          >
-            Go to Homepage
-          </button>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center p-6">
+        <Card className="max-w-md w-full bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
+          <CardContent className="pt-8 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-yellow-100 flex items-center justify-center text-yellow-600 text-2xl mb-6 mx-auto">
+              ⏰
+            </div>
+            <CardTitle className="text-xl text-yellow-600 mb-4">Invitation Expired</CardTitle>
+            <CardDescription className="text-neutral-600 mb-6">
+              This invitation has expired. Please contact your administrator for a new invitation.
+            </CardDescription>
+            <Button
+              onClick={() => router.push('/')}
+              className="w-full"
+            >
+              Go to Homepage
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-      <div style={{ maxWidth: '500px', width: '100%', padding: '2rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-            Welcome to Heaven.Earth
-          </h1>
-          <p style={{ color: '#6b7280' }}>
-            {invitation.invitedBy} has invited you to join as a <strong>{invitation.role}</strong>
-          </p>
-          <p style={{ color: '#2563eb', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-            Please create your account using: <strong>{invitation.email}</strong>
-          </p>
-        </div>
-        
-        <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '0.5rem', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}>
-<SignUp 
-  forceRedirectUrl={`/api/invite/${token}/complete`}
-  signInUrl="/sign-in"
-  initialValues={{
-    emailAddress: invitation.email
-  }}
-  appearance={{
-    elements: {
-      rootBox: "w-full",
-      card: "shadow-none border-0 p-0"
-    }
-  }}
-/>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center p-6">
+      <div className="max-w-lg w-full">
+        {/* Welcome Header */}
+        <Card className="mb-6 bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
+          <CardHeader className="text-center">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto shadow-lg">
+              H.E
+            </div>
+            <CardTitle className="text-2xl text-slate-800 mb-2">
+              Welcome to Heaven.Earth
+            </CardTitle>
+            <CardDescription className="text-base text-neutral-600">
+              <span className="font-medium">{invitation.invitedBy}</span> has invited you to join as a <span className="font-semibold text-primary-600">{invitation.role}</span>
+            </CardDescription>
+            <div className="mt-3 text-sm text-primary-600">
+              Please create your account using: <span className="font-semibold">{invitation.email}</span>
+            </div>
+          </CardHeader>
+        </Card>
+
+        {/* Sign Up Form */}
+        <Card className="bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
+          <CardContent className="p-8">
+            <SignUp
+              forceRedirectUrl={`/api/invite/${token}/complete`}
+              signInUrl="/sign-in"
+              initialValues={{
+                emailAddress: invitation.email
+              }}
+              appearance={{
+                elements: {
+                  rootBox: "w-full",
+                  card: "shadow-none border-0 p-0 bg-transparent",
+                  headerTitle: "text-xl font-bold text-slate-800 mb-2",
+                  headerSubtitle: "text-neutral-600 text-sm mb-4",
+                  socialButtonsBlockButton: "border border-neutral-200/60 hover:bg-neutral-50 rounded-xl transition-colors duration-200 text-neutral-700",
+                  formButtonPrimary: "bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-xl",
+                  formFieldInput: "border border-neutral-200/60 rounded-xl focus:border-primary-400 focus:ring-2 focus:ring-primary-200 transition-all duration-200 bg-white/50",
+                  formFieldLabel: "text-neutral-700 font-medium text-sm",
+                  footerActionLink: "text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200"
+                },
+                variables: {
+                  colorPrimary: "#6366f1",
+                  colorBackground: "transparent",
+                  colorInputBackground: "rgba(255, 255, 255, 0.5)",
+                  borderRadius: "12px"
+                }
+              }}
+            />
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

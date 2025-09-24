@@ -23,6 +23,8 @@ import {
   Globe,
   Shield
 } from 'lucide-react'
+import { Modal } from '@/components/ui/Modal'
+import { ToastProvider, useToast } from '@/components/ui/Toast'
 
 const ensureHttps = (url: string): string => {
   if (!url) return url
@@ -81,6 +83,7 @@ function ChatPageContent() {
   const { isLoaded, userId } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { success: showSuccessToast, error: showErrorToast } = useToast()
   
   // =================================================================
   // CHAT STATE MANAGEMENT - Core chat functionality state
@@ -172,6 +175,67 @@ function ChatPageContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // =================================================================
+  // GLOBAL EDGE SWIPE GESTURE HANDLER - Allow opening sidebar from anywhere
+  // =================================================================
+  useEffect(() => {
+    let isHandlingSwipe = false
+
+    const handleTouchStart = (e: TouchEvent) => {
+      const startX = e.touches[0].clientX
+      const startY = e.touches[0].clientY
+
+      // Only handle swipes from the left edge (first 20px)
+      if (startX > 20 || sidebarOpen || isHandlingSwipe) return
+
+      isHandlingSwipe = true
+      let moved = false
+
+      const handleTouchMove = (moveEvent: TouchEvent) => {
+        const currentX = moveEvent.touches[0].clientX
+        const currentY = moveEvent.touches[0].clientY
+        const diffX = currentX - startX
+        const diffY = Math.abs(currentY - startY)
+
+        // Ignore if moved too much vertically (likely scrolling)
+        if (diffY > 50) {
+          cleanup()
+          return
+        }
+
+        moved = true
+
+        // Open sidebar if swiped right by more than 80px
+        if (diffX > 80 && !sidebarOpen) {
+          setSidebarOpen(true)
+          cleanup()
+        }
+      }
+
+      const handleTouchEnd = () => {
+        cleanup()
+      }
+
+      const cleanup = () => {
+        isHandlingSwipe = false
+        document.removeEventListener('touchmove', handleTouchMove)
+        document.removeEventListener('touchend', handleTouchEnd)
+      }
+
+      document.addEventListener('touchmove', handleTouchMove, { passive: true })
+      document.addEventListener('touchend', handleTouchEnd, { passive: true })
+    }
+
+    // Only add global gesture on mobile devices
+    if (window.innerWidth < 768) {
+      document.addEventListener('touchstart', handleTouchStart, { passive: true })
+    }
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart)
+    }
+  }, [sidebarOpen])
+
   // AUTO-RESIZE TEXTAREA - Reset height when input is cleared
   // =================================================================
   useEffect(() => {
@@ -217,16 +281,16 @@ function ChatPageContent() {
       })
 
       if (response.ok) {
-        setFeedbackSubmitStatus('success')
+        showSuccessToast('Thank you for your feedback! This helps us improve the system.')
         setFeedbackForm({ name: '', email: '', message: '' })
-        setTimeout(() => {
-          setShowFeedbackModal(false)
-          setFeedbackSubmitStatus('idle')
-        }, 2000)
+        setShowFeedbackModal(false)
+        setFeedbackSubmitStatus('idle')
       } else {
+        showErrorToast('There was an error sending your feedback. Please try again.')
         setFeedbackSubmitStatus('error')
       }
     } catch (error) {
+      showErrorToast('There was an error sending your feedback. Please try again.')
       setFeedbackSubmitStatus('error')
     } finally {
       setIsSubmittingFeedback(false)
@@ -260,14 +324,15 @@ function ChatPageContent() {
       const data = await response.json()
       
       if (data.success) {
+        showSuccessToast('Your message has been sent successfully!')
         setShowContactModal(false)
         setContactInfo(null)
         setContactForm({ senderName: '', senderEmail: '', subject: '', message: '' })
       } else {
-        setError(data.error || 'Failed to send message')
+        showErrorToast(data.error || 'Failed to send message')
       }
     } catch (err) {
-      setError('Failed to send contact message')
+      showErrorToast('Failed to send contact message')
     } finally {
       setSendingContact(false)
     }
@@ -714,18 +779,53 @@ function ChatPageContent() {
 
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Mobile Backdrop Overlay */}
+        {/* Enhanced Mobile Backdrop Overlay */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity duration-300"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 md:hidden transition-all duration-300 ease-out"
             onClick={() => setSidebarOpen(false)}
+            onTouchStart={() => setSidebarOpen(false)}
             aria-label="Close sidebar"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                setSidebarOpen(false)
+              }
+            }}
           />
         )}
 
-        {/* Modern Animated Sidebar */}
+        {/* Enhanced Mobile Animated Sidebar with Gesture Support */}
         <div
-          className={`bg-white border-r border-neutral-200 transition-all duration-300 ease-out flex flex-col relative overflow-hidden md:relative ${sidebarOpen ? 'w-64 fixed inset-y-0 left-0 z-40 md:static' : 'w-0 md:w-0'}`}
+          className={`bg-white border-r border-neutral-200 transition-all duration-300 ease-out flex flex-col overflow-hidden shadow-2xl md:shadow-none ${
+            sidebarOpen
+              ? 'w-80 fixed inset-y-0 left-0 z-40 md:static md:w-64 transform translate-x-0'
+              : 'w-0 md:w-0 fixed inset-y-0 left-0 z-40 md:static transform -translate-x-full md:translate-x-0'
+          }`}
+          onTouchStart={(e) => {
+            const startX = e.touches[0].clientX
+            const handleTouchMove = (moveEvent: TouchEvent) => {
+              const currentX = moveEvent.touches[0].clientX
+              const diff = currentX - startX
+
+              // Close sidebar if swiped left by more than 100px
+              if (diff < -100 && sidebarOpen) {
+                setSidebarOpen(false)
+                document.removeEventListener('touchmove', handleTouchMove)
+                document.removeEventListener('touchend', handleTouchEnd)
+              }
+            }
+
+            const handleTouchEnd = () => {
+              document.removeEventListener('touchmove', handleTouchMove)
+              document.removeEventListener('touchend', handleTouchEnd)
+            }
+
+            document.addEventListener('touchmove', handleTouchMove, { passive: true })
+            document.addEventListener('touchend', handleTouchEnd, { passive: true })
+          }}
         >
           <div className={`transition-opacity duration-300 flex flex-col h-full ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>
             {/* New Chat Button */}
@@ -821,13 +921,13 @@ function ChatPageContent() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowFeedbackModal(true)}
-                  className="flex-1 bg-gradient-to-r from-primary-400 to-primary-600 text-white px-3 py-2 rounded-lg text-xs font-medium border-none cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105"
+                  className="flex-1 bg-gradient-to-r from-primary-400 to-primary-600 text-white px-3 py-3 rounded-lg text-xs font-medium border-none cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 min-h-[44px]"
                 >
                   Feedback
                 </button>
                 <Link
                   href="/admin"
-                  className="flex-1 text-xs text-neutral-600 bg-neutral-100 hover:bg-neutral-200 px-3 py-2 rounded-lg no-underline font-medium text-center transition-colors duration-200"
+                  className="flex-1 text-xs text-neutral-600 bg-neutral-100 hover:bg-neutral-200 px-3 py-3 rounded-lg no-underline font-medium text-center transition-colors duration-200 min-h-[44px] flex items-center justify-center"
                 >
                   Admin Tools
                 </Link>
@@ -838,15 +938,55 @@ function ChatPageContent() {
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col relative">
-          {/* Mobile Menu Button */}
+          {/* Enhanced Mobile Menu Button */}
           <div className="md:hidden bg-white border-b border-neutral-200 px-4 py-3">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="min-w-[44px] min-h-[44px] p-3 rounded-lg bg-transparent border-none text-neutral-600 cursor-pointer transition-all duration-200 hover:bg-neutral-100 flex items-center justify-center"
-              aria-label={sidebarOpen ? "Close sidebar menu" : "Open sidebar menu"}
-            >
-              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="min-w-[48px] min-h-[48px] p-3 rounded-xl bg-gradient-to-r from-neutral-50 to-neutral-100 border border-neutral-200 text-neutral-700 cursor-pointer transition-all duration-200 hover:from-neutral-100 hover:to-neutral-150 hover:shadow-lg flex items-center justify-center active:scale-95"
+                aria-label={sidebarOpen ? "Close sidebar menu" : "Open sidebar menu"}
+                onTouchStart={(e) => {
+                  const startX = e.touches[0].clientX
+
+                  const handleTouchMove = (moveEvent: TouchEvent) => {
+                    const currentX = moveEvent.touches[0].clientX
+                    const diff = currentX - startX
+
+                    // Open sidebar if swiped right by more than 50px from left edge
+                    if (diff > 50 && startX < 50 && !sidebarOpen) {
+                      setSidebarOpen(true)
+                      document.removeEventListener('touchmove', handleTouchMove)
+                      document.removeEventListener('touchend', handleTouchEnd)
+                    }
+                  }
+
+                  const handleTouchEnd = () => {
+                    document.removeEventListener('touchmove', handleTouchMove)
+                    document.removeEventListener('touchend', handleTouchEnd)
+                  }
+
+                  document.addEventListener('touchmove', handleTouchMove, { passive: true })
+                  document.addEventListener('touchend', handleTouchEnd, { passive: true })
+                }}
+              >
+                <div className={`transform transition-transform duration-300 ${sidebarOpen ? 'rotate-180' : 'rotate-0'}`}>
+                  {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+                </div>
+              </button>
+
+              {/* Mobile App Title */}
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-sm">
+                  H.E
+                </div>
+                <h1 className="text-lg font-semibold text-neutral-800">Heaven.Earth</h1>
+              </div>
+
+              {/* Mobile User Button */}
+              <div className="min-w-[48px] min-h-[48px] flex items-center justify-center">
+                <UserButton afterSignOutUrl="/" />
+              </div>
+            </div>
           </div>
 
           {/* Messages Container - COMPLETELY FIXED */}
@@ -1079,116 +1219,93 @@ function ChatPageContent() {
         </div>
       </div>
 
-      {/* Feedback Modal */}
-      {showFeedbackModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-neutral-200/40">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-semibold text-neutral-800 m-0">
-                Beta Feedback
-              </h3>
-              <button
-                onClick={() => setShowFeedbackModal(false)}
-                className="text-neutral-400 bg-transparent border-none cursor-pointer transition-colors duration-200 hover:text-neutral-600"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+      {/* Enhanced Feedback Modal */}
+      <Modal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        title="Beta Feedback"
+        size="md"
+      >
+        <div className="flex flex-col gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Name
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={feedbackForm.name}
+              onChange={handleFeedbackInputChange}
+              required
+              className="w-full p-4 bg-white/80 backdrop-blur-xl border border-neutral-200/60 rounded-xl text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
+            />
+          </div>
 
-            {feedbackSubmitStatus === 'success' ? (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl mx-auto mb-4">
-                  ✓
-                </div>
-                <h4 className="text-lg font-semibold text-neutral-800 mb-2">
-                  Thank you for your feedback!
-                </h4>
-                <p className="text-neutral-600">This helps us improve the system.</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={feedbackForm.name}
-                    onChange={handleFeedbackInputChange}
-                    required
-                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-neutral-200/60 rounded-xl text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
-                  />
-                </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email
+            </label>
+            <input
+              type="email"
+              name="email"
+              value={feedbackForm.email}
+              onChange={handleFeedbackInputChange}
+              required
+              className="w-full p-4 bg-white/80 backdrop-blur-xl border border-neutral-200/60 rounded-xl text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
+            />
+          </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={feedbackForm.email}
-                    onChange={handleFeedbackInputChange}
-                    required
-                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-neutral-200/60 rounded-xl text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
-                  />
-                </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Feedback
+            </label>
+            <textarea
+              name="message"
+              value={feedbackForm.message}
+              onChange={handleFeedbackInputChange}
+              required
+              rows={4}
+              placeholder="Share your thoughts, bugs you've found, or suggestions for improvement..."
+              className="w-full p-4 bg-white/80 backdrop-blur-xl border border-neutral-200/60 rounded-xl text-sm outline-none resize-vertical transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
+            />
+          </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Feedback
-                  </label>
-                  <textarea
-                    name="message"
-                    value={feedbackForm.message}
-                    onChange={handleFeedbackInputChange}
-                    required
-                    rows={4}
-                    placeholder="Share your thoughts, bugs you've found, or suggestions for improvement..."
-                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-neutral-200/60 rounded-xl text-sm outline-none resize-vertical transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
-                  />
-                </div>
-
-                {feedbackSubmitStatus === 'error' && (
-                  <p className="text-red-600 text-sm">
-                    There was an error sending your feedback. Please try again.
-                  </p>
-                )}
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowFeedbackModal(false)}
-                    className="flex-1 px-4 py-3 border border-slate-300 text-neutral-700 rounded-xl bg-white cursor-pointer text-sm font-medium transition-all duration-200 hover:bg-neutral-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleFeedbackSubmit}
-                    disabled={isSubmittingFeedback}
-                    className={`flex-1 px-4 py-3 rounded-xl border-none text-sm font-medium transition-all duration-200 ${
-                      isSubmittingFeedback
-                        ? 'bg-neutral-300 text-neutral-600 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-primary-400 to-primary-600 text-white cursor-pointer hover:scale-105'
-                    }`}
-                  >
-                    {isSubmittingFeedback ? 'Sending...' : 'Send Feedback'}
-                  </button>
-                </div>
-              </div>
-            )}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowFeedbackModal(false)}
+              className="flex-1 px-4 py-3 border border-slate-300 text-neutral-700 rounded-xl bg-white cursor-pointer text-sm font-medium transition-all duration-200 hover:bg-neutral-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleFeedbackSubmit}
+              disabled={isSubmittingFeedback}
+              className={`flex-1 px-4 py-3 rounded-xl border-none text-sm font-medium transition-all duration-200 ${
+                isSubmittingFeedback
+                  ? 'bg-neutral-300 text-neutral-600 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-primary-400 to-primary-600 text-white cursor-pointer hover:scale-105'
+              }`}
+            >
+              {isSubmittingFeedback ? 'Sending...' : 'Send Feedback'}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
 
-      {/* Contact Modal */}
-      {showContactModal && contactInfo && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto border border-neutral-200/40">
-            <h3 className="text-xl font-semibold mb-2 text-neutral-800">
-              Contact {contactInfo.person}
-            </h3>
+      {/* Enhanced Contact Modal */}
+      <Modal
+        isOpen={showContactModal && !!contactInfo}
+        onClose={() => {
+          setShowContactModal(false)
+          setContactInfo(null)
+          setContactForm({ senderName: '', senderEmail: '', subject: '', message: '' })
+        }}
+        title={contactInfo ? `Contact ${contactInfo.person}` : 'Contact'}
+        size="lg"
+      >
+        {contactInfo && (
+          <>
             <p className="text-sm text-neutral-600 mb-6">
               Send a message about &ldquo;{contactInfo.documentTitle}&rdquo;
             </p>
@@ -1207,7 +1324,7 @@ function ChatPageContent() {
                     className="w-full p-3 bg-white/80 border border-neutral-200/60 rounded-lg text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium mb-2 text-gray-700">
                     Your Email *
@@ -1278,9 +1395,9 @@ function ChatPageContent() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
     </div>
   )
@@ -1288,12 +1405,14 @@ function ChatPageContent() {
 
 export default function ModernChatPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
-        <div className="text-neutral-600">Loading chat...</div>
-      </div>
-    }>
-      <ChatPageContent />
-    </Suspense>
+    <ToastProvider>
+      <Suspense fallback={
+        <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+          <div className="text-neutral-600">Loading chat...</div>
+        </div>
+      }>
+        <ChatPageContent />
+      </Suspense>
+    </ToastProvider>
   )
 }
