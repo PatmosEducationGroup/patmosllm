@@ -3,7 +3,7 @@
 // =================================================================
 // IMPORTS - All necessary dependencies for the modern chat interface
 // =================================================================
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
 import { useAuth, UserButton } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -74,7 +74,7 @@ interface Conversation {
 // =================================================================
 // MAIN CHAT COMPONENT - The primary modern chat interface
 // =================================================================
-export default function ModernChatPage() {
+function ChatPageContent() {
   // =================================================================
   // AUTHENTICATION HOOKS - Handle user authentication state
   // =================================================================
@@ -1283,5 +1283,17 @@ export default function ModernChatPage() {
       )}
 
     </div>
+  )
+}
+
+export default function ModernChatPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+        <div className="text-neutral-600">Loading chat...</div>
+      </div>
+    }>
+      <ChatPageContent />
+    </Suspense>
   )
 }
