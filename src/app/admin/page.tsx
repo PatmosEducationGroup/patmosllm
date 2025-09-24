@@ -5,6 +5,12 @@ import { useAuth, useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
 import { validateFile } from '@/lib/clientValidation'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from '@/components/ui/Card'
+import { Badge } from '@/components/ui/Badge'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { Alert, AlertDescription } from '@/components/ui/Alert'
 
 interface Document {
   id: string
@@ -866,36 +872,12 @@ export default function AdminPage() {
 
   if (!isLoaded || !userId) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div
-            style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '16px',
-              background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '24px',
-              fontWeight: 'bold',
-              marginBottom: '16px',
-              marginLeft: 'auto',
-              marginRight: 'auto',
-              animation: 'pulse 2s infinite',
-              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)'
-            }}
-          >
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto animate-pulse shadow-2xl">
             H.E
           </div>
-          <div style={{ color: '#64748b', fontSize: '18px', fontWeight: '500' }}>
+          <div className="text-slate-600 text-lg font-medium">
             Loading admin panel...
           </div>
         </div>
@@ -905,46 +887,22 @@ export default function AdminPage() {
 
   if (accessDenied) {
     return (
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        padding: '32px',
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'
-      }}>
-        <h1 style={{
-          fontSize: '30px',
-          fontWeight: 'bold',
-          color: '#dc2626',
-          marginBottom: '16px'
-        }}>
-          Access Denied
-        </h1>
-        <p style={{
-          color: '#64748b',
-          textAlign: 'center',
-          marginBottom: '32px',
-          maxWidth: '500px'
-        }}>
-          {error}
-        </p>
-        <button
-          onClick={() => router.push('/')}
-          style={{
-            background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
-            color: 'white',
-            padding: '12px 24px',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '500'
-          }}
-        >
-          Go to Chat
-        </button>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center p-8">
+        <Card className="w-full max-w-md text-center shadow-2xl">
+          <CardContent className="pt-8">
+            <div className="text-5xl mb-4 text-red-600">🚫</div>
+            <CardTitle className="text-2xl text-red-600 mb-4">Access Denied</CardTitle>
+            <CardDescription className="text-base mb-6 max-w-sm mx-auto">
+              {error}
+            </CardDescription>
+            <Button
+              onClick={() => router.push('/')}
+              className="w-full"
+            >
+              Go to Chat
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -953,96 +911,50 @@ export default function AdminPage() {
     return (
       <div>
         <AdminNavbar />
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: 'calc(100vh - 80px)',
-          background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <div
-              style={{
-                width: '48px',
-                height: '48px',
-                border: '4px solid #e2e8f0',
-                borderTopColor: '#82b3db',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite',
-                marginBottom: '16px'
-              }}
-            />
-            <div style={{ color: '#64748b' }}>Loading...</div>
-          </div>
+        <div className="flex justify-center items-center min-h-[calc(100vh-80px)] bg-gradient-to-br from-slate-50 to-slate-200">
+          <LoadingSpinner size="lg" text="Loading..." />
         </div>
       </div>
     )
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)'
-    }}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200">
       <AdminNavbar />
-      
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px' }}>
+
+      <div className="max-w-7xl mx-auto p-6">
         {/* Header */}
-        <div style={{
-          marginBottom: '32px',
-          background: 'rgba(255, 255, 255, 0.8)',
-          backdropFilter: 'blur(12px)',
-          borderRadius: '20px',
-          padding: '32px',
-          border: '1px solid rgba(226, 232, 240, 0.4)',
-          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
-        }}>
-          <h1 style={{
-            fontSize: '30px',
-            fontWeight: 'bold',
-            color: '#1e293b',
-            marginBottom: '8px'
-          }}>
-            Content Management
-          </h1>
-          <p style={{ color: '#64748b' }}>
-            Upload documents, scrape websites, and manage document metadata
-            {userData && (
-              <span style={{ marginLeft: '16px', fontSize: '14px', color: '#82b3db' }}>
-                Logged in as {userData.role}: {userData.email}
-              </span>
-            )}
-          </p>
-        </div>
+        <Card className="mb-8 bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
+          <CardHeader>
+            <CardTitle className="text-3xl text-slate-800">
+              Content Management
+            </CardTitle>
+            <CardDescription className="text-base">
+              Upload documents, scrape websites, and manage document metadata
+              {userData && (
+                <span className="ml-4 text-sm text-primary-400">
+                  Logged in as {userData.role}: {userData.email}
+                </span>
+              )}
+            </CardDescription>
+          </CardHeader>
+        </Card>
 
         {error && (
-          <div style={{
-            marginBottom: '24px',
-            padding: '16px',
-            background: 'rgba(254, 242, 242, 0.8)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid #fecaca',
-            color: '#dc2626',
-            borderRadius: '12px'
-          }}>
-            {error}
-          </div>
+          <Alert variant="error" className="mb-6">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {/* File Upload Section */}
         {userData && ['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(userData.role) && (
-          <div style={{
-            marginBottom: '32px',
-            background: 'rgba(255, 255, 255, 0.8)',
-            backdropFilter: 'blur(12px)',
-            borderRadius: '20px',
-            padding: '24px',
-            border: '1px solid rgba(226, 232, 240, 0.4)',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
-          }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '24px', color: '#1e293b' }}>
-              Upload Document
-            </h2>
+          <Card className="mb-8 bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
+            <CardHeader>
+              <CardTitle className="text-xl text-slate-800">
+                Upload Document
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
             
             <div style={{ display: 'grid', gap: '16px' }}>
               {/* File Selection */}
@@ -1381,7 +1293,7 @@ export default function AdminPage() {
                               <span style={{ fontSize: '12px', color: '#64748b' }}>Ready to upload</span>
                             )}
                             {item.status === 'uploading' && (
-                              <div style={{ fontSize: '12px', color: '#82b3db' }}>
+                              <div style={{ fontSize: '12px', color: 'rgb(130, 179, 219)' }}>
                                 Uploading {item.progress}%
                               </div>
                             )}
@@ -1572,7 +1484,7 @@ export default function AdminPage() {
                   onClick={handleUpload}
                   disabled={uploadQueue.length === 0 || isProcessingQueue || uploadQueue.every(item => item.status !== 'pending')}
                   style={{
-                    background: uploadQueue.length === 0 || isProcessingQueue || uploadQueue.every(item => item.status !== 'pending') ? '#cbd5e1' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                    background: uploadQueue.length === 0 || isProcessingQueue || uploadQueue.every(item => item.status !== 'pending') ? '#cbd5e1' : 'linear-gradient(135deg, rgb(130, 179, 219) 0%, rgb(90, 155, 212) 100%)',
                     color: uploadQueue.length === 0 || isProcessingQueue || uploadQueue.every(item => item.status !== 'pending') ? '#64748b' : 'white',
                     padding: '12px 24px',
                     border: 'none',
@@ -1612,7 +1524,8 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Scraping Messages */}
@@ -1690,7 +1603,7 @@ export default function AdminPage() {
                 onClick={discoverWebsitePages}
                 disabled={!websiteUrl.trim() || isDiscovering || isScrapingPages || uploading}
                 style={{
-                  background: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? '#cbd5e1' : 'linear-gradient(135deg, #9ecd55 0%, #84cc16 100%)',
+                  background: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? '#cbd5e1' : 'linear-gradient(135deg, rgb(158, 205, 85) 0%, rgb(132, 204, 22) 100%)',
                   color: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? '#64748b' : 'white',
                   padding: '12px 24px',
                   border: 'none',
@@ -1749,7 +1662,7 @@ export default function AdminPage() {
                           disabled={currentPage === 1}
                           style={{
                             padding: '4px 8px',
-                            backgroundColor: currentPage === 1 ? '#e5e7eb' : '#82b3db',
+                            backgroundColor: currentPage === 1 ? '#e5e7eb' : 'rgb(130, 179, 219)',
                             color: currentPage === 1 ? '#9ca3af' : 'white',
                             border: 'none',
                             borderRadius: '4px',
@@ -1764,7 +1677,7 @@ export default function AdminPage() {
                           disabled={currentPage === getTotalPages()}
                           style={{
                             padding: '4px 8px',
-                            backgroundColor: currentPage === getTotalPages() ? '#e5e7eb' : '#82b3db',
+                            backgroundColor: currentPage === getTotalPages() ? '#e5e7eb' : 'rgb(130, 179, 219)',
                             color: currentPage === getTotalPages() ? '#9ca3af' : 'white',
                             border: 'none',
                             borderRadius: '4px',
@@ -1796,7 +1709,7 @@ export default function AdminPage() {
                           padding: '8px',
                           backgroundColor: 'white',
                           borderRadius: '8px',
-                          border: page.selected ? '2px solid #82b3db' : '1px solid #e5e7eb'
+                          border: page.selected ? '2px solid rgb(130, 179, 219)' : '1px solid #e5e7eb'
                         }}>
                           <input
                             type="checkbox"
@@ -1834,7 +1747,7 @@ export default function AdminPage() {
                       onClick={() => setDiscoveredPages(prev => prev.map(p => ({ ...p, selected: true })))}
                       disabled={isScrapingPages || uploading}
                       style={{
-                        background: 'linear-gradient(135deg, #9ecd55 0%, #84cc16 100%)',
+                        background: 'linear-gradient(135deg, rgb(158, 205, 85) 0%, rgb(132, 204, 22) 100%)',
                         color: 'white',
                         padding: '8px 16px',
                         border: 'none',
@@ -1869,7 +1782,7 @@ export default function AdminPage() {
                         onClick={() => setShowAllPages(!showAllPages)}
                         disabled={isScrapingPages || uploading}
                         style={{
-                          backgroundColor: showAllPages ? '#dc2626' : '#82b3db',
+                          backgroundColor: showAllPages ? '#dc2626' : 'rgb(130, 179, 219)',
                           color: 'white',
                           padding: '8px 16px',
                           border: 'none',
@@ -1965,7 +1878,7 @@ export default function AdminPage() {
               onClick={saveSelectedContent}
               disabled={uploading || scrapedContent.filter(p => p.selected).length === 0}
               style={{
-                background: uploading || scrapedContent.filter(p => p.selected).length === 0 ? '#9ca3af' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                background: uploading || scrapedContent.filter(p => p.selected).length === 0 ? '#9ca3af' : 'linear-gradient(135deg, rgb(130, 179, 219) 0%, rgb(90, 155, 212) 100%)',
                 color: 'white',
                 padding: '12px 24px',
                 border: 'none',
@@ -1991,7 +1904,7 @@ export default function AdminPage() {
             }}>
               <div style={{
                 width: `${uploadProgress || scrapingProgress}%`,
-                backgroundColor: '#82b3db',
+                backgroundColor: 'rgb(130, 179, 219)',
                 height: '100%',
                 borderRadius: '4px',
                 transition: 'width 0.3s ease'
@@ -2121,7 +2034,7 @@ export default function AdminPage() {
                                 rel="noopener noreferrer"
                                 style={{ 
                                   fontSize: '12px', 
-                                  color: '#9ecd55',
+                                  color: 'rgb(158, 205, 85)',
                                   textDecoration: 'none'
                                 }}
                               >
@@ -2184,9 +2097,9 @@ export default function AdminPage() {
                               style={{
                                 padding: '4px 12px',
                                 fontSize: '12px',
-                                color: '#82b3db',
+                                color: 'rgb(130, 179, 219)',
                                 backgroundColor: 'transparent',
-                                border: '1px solid #82b3db',
+                                border: '1px solid rgb(130, 179, 219)',
                                 borderRadius: '8px',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s'
@@ -2284,7 +2197,7 @@ export default function AdminPage() {
                       outline: 'none',
                       transition: 'all 0.2s'
                     }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                    onFocus={(e) => e.currentTarget.style.borderColor = 'rgb(130, 179, 219)'}
                     onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                   />
                 </div>
@@ -2307,7 +2220,7 @@ export default function AdminPage() {
                       outline: 'none',
                       transition: 'all 0.2s'
                     }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                    onFocus={(e) => e.currentTarget.style.borderColor = 'rgb(130, 179, 219)'}
                     onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                   />
                 </div>
@@ -2331,7 +2244,7 @@ export default function AdminPage() {
                       outline: 'none',
                       transition: 'all 0.2s'
                     }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                    onFocus={(e) => e.currentTarget.style.borderColor = 'rgb(130, 179, 219)'}
                     onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                   />
                 </div>
@@ -2355,7 +2268,7 @@ export default function AdminPage() {
                       outline: 'none',
                       transition: 'all 0.2s'
                     }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                    onFocus={(e) => e.currentTarget.style.borderColor = 'rgb(130, 179, 219)'}
                     onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                   />
                 </div>
@@ -2380,7 +2293,7 @@ export default function AdminPage() {
                         outline: 'none',
                         transition: 'all 0.2s'
                       }}
-                      onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                      onFocus={(e) => e.currentTarget.style.borderColor = 'rgb(130, 179, 219)'}
                       onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                     />
                   </div>
@@ -2404,7 +2317,7 @@ export default function AdminPage() {
                         outline: 'none',
                         transition: 'all 0.2s'
                       }}
-                      onFocus={(e) => e.currentTarget.style.borderColor = '#82b3db'}
+                      onFocus={(e) => e.currentTarget.style.borderColor = 'rgb(130, 179, 219)'}
                       onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
                     />
                   </div>
@@ -2453,7 +2366,7 @@ export default function AdminPage() {
                     padding: '8px 16px',
                     fontSize: '14px',
                     color: 'white',
-                    background: saving || !editingDoc.title.trim() ? '#9ca3af' : 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                    background: saving || !editingDoc.title.trim() ? '#9ca3af' : 'linear-gradient(135deg, rgb(130, 179, 219) 0%, rgb(90, 155, 212) 100%)',
                     border: 'none',
                     borderRadius: '8px',
                     cursor: saving || !editingDoc.title.trim() ? 'not-allowed' : 'pointer',

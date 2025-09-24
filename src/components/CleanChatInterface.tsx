@@ -119,7 +119,7 @@ export default function CleanChatInterface() {
           <div className="p-4 border-b border-gray-100">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold" style={{ backgroundColor: '#82b3db' }}>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold" style={{ backgroundColor: 'rgb(130, 179, 219)' }}>
                   H.E
                 </div>
                 <span className="font-semibold text-gray-900">PatmosLLM</span>
@@ -135,7 +135,7 @@ export default function CleanChatInterface() {
             {/* New Chat Button */}
             <button
               className="w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg text-white font-medium transition-all hover:shadow-md"
-              style={{ backgroundColor: '#82b3db' }}
+              style={{ backgroundColor: 'rgb(130, 179, 219)' }}
             >
               <Plus size={18} />
               <span>New Chat</span>
@@ -166,7 +166,7 @@ export default function CleanChatInterface() {
                       ? 'bg-gray-100 border-l-4'
                       : 'hover:bg-gray-50'
                   }`}
-                  style={{ borderLeftColor: currentSession === session.id ? '#82b3db' : 'transparent' }}
+                  style={{ borderLeftColor: currentSession === session.id ? 'rgb(130, 179, 219)' : 'transparent' }}
                 >
                   <div className="font-medium text-gray-900 text-sm truncate mb-1">
                     {session.title}
@@ -183,7 +183,7 @@ export default function CleanChatInterface() {
           {/* User Profile */}
           <div className="p-4 border-t border-gray-100">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: '#9ecd55' }}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: 'rgb(158, 205, 85)' }}>
                 <User size={16} />
               </div>
               <div className="flex-1">
@@ -218,7 +218,7 @@ export default function CleanChatInterface() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#9ecd55' }}></div>
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'rgb(158, 205, 85)' }}></div>
               <span className="text-sm text-gray-500">Online</span>
             </div>
           </div>
@@ -232,7 +232,7 @@ export default function CleanChatInterface() {
               <div className="text-center py-16">
                 <div
                   className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center text-white text-2xl font-bold shadow-lg"
-                  style={{ backgroundColor: '#82b3db' }}
+                  style={{ backgroundColor: 'rgb(130, 179, 219)' }}
                 >
                   H.E
                 </div>
@@ -278,7 +278,7 @@ export default function CleanChatInterface() {
                             : 'bg-white shadow-sm border border-gray-100 mr-12'
                         }`}
                         style={{
-                          backgroundColor: message.type === 'user' ? '#82b3db' : 'white',
+                          backgroundColor: message.type === 'user' ? 'rgb(130, 179, 219)' : 'white',
                           color: message.type === 'user' ? 'white' : '#374151'
                         }}
                       >
@@ -316,7 +316,7 @@ export default function CleanChatInterface() {
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="inline-flex items-center space-x-1 px-2 py-1 text-xs rounded-md hover:bg-green-100 transition-colors"
-                                        style={{ backgroundColor: '#f0f9e8', color: '#9ecd55' }}
+                                        style={{ backgroundColor: '#f0f9e8', color: 'rgb(158, 205, 85)' }}
                                       >
                                         <Download size={12} />
                                         <span>Download</span>
@@ -347,9 +347,9 @@ export default function CleanChatInterface() {
                     <div className="bg-white rounded-2xl px-6 py-4 shadow-sm border border-gray-100 mr-12">
                       <div className="flex items-center space-x-3">
                         <div className="flex space-x-1">
-                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#82b3db', animationDelay: '0ms' }}></div>
-                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#82b3db', animationDelay: '150ms' }}></div>
-                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: '#82b3db', animationDelay: '300ms' }}></div>
+                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: 'rgb(130, 179, 219)', animationDelay: '0ms' }}></div>
+                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: 'rgb(130, 179, 219)', animationDelay: '150ms' }}></div>
+                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: 'rgb(130, 179, 219)', animationDelay: '300ms' }}></div>
                         </div>
                         <span className="text-sm text-gray-500 flex items-center space-x-1">
                           <Zap size={14} />
@@ -389,7 +389,7 @@ export default function CleanChatInterface() {
                 onClick={handleSend}
                 disabled={!input.trim() || isTyping}
                 className="p-3 rounded-xl text-white transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: input.trim() && !isTyping ? '#82b3db' : '#e5e7eb' }}
+                style={{ backgroundColor: input.trim() && !isTyping ? 'rgb(130, 179, 219)' : '#e5e7eb' }}
               >
                 <Send size={18} />
               </button>

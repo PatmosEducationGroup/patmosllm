@@ -60,7 +60,7 @@ export default function AdminNavbar() {
                 width: '40px',
                 height: '40px',
                 borderRadius: '12px',
-                background: 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)',
+                background: 'linear-gradient(135deg, rgb(130, 179, 219) 0%, #5a9bd4 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -86,7 +86,7 @@ export default function AdminNavbar() {
                   textDecoration: 'none',
                   transition: 'color 0.2s'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#82b3db'}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'rgb(130, 179, 219)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = '#1e293b'}
               >
                 Heaven.Earth
@@ -118,7 +118,7 @@ export default function AdminNavbar() {
                     fontWeight: '500',
                     transition: 'all 0.2s',
                     background: active 
-                      ? 'linear-gradient(135deg, #82b3db 0%, #5a9bd4 100%)' 
+                      ? 'linear-gradient(135deg, rgb(130, 179, 219) 0%, #5a9bd4 100%)' 
                       : 'transparent',
                     color: active ? 'white' : '#64748b',
                     boxShadow: active ? '0 4px 12px rgba(130, 179, 219, 0.3)' : 'none',
@@ -177,7 +177,7 @@ export default function AdminNavbar() {
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                backgroundColor: '#9ecd55',
+                backgroundColor: 'rgb(158, 205, 85)',
                 border: '2px solid white'
               }}
             />
@@ -234,7 +234,7 @@ export default function AdminNavbar() {
                     width: '6px',
                     height: '6px',
                     borderRadius: '50%',
-                    backgroundColor: '#9ecd55',
+                    backgroundColor: 'rgb(158, 205, 85)',
                     animation: 'pulse 2s infinite'
                   }}
                 />

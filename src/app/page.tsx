@@ -696,10 +696,10 @@ export default function ModernChatPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto animate-pulse shadow-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto animate-pulse shadow-2xl">
             H.E
           </div>
-          <div className="text-slate-600 text-lg font-medium">
+          <div className="text-neutral-600 text-lg font-medium">
             Loading your workspace...
           </div>
         </div>
@@ -714,10 +714,10 @@ export default function ModernChatPage() {
     <div className="flex flex-col h-screen bg-white overflow-hidden">
       
       {/* Modern Beta Banner */}
-      <div className="bg-gradient-to-r from-[#82b3db] to-[#5a9bd4] text-white px-6 py-3 text-center text-sm font-medium relative overflow-hidden">
+      <div className="bg-gradient-to-r from-primary-400 to-primary-600 text-white px-6 py-3 text-center text-sm font-medium relative overflow-hidden">
         <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
         <div className="relative flex items-center justify-center gap-3">
-          <span className="bg-[#9ecd55] text-slate-800 px-3 py-1 rounded-full text-xs font-bold tracking-wider">
+          <span className="bg-secondary-400 text-neutral-800 px-3 py-1 rounded-full text-xs font-bold tracking-wider">
             BETA
           </span>
           <span>This system is in beta testing - Your feedback helps us improve</span>
@@ -734,14 +734,14 @@ export default function ModernChatPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Modern Animated Sidebar */}
         <div
-          className={`bg-white border-r border-slate-200 transition-all duration-300 ease-out flex flex-col relative overflow-hidden md:relative ${sidebarOpen ? 'w-64 fixed inset-y-0 left-0 z-40 md:static' : 'w-0 md:w-0'}`}
+          className={`bg-white border-r border-neutral-200 transition-all duration-300 ease-out flex flex-col relative overflow-hidden md:relative ${sidebarOpen ? 'w-64 fixed inset-y-0 left-0 z-40 md:static' : 'w-0 md:w-0'}`}
         >
           <div className={`transition-opacity duration-300 flex flex-col h-full ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>
             {/* New Chat Button */}
-            <div className="p-4 border-b border-slate-200">
+            <div className="p-4 border-b border-neutral-200">
               <button
                 onClick={handleNewChatClick}
-                className="w-full bg-gradient-to-r from-[#82b3db] to-[#6ba3d0] text-white px-4 py-3 rounded-xl font-medium flex items-center gap-3 shadow-lg border-none cursor-pointer transition-all duration-200 hover:shadow-xl hover:scale-105"
+                className="w-full bg-gradient-to-r from-primary-400 to-primary-600 text-white px-4 py-3 rounded-xl font-medium flex items-center gap-3 shadow-lg border-none cursor-pointer transition-all duration-200 hover:shadow-xl hover:scale-105"
               >
                 <Plus size={20} />
                 New Conversation
@@ -749,13 +749,13 @@ export default function ModernChatPage() {
             </div>
 
             {/* Search Bar */}
-            <div className="p-4 border-b border-slate-200">
+            <div className="p-4 border-b border-neutral-200">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
                 <input
                   type="text"
                   placeholder="Search conversations..."
-                  className="w-full bg-slate-50 text-slate-900 pl-10 pr-4 py-2 rounded-lg border border-slate-300 outline-none transition-colors duration-200 text-sm focus:border-[#82b3db] focus:ring-2 focus:ring-[#82b3db]/20"
+                  className="w-full bg-neutral-50 text-neutral-900 pl-10 pr-4 py-2 rounded-lg border border-neutral-300 outline-none transition-colors duration-200 text-sm focus:border-primary-400 focus:ring-2 focus:ring-primary-400/20"
                 />
               </div>
             </div>
@@ -763,12 +763,12 @@ export default function ModernChatPage() {
             {/* Sessions List */}
             <div className="flex-1 overflow-y-auto p-2">
               {loadingSessions ? (
-                <div className="p-4 text-slate-600 text-center">
+                <div className="p-4 text-neutral-600 text-center">
                   <div className="w-6 h-6 border-2 border-slate-400 border-t-transparent rounded-full mx-auto mb-2 animate-spin"></div>
                   Loading conversations...
                 </div>
               ) : sessions.length === 0 ? (
-                <div className="p-4 text-slate-600 text-center">
+                <div className="p-4 text-neutral-600 text-center">
                   <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   No conversations yet
                 </div>
@@ -778,23 +778,23 @@ export default function ModernChatPage() {
                     key={session.id}
                     className={`group p-4 rounded-xl mb-2 cursor-pointer transition-all duration-200 animate-slide-up border ${
                       session.id === currentSessionId
-                        ? 'bg-[#82b3db]/10 border-[#82b3db]/30'
-                        : 'bg-transparent border-transparent hover:bg-slate-50'
+                        ? 'bg-primary-400/10 border-primary-400/30'
+                        : 'bg-transparent border-transparent hover:bg-neutral-50'
                     }`}
                     style={{ animationDelay: `${index * 100}ms` }}
                     onClick={() => loadSession(session.id)}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-slate-900 font-medium text-sm mb-1 overflow-hidden text-ellipsis whitespace-nowrap transition-colors duration-200 hover:text-[#82b3db]">
+                        <h3 className="text-neutral-900 font-medium text-sm mb-1 overflow-hidden text-ellipsis whitespace-nowrap transition-colors duration-200 hover:text-primary-400">
                           {session.title}
                         </h3>
-                        <p className="text-slate-600 text-xs my-2">
+                        <p className="text-neutral-600 text-xs my-2">
                           {formatDate(session.updatedAt)} • {session.messageCount} messages
                         </p>
                         <div className="flex items-center gap-2">
-                          <MessageCircle className="w-3 h-3 text-slate-600" />
-                          <span className="text-xs text-slate-600">{session.messageCount}</span>
+                          <MessageCircle className="w-3 h-3 text-neutral-600" />
+                          <span className="text-xs text-neutral-600">{session.messageCount}</span>
                         </div>
                       </div>
                       <button
@@ -802,7 +802,7 @@ export default function ModernChatPage() {
                           e.stopPropagation()
                           deleteSession(session.id)
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-slate-400 bg-transparent border-none cursor-pointer p-1 transition-all duration-200 hover:text-red-500"
+                        className="opacity-0 group-hover:opacity-100 text-neutral-400 bg-transparent border-none cursor-pointer p-1 transition-all duration-200 hover:text-red-500"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -813,15 +813,15 @@ export default function ModernChatPage() {
             </div>
 
             {/* Sidebar Footer */}
-            <div className="border-t border-slate-200 p-4">
+            <div className="border-t border-neutral-200 p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#82b3db] to-[#6ba3d0] flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-sm">
                     H.E
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-slate-900">Heaven.Earth</div>
-                    <div className="text-xs text-slate-600">Knowledge Assistant</div>
+                    <div className="text-sm font-medium text-neutral-900">Heaven.Earth</div>
+                    <div className="text-xs text-neutral-600">Knowledge Assistant</div>
                   </div>
                 </div>
                 <UserButton afterSignOutUrl="/" />
@@ -829,13 +829,13 @@ export default function ModernChatPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowFeedbackModal(true)}
-                  className="flex-1 bg-gradient-to-r from-[#82b3db] to-[#6ba3d0] text-white px-3 py-2 rounded-lg text-xs font-medium border-none cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105"
+                  className="flex-1 bg-gradient-to-r from-primary-400 to-primary-600 text-white px-3 py-2 rounded-lg text-xs font-medium border-none cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105"
                 >
                   Feedback
                 </button>
                 <Link
                   href="/admin"
-                  className="flex-1 text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg no-underline font-medium text-center transition-colors duration-200"
+                  className="flex-1 text-xs text-neutral-600 bg-neutral-100 hover:bg-neutral-200 px-3 py-2 rounded-lg no-underline font-medium text-center transition-colors duration-200"
                 >
                   Admin Tools
                 </Link>
@@ -847,10 +847,10 @@ export default function ModernChatPage() {
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col relative">
           {/* Mobile Menu Button */}
-          <div className="md:hidden bg-white border-b border-slate-200 px-4 py-3">
+          <div className="md:hidden bg-white border-b border-neutral-200 px-4 py-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg bg-transparent border-none text-slate-600 cursor-pointer transition-all duration-200 hover:bg-slate-100"
+              className="p-2 rounded-lg bg-transparent border-none text-neutral-600 cursor-pointer transition-all duration-200 hover:bg-neutral-100"
             >
               {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -861,13 +861,13 @@ export default function ModernChatPage() {
             <div className="max-w-4xl mx-auto flex flex-col gap-4 md:gap-6">
             {messages.length === 0 && !loading && (
               <div className="text-center py-20">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold mb-6 mx-auto animate-pulse shadow-2xl">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl font-bold mb-6 mx-auto animate-pulse shadow-2xl">
                   H.E
                 </div>
-                <h3 className="text-xl font-semibold text-slate-800 mb-2">
+                <h3 className="text-xl font-semibold text-neutral-800 mb-2">
                   Welcome to Heaven.Earth
                 </h3>
-                <p className="text-slate-600 text-lg">
+                <p className="text-neutral-600 text-lg">
                   Ask any question about our knowledge base to get started
                 </p>
               </div>
@@ -888,8 +888,8 @@ export default function ModernChatPage() {
                   <div
                     className={`rounded-2xl p-4 md:p-6 shadow-lg ${
                       message.type === 'user'
-                        ? 'bg-gradient-to-br from-[#82b3db] to-[#6ba3d0] text-white'
-                        : 'bg-white border border-slate-200 text-slate-900'
+                        ? 'bg-gradient-to-br from-primary-400 to-primary-500 text-white'
+                        : 'bg-white border border-neutral-200 text-neutral-900'
                     }`}
                   >
                     {/* Message Content */}
@@ -897,15 +897,15 @@ export default function ModernChatPage() {
                       <div>
                         <ReactMarkdown
                           components={{
-                            p: ({children}) => <div className="mb-3 text-slate-700">{children}</div>,
-                            strong: ({children}) => <strong className="font-semibold text-slate-800">{children}</strong>,
+                            p: ({children}) => <div className="mb-3 text-neutral-700">{children}</div>,
+                            strong: ({children}) => <strong className="font-semibold text-neutral-800">{children}</strong>,
                             ul: ({children}) => <ul className="list-disc pl-6 mb-3 flex flex-col gap-1">{children}</ul>,
                             ol: ({children}) => <ol className="list-decimal pl-6 mb-3 flex flex-col gap-1">{children}</ol>,
-                            li: ({children}) => <li className="text-slate-700">{children}</li>,
-                            h1: ({children}) => <h1 className="text-xl font-semibold text-slate-800 mb-3">{children}</h1>,
-                            h2: ({children}) => <h2 className="text-lg font-semibold text-slate-800 mb-3">{children}</h2>,
-                            h3: ({children}) => <h3 className="text-base font-semibold text-slate-800 mb-2">{children}</h3>,
-                            code: ({children}) => <code className="bg-slate-100 px-2 py-0.5 rounded text-sm font-mono text-slate-800">{children}</code>
+                            li: ({children}) => <li className="text-neutral-700">{children}</li>,
+                            h1: ({children}) => <h1 className="text-xl font-semibold text-neutral-800 mb-3">{children}</h1>,
+                            h2: ({children}) => <h2 className="text-lg font-semibold text-neutral-800 mb-3">{children}</h2>,
+                            h3: ({children}) => <h3 className="text-base font-semibold text-neutral-800 mb-2">{children}</h3>,
+                            code: ({children}) => <code className="bg-neutral-100 px-2 py-0.5 rounded text-sm font-mono text-neutral-800">{children}</code>
                           }}
                         >
                           {message.content}
@@ -924,8 +924,8 @@ export default function ModernChatPage() {
 
                     {/* Enhanced Source Citations */}
                     {message.sources && message.sources.length > 0 && !message.isStreaming && (
-                      <div className="mt-6 pt-4 border-t border-slate-200/30">
-                        <div className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                      <div className="mt-6 pt-4 border-t border-neutral-200/30">
+                        <div className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
                           <Globe className="w-4 h-4" />
                           Sources:
                         </div>
@@ -933,16 +933,16 @@ export default function ModernChatPage() {
                           {message.sources.map((source, i) => (
                             <div
                               key={i}
-                              className="bg-slate-50/80 rounded-xl p-4 border border-slate-200/40 transition-all duration-200 animate-slide-up hover:shadow-lg"
+                              className="bg-neutral-50/80 rounded-xl p-4 border border-neutral-200/40 transition-all duration-200 animate-slide-up hover:shadow-lg"
                               style={{ animationDelay: `${i * 0.1}s` }}
                             >
                               <div className="flex items-start justify-between mb-3">
                                 <div>
-                                  <h4 className="font-semibold text-slate-800 text-sm m-0">
+                                  <h4 className="font-semibold text-neutral-800 text-sm m-0">
                                     {source.title}
                                   </h4>
                                   {source.author && (
-                                    <p className="text-xs text-slate-600 mt-1 m-0">
+                                    <p className="text-xs text-neutral-600 mt-1 m-0">
                                       by {source.author}
                                     </p>
                                   )}
@@ -984,7 +984,7 @@ export default function ModernChatPage() {
                                       })
                                       setShowContactModal(true)
                                     }}
-                                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white rounded-lg border border-slate-300 cursor-pointer transition-all duration-200 hover:text-slate-800 hover:border-slate-400 hover:scale-105"
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-neutral-600 bg-white rounded-lg border border-slate-300 cursor-pointer transition-all duration-200 hover:text-neutral-800 hover:border-slate-400 hover:scale-105"
                                   >
                                     <User className="w-3 h-3" />
                                     Contact {source.contact_person}
@@ -999,7 +999,7 @@ export default function ModernChatPage() {
 
                     {/* Message Timestamp */}
                     <div className={`text-xs mt-3 flex items-center gap-1 ${
-                      message.type === 'user' ? 'text-white/70' : 'text-slate-400'
+                      message.type === 'user' ? 'text-white/70' : 'text-neutral-400'
                     }`}>
                       <Clock className="w-3 h-3" />
                       {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1014,18 +1014,18 @@ export default function ModernChatPage() {
               <div className="flex w-full">
                 <div className="w-full max-w-4xl">
                   <div className="w-full flex justify-start">
-                    <div className="max-w-3xl bg-white border border-slate-200 rounded-2xl p-6 shadow-lg">
+                    <div className="max-w-3xl bg-white border border-neutral-200 rounded-2xl p-6 shadow-lg">
                   <div className="flex items-center gap-3">
                     <div className="flex gap-1">
                       {[0, 1, 2].map(i => (
                         <div
                           key={i}
-                          className="w-2 h-2 rounded-full bg-[#82b3db] animate-bounce"
+                          className="w-2 h-2 rounded-full bg-primary-400 animate-bounce"
                           style={{ animationDelay: `${i * 0.2}s` }}
                         ></div>
                       ))}
                     </div>
-                    <span className="text-sm text-slate-700 flex items-center gap-2 animate-pulse">
+                    <span className="text-sm text-neutral-700 flex items-center gap-2 animate-pulse">
                       <Zap className="w-4 h-4" />
                       AI is thinking...
                     </span>
@@ -1056,7 +1056,7 @@ export default function ModernChatPage() {
           </div>
 
           {/* Modern Input Area */}
-          <div className="bg-white border-t border-slate-200 flex justify-center">
+          <div className="bg-white border-t border-neutral-200 flex justify-center">
             <div className="w-full max-w-4xl px-4 md:px-6 py-4 md:py-6">
               <div className="max-w-4xl w-full">
                 <textarea
@@ -1077,7 +1077,7 @@ export default function ModernChatPage() {
                   placeholder="Ask a question about the documents..."
                   disabled={loading || !currentSessionId || isStreaming}
                   rows={1}
-                  className="w-full p-4 md:p-6 bg-slate-50 border border-slate-300 rounded-2xl resize-none outline-none text-sm md:text-base text-slate-900 min-h-12 md:min-h-14 max-h-50 transition-all duration-200 focus:ring-2 focus:ring-[#82b3db]/50 focus:border-[#82b3db]"
+                  className="w-full p-4 md:p-6 bg-neutral-50 border border-neutral-300 rounded-2xl resize-none outline-none text-sm md:text-base text-neutral-900 min-h-12 md:min-h-14 max-h-50 transition-all duration-200 focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400"
                   style={{ overflow: 'hidden' }}
                 />
               </div>
@@ -1089,14 +1089,14 @@ export default function ModernChatPage() {
       {/* Feedback Modal */}
       {showFeedbackModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200/40">
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-neutral-200/40">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-semibold text-slate-800 m-0">
+              <h3 className="text-xl font-semibold text-neutral-800 m-0">
                 Beta Feedback
               </h3>
               <button
                 onClick={() => setShowFeedbackModal(false)}
-                className="text-slate-400 bg-transparent border-none cursor-pointer transition-colors duration-200 hover:text-slate-600"
+                className="text-neutral-400 bg-transparent border-none cursor-pointer transition-colors duration-200 hover:text-neutral-600"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -1104,13 +1104,13 @@ export default function ModernChatPage() {
 
             {feedbackSubmitStatus === 'success' ? (
               <div className="text-center py-8">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl mx-auto mb-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl mx-auto mb-4">
                   ✓
                 </div>
-                <h4 className="text-lg font-semibold text-slate-800 mb-2">
+                <h4 className="text-lg font-semibold text-neutral-800 mb-2">
                   Thank you for your feedback!
                 </h4>
-                <p className="text-slate-600">This helps us improve the system.</p>
+                <p className="text-neutral-600">This helps us improve the system.</p>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
@@ -1124,7 +1124,7 @@ export default function ModernChatPage() {
                     value={feedbackForm.name}
                     onChange={handleFeedbackInputChange}
                     required
-                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-xl text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
+                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-neutral-200/60 rounded-xl text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                   />
                 </div>
 
@@ -1138,7 +1138,7 @@ export default function ModernChatPage() {
                     value={feedbackForm.email}
                     onChange={handleFeedbackInputChange}
                     required
-                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-xl text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
+                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-neutral-200/60 rounded-xl text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                   />
                 </div>
 
@@ -1153,7 +1153,7 @@ export default function ModernChatPage() {
                     required
                     rows={4}
                     placeholder="Share your thoughts, bugs you've found, or suggestions for improvement..."
-                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-slate-200/60 rounded-xl text-sm outline-none resize-vertical transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
+                    className="w-full p-4 bg-white/80 backdrop-blur-xl border border-neutral-200/60 rounded-xl text-sm outline-none resize-vertical transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                   />
                 </div>
 
@@ -1167,7 +1167,7 @@ export default function ModernChatPage() {
                   <button
                     type="button"
                     onClick={() => setShowFeedbackModal(false)}
-                    className="flex-1 px-4 py-3 border border-slate-300 text-slate-700 rounded-xl bg-white cursor-pointer text-sm font-medium transition-all duration-200 hover:bg-slate-50"
+                    className="flex-1 px-4 py-3 border border-slate-300 text-neutral-700 rounded-xl bg-white cursor-pointer text-sm font-medium transition-all duration-200 hover:bg-neutral-50"
                   >
                     Cancel
                   </button>
@@ -1176,7 +1176,7 @@ export default function ModernChatPage() {
                     disabled={isSubmittingFeedback}
                     className={`flex-1 px-4 py-3 rounded-xl border-none text-sm font-medium transition-all duration-200 ${
                       isSubmittingFeedback
-                        ? 'bg-slate-300 text-slate-600 cursor-not-allowed'
+                        ? 'bg-neutral-300 text-neutral-600 cursor-not-allowed'
                         : 'bg-gradient-to-r from-primary-400 to-primary-600 text-white cursor-pointer hover:scale-105'
                     }`}
                   >
@@ -1192,11 +1192,11 @@ export default function ModernChatPage() {
       {/* Contact Modal */}
       {showContactModal && contactInfo && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white/90 backdrop-blur-xl rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto border border-slate-200/40">
-            <h3 className="text-xl font-semibold mb-2 text-slate-800">
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto border border-neutral-200/40">
+            <h3 className="text-xl font-semibold mb-2 text-neutral-800">
               Contact {contactInfo.person}
             </h3>
-            <p className="text-sm text-slate-600 mb-6">
+            <p className="text-sm text-neutral-600 mb-6">
               Send a message about &ldquo;{contactInfo.documentTitle}&rdquo;
             </p>
 
@@ -1211,7 +1211,7 @@ export default function ModernChatPage() {
                     value={contactForm.senderName}
                     onChange={(e) => setContactForm(prev => ({ ...prev, senderName: e.target.value }))}
                     required
-                    className="w-full p-3 bg-white/80 border border-slate-200/60 rounded-lg text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
+                    className="w-full p-3 bg-white/80 border border-neutral-200/60 rounded-lg text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                   />
                 </div>
                 
@@ -1224,7 +1224,7 @@ export default function ModernChatPage() {
                     value={contactForm.senderEmail}
                     onChange={(e) => setContactForm(prev => ({ ...prev, senderEmail: e.target.value }))}
                     required
-                    className="w-full p-3 bg-white/80 border border-slate-200/60 rounded-lg text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
+                    className="w-full p-3 bg-white/80 border border-neutral-200/60 rounded-lg text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                   />
                 </div>
               </div>
@@ -1239,7 +1239,7 @@ export default function ModernChatPage() {
                   onChange={(e) => setContactForm(prev => ({ ...prev, subject: e.target.value }))}
                   required
                   placeholder="Question about the document..."
-                  className="w-full p-3 bg-white/80 border border-slate-200/60 rounded-lg text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
+                  className="w-full p-3 bg-white/80 border border-neutral-200/60 rounded-lg text-sm outline-none transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                 />
               </div>
 
@@ -1253,7 +1253,7 @@ export default function ModernChatPage() {
                   required
                   rows={4}
                   placeholder="Your question or comment..."
-                  className="w-full p-3 bg-white/80 border border-slate-200/60 rounded-lg text-sm outline-none resize-vertical transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
+                  className="w-full p-3 bg-white/80 border border-neutral-200/60 rounded-lg text-sm outline-none resize-vertical transition-all duration-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/50"
                 />
               </div>
 
@@ -1266,8 +1266,8 @@ export default function ModernChatPage() {
                     setContactForm({ senderName: '', senderEmail: '', subject: '', message: '' })
                   }}
                   disabled={sendingContact}
-                  className={`px-4 py-3 text-sm text-slate-600 bg-white border border-slate-300 rounded-lg transition-all duration-200 ${
-                    sendingContact ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'
+                  className={`px-4 py-3 text-sm text-neutral-600 bg-white border border-slate-300 rounded-lg transition-all duration-200 ${
+                    sendingContact ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-neutral-50'
                   }`}
                 >
                   Cancel
@@ -1277,7 +1277,7 @@ export default function ModernChatPage() {
                   disabled={sendingContact}
                   className={`px-4 py-3 text-sm border-none rounded-lg transition-all duration-200 ${
                     sendingContact
-                      ? 'bg-slate-300 text-slate-600 cursor-not-allowed'
+                      ? 'bg-neutral-300 text-neutral-600 cursor-not-allowed'
                       : 'bg-gradient-to-r from-primary-400 to-primary-600 text-white cursor-pointer hover:scale-105'
                   }`}
                 >
