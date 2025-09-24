@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input'
 import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { Alert, AlertDescription } from '@/components/ui/Alert'
+import { Alert } from '@/components/ui/Alert'
 
 interface Document {
   id: string
@@ -937,7 +937,7 @@ export default function AdminPage() {
 
         {error && (
           <Alert variant="error" className="mb-6">
-            <AlertDescription>{error}</AlertDescription>
+            {error}
           </Alert>
         )}
 
