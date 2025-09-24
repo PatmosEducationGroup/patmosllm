@@ -2417,7 +2417,7 @@ function AdminPageContent() {
               <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
               <div>
                 <p className="text-sm text-gray-900">
-                  Are you sure you want to <strong>permanently delete</strong> the document <strong>"{documentToDelete.title}"</strong>?
+                  Are you sure you want to <strong>permanently delete</strong> the document <strong>&ldquo;{documentToDelete.title}&rdquo;</strong>?
                 </p>
                 <ul className="mt-3 text-sm text-gray-600 space-y-1">
                   <li>• The document file will be permanently removed</li>

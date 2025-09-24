@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     // Check cache for user sessions first
     const cacheKey = `sessions-${user.id}`
-    const cachedSessions = advancedCache.get<Array<any>>(
+    const cachedSessions = advancedCache.get<Array<Record<string, unknown>>>(
       CACHE_NAMESPACES.USER_SESSIONS,
       cacheKey
     )
