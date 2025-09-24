@@ -8,6 +8,7 @@ import { chatRateLimit } from '@/lib/rate-limiter';
 import { getIdentifier } from '@/lib/get-identifier';
 import { sanitizeInput } from '@/lib/input-sanitizer';
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
+import { userContextManager } from '@/lib/userContextManager'
 import {
   advancedCache,
   CACHE_NAMESPACES,
@@ -41,10 +42,13 @@ interface CachedChatResponse {
 
 function getCachedChatResponse(question: string, userId: string): CachedChatResponse | null {
   const cacheKey = generateQuestionCacheKey(question, userId)
-  return advancedCache.get<CachedChatResponse>(
+  console.log(`Cache lookup: key="${cacheKey}"`)
+  const result = advancedCache.get<CachedChatResponse>(
     CACHE_NAMESPACES.CHAT_HISTORY,
     cacheKey
   )
+  console.log(`Cache ${result ? 'HIT' : 'MISS'} for question: "${question.substring(0, 50)}..."`)
+  return result
 }
 
 function setCachedChatResponse(
@@ -298,8 +302,9 @@ export async function POST(request: NextRequest) {
         : "I couldn't find any relevant information in the uploaded documents to answer your question. You might want to try rephrasing your question or check if relevant documents have been uploaded."
       
       // Save conversation with no sources using connection pool
+      let noResultsConversationId: string | null = null
       await withSupabaseAdmin(async (supabase) => {
-        await supabase
+        const { data: conversation, error } = await supabase
           .from('conversations')
           .insert({
             user_id: currentUserId,
@@ -308,7 +313,28 @@ export async function POST(request: NextRequest) {
             answer: noResultsMessage,
             sources: []
           })
+          .select('id')
+          .single()
+
+        if (!error && conversation) {
+          noResultsConversationId = conversation.id
+        }
       })
+
+      // Log to memory system even for no-results responses
+      try {
+        await userContextManager.logConversation(
+          currentUserId,
+          sessionId,
+          noResultsConversationId,
+          trimmedQuestion,
+          noResultsMessage,
+          [],
+          1 // Low satisfaction score for no results
+        )
+      } catch (memoryError) {
+        console.error('Memory system error for no-results response:', memoryError)
+      }
 
       return new Response(
         JSON.stringify({
@@ -568,8 +594,9 @@ ${contextDocuments}`
               console.log(`✅ ADVANCED CACHE: Stored complete response (${fullResponse.length} chars) for user ${currentUserId}`)
               
               // Save conversation to database using connection pool
+              let conversationId: string | null = null
               await withSupabaseAdmin(async (supabase) => {
-                const { error: insertError } = await supabase
+                const { data: conversation, error: insertError } = await supabase
                   .from('conversations')
                   .insert({
                     user_id: currentUserId,
@@ -578,11 +605,15 @@ ${contextDocuments}`
                     answer: fullResponse,
                     sources: sources
                   })
+                  .select('id')
+                  .single()
 
                 if (insertError) {
                   console.error('Error saving conversation:', insertError)
                   throw insertError
                 }
+
+                conversationId = conversation?.id || null
 
                 // Update session timestamp
                 const { error: updateError } = await supabase
@@ -594,6 +625,35 @@ ${contextDocuments}`
                   console.error('Error updating session:', updateError)
                 }
               })
+
+              // =================================================================
+              // MEMORY INTEGRATION: Update user context and log conversation
+              // =================================================================
+              try {
+                // Update user context with this conversation
+                await userContextManager.updateUserContext(
+                  currentUserId,
+                  trimmedQuestion,
+                  fullResponse,
+                  sources,
+                  sessionId
+                )
+
+                // Log conversation to memory system
+                await userContextManager.logConversation(
+                  currentUserId,
+                  sessionId,
+                  conversationId,
+                  trimmedQuestion,
+                  fullResponse,
+                  sources
+                )
+
+                console.log(`✅ MEMORY: Updated user context and logged conversation for user ${currentUserId}`)
+              } catch (memoryError) {
+                console.error('Memory system error (non-blocking):', memoryError)
+                // Don't throw - memory errors shouldn't break the chat experience
+              }
 
               // Clear cached conversation history since we added a new message
               advancedCache.delete(CACHE_NAMESPACES.CHAT_HISTORY, sessionId)

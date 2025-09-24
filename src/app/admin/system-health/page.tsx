@@ -15,7 +15,8 @@ import {
   Activity,
   Gauge,
   Info,
-  HelpCircle
+  HelpCircle,
+  Brain
 } from 'lucide-react'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { Modal } from '@/components/ui/Modal'
@@ -46,6 +47,19 @@ interface SystemHealth {
   vectorDatabase: {
     status: string
     connected: boolean
+  }
+  memorySystem: {
+    status: string
+    responseTime: number
+    userContexts: number
+    conversationMemories: number
+    topicProgressions: number
+    recent24h: number
+    coverage: number
+    averageSatisfaction: number
+    topTopics: Array<{ topic: string; count: number }>
+    topIntents: Array<{ intent: string; count: number }>
+    memoryUtilization: number
   }
   users: {
     total: number
@@ -474,6 +488,51 @@ export default function SystemHealthPage() {
                 </div>
               </div>
 
+              {/* Memory System */}
+              {health.memorySystem && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <Brain className="h-8 w-8 text-purple-500" />
+                    <div className="ml-4">
+                      <h3 className="text-lg font-medium text-gray-900">Memory System</h3>
+                      <p className={`text-sm ${health.memorySystem.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>
+                        {health.memorySystem.status}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Response Time</span>
+                      <span className="font-medium">{health.memorySystem.responseTime}ms</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">User Contexts</span>
+                      <span className="font-medium">{health.memorySystem.userContexts}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Memories</span>
+                      <span className="font-medium">{health.memorySystem.conversationMemories}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Recent (24h)</span>
+                      <span className="font-medium text-green-600">{health.memorySystem.recent24h}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Utilization</span>
+                      <span className={`font-medium ${health.memorySystem.memoryUtilization > 50 ? 'text-green-600' : 'text-yellow-600'}`}>
+                        {health.memorySystem.memoryUtilization}%
+                      </span>
+                    </div>
+                    {health.memorySystem.averageSatisfaction > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Avg Satisfaction</span>
+                        <span className="font-medium text-blue-600">{health.memorySystem.averageSatisfaction.toFixed(1)}/5</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Performance Metrics */}
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex items-center">
@@ -541,6 +600,90 @@ export default function SystemHealthPage() {
                 </div>
               </div>
             </div>
+
+            {/* Memory Insights */}
+            {health.memorySystem && (health.memorySystem.topTopics.length > 0 || health.memorySystem.topIntents.length > 0) && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Memory System Insights</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Top Topics */}
+                  {health.memorySystem.topTopics.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
+                        <Brain className="h-5 w-5 text-purple-500 mr-2" />
+                        Popular Topics
+                      </h3>
+                      <div className="space-y-2">
+                        {health.memorySystem.topTopics.slice(0, 5).map((topic, index) => (
+                          <div key={topic.topic} className="flex justify-between items-center">
+                            <span className="text-sm text-gray-700 capitalize">{topic.topic}</span>
+                            <div className="flex items-center space-x-2">
+                              <div className="w-12 bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${Math.min((topic.count / Math.max(...health.memorySystem.topTopics.map(t => t.count))) * 100, 100)}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-xs text-gray-500 w-6 text-right">{topic.count}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Top Question Intents */}
+                  {health.memorySystem.topIntents.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
+                        <MessageSquare className="h-5 w-5 text-blue-500 mr-2" />
+                        Question Types
+                      </h3>
+                      <div className="space-y-2">
+                        {health.memorySystem.topIntents.slice(0, 5).map((intent, index) => (
+                          <div key={intent.intent} className="flex justify-between items-center">
+                            <span className="text-sm text-gray-700 capitalize">{intent.intent}</span>
+                            <div className="flex items-center space-x-2">
+                              <div className="w-12 bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${Math.min((intent.count / Math.max(...health.memorySystem.topIntents.map(i => i.count))) * 100, 100)}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-xs text-gray-500 w-6 text-right">{intent.count}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Memory Stats Summary */}
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-purple-600">{health.memorySystem.userContexts}</div>
+                      <div className="text-xs text-gray-600">User Profiles</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-blue-600">{health.memorySystem.conversationMemories}</div>
+                      <div className="text-xs text-gray-600">Total Memories</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-green-600">{health.memorySystem.recent24h}</div>
+                      <div className="text-xs text-gray-600">Recent Activity</div>
+                    </div>
+                    {health.memorySystem.averageSatisfaction > 0 && (
+                      <div>
+                        <div className="text-2xl font-bold text-orange-600">{health.memorySystem.averageSatisfaction.toFixed(1)}</div>
+                        <div className="text-xs text-gray-600">Avg Satisfaction</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

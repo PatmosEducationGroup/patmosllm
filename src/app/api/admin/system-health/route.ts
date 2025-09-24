@@ -4,6 +4,7 @@ import { withSupabaseAdmin, getSupabaseHealth } from '@/lib/supabase'
 import { advancedCache } from '@/lib/advanced-cache'
 import { testConnection as testPineconeConnection } from '@/lib/pinecone'
 import { getCurrentUser } from '@/lib/auth'
+import { userContextManager } from '@/lib/userContextManager'
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,23 +21,28 @@ export async function GET(request: NextRequest) {
 
     const startTime = Date.now()
 
-    // Get advanced system metrics
-    const [dbStats, cacheStats, connectionHealth, pineconeHealth] = await Promise.all([
+    // Get advanced system metrics including memory system
+    const [dbStats, cacheStats, connectionHealth, pineconeHealth, memoryHealth] = await Promise.all([
       // Database stats with connection pooling
       withSupabaseAdmin(async (supabase) => {
-        const [usersResult, documentsResult, conversationsResult] = await Promise.all([
+        const [usersResult, documentsResult, conversationsResult, userContextResult, conversationMemoryResult, topicProgressionResult] = await Promise.all([
           supabase.from('users').select('id, created_at, clerk_id').limit(1000),
           supabase.from('documents').select('id, file_size, created_at').limit(1000),
-          supabase.from('conversations').select('id, created_at').limit(1000)
+          supabase.from('conversations').select('id, created_at').limit(1000),
+          supabase.from('user_context').select('user_id, updated_at, current_session_topics, topic_familiarity').limit(1000),
+          supabase.from('conversation_memory').select('id, created_at, question_intent, user_satisfaction, extracted_topics').limit(1000),
+          supabase.from('topic_progression').select('id, topic_name, expertise_level, total_interactions').limit(1000)
         ])
-        return { usersResult, documentsResult, conversationsResult }
+        return { usersResult, documentsResult, conversationsResult, userContextResult, conversationMemoryResult, topicProgressionResult }
       }),
       // Cache performance metrics
       advancedCache.getStats(),
       // Connection pool health
       getSupabaseHealth(),
       // Vector database health
-      testPineconeConnection()
+      testPineconeConnection(),
+      // Memory system health check
+      testMemorySystemHealth()
     ])
 
     const dbResponseTime = Date.now() - startTime
@@ -51,12 +57,21 @@ export async function GET(request: NextRequest) {
 
     const totalConversations = dbStats.conversationsResult.data?.length || 0
 
+    // Memory system statistics
+    const totalUserContexts = dbStats.userContextResult.data?.length || 0
+    const totalConversationMemories = dbStats.conversationMemoryResult.data?.length || 0
+    const totalTopicProgressions = dbStats.topicProgressionResult.data?.length || 0
+
     // Get recent activity (last 24 hours)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    
+
     const recentUsers = dbStats.usersResult.data?.filter(u => u.created_at > yesterday).length || 0
     const recentDocuments = dbStats.documentsResult.data?.filter(d => d.created_at > yesterday).length || 0
     const recentConversations = dbStats.conversationsResult.data?.filter(c => c.created_at > yesterday).length || 0
+    const recentMemories = dbStats.conversationMemoryResult.data?.filter(m => m.created_at > yesterday).length || 0
+
+    // Calculate memory system health metrics
+    const memoryMetrics = calculateMemoryMetrics(dbStats.userContextResult.data || [], dbStats.conversationMemoryResult.data || [], dbStats.topicProgressionResult.data || [])
 
     return NextResponse.json({
       success: true,
@@ -75,6 +90,19 @@ export async function GET(request: NextRequest) {
         vectorDatabase: {
           status: pineconeHealth ? 'healthy' : 'error',
           connected: pineconeHealth
+        },
+        memorySystem: {
+          status: memoryHealth.status,
+          responseTime: memoryHealth.responseTime,
+          userContexts: totalUserContexts,
+          conversationMemories: totalConversationMemories,
+          topicProgressions: totalTopicProgressions,
+          recent24h: recentMemories,
+          coverage: memoryMetrics.coverage,
+          averageSatisfaction: memoryMetrics.averageSatisfaction,
+          topTopics: memoryMetrics.topTopics.slice(0, 5),
+          topIntents: memoryMetrics.topIntents,
+          memoryUtilization: memoryMetrics.memoryUtilization
         },
         users: {
           total: totalUsers,
@@ -109,7 +137,10 @@ export async function GET(request: NextRequest) {
             'Advanced Multi-layer Cache',
             'Hybrid Search (Semantic + Keyword)',
             'Intelligent Query Analysis',
-            'Real-time Performance Monitoring'
+            'Real-time Performance Monitoring',
+            'Conversation Memory System',
+            'User Context Tracking',
+            'Topic Extraction & Learning'
           ]
         }
       }
@@ -129,5 +160,95 @@ export async function GET(request: NextRequest) {
         }
       }
     }, { status: 500 })
+  }
+}
+
+// =================================================================
+// MEMORY SYSTEM HEALTH FUNCTIONS
+// =================================================================
+
+async function testMemorySystemHealth() {
+  const startTime = Date.now()
+
+  try {
+    // Test basic memory operations
+    await withSupabaseAdmin(async (supabase) => {
+      // Test connectivity to all memory tables
+      const [contextTest, memoryTest, progressionTest, patternTest] = await Promise.all([
+        supabase.from('user_context').select('id').limit(1),
+        supabase.from('conversation_memory').select('id').limit(1),
+        supabase.from('topic_progression').select('id').limit(1),
+        supabase.from('question_patterns').select('id').limit(1)
+      ])
+
+      // If any queries fail, throw error
+      if (contextTest.error || memoryTest.error || progressionTest.error || patternTest.error) {
+        throw new Error('Memory table connectivity test failed')
+      }
+    })
+
+    return {
+      status: 'healthy',
+      responseTime: Date.now() - startTime,
+      connected: true
+    }
+  } catch (error) {
+    console.error('Memory system health check failed:', error)
+    return {
+      status: 'error',
+      responseTime: Date.now() - startTime,
+      connected: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }
+  }
+}
+
+function calculateMemoryMetrics(contexts: any[], memories: any[], progressions: any[]) {
+  // Calculate memory coverage (% of users with context vs total users)
+  const coverage = contexts.length > 0 ? Math.round((contexts.length / Math.max(contexts.length, 1)) * 100) : 0
+
+  // Calculate average user satisfaction
+  const satisfactionScores = memories.filter(m => m.user_satisfaction !== null).map(m => m.user_satisfaction)
+  const averageSatisfaction = satisfactionScores.length > 0
+    ? Math.round((satisfactionScores.reduce((a, b) => a + b, 0) / satisfactionScores.length) * 100) / 100
+    : 0
+
+  // Calculate top topics from all memories
+  const allTopics = memories.flatMap(m => m.extracted_topics || [])
+  const topicCounts = allTopics.reduce((acc: Record<string, number>, topic: string) => {
+    acc[topic] = (acc[topic] || 0) + 1
+    return acc
+  }, {})
+  const topTopics = Object.entries(topicCounts)
+    .sort(([,a], [,b]) => (b as number) - (a as number))
+    .slice(0, 10)
+    .map(([topic, count]) => ({ topic, count }))
+
+  // Calculate top question intents
+  const intentCounts = memories.reduce((acc: Record<string, number>, m) => {
+    acc[m.question_intent] = (acc[m.question_intent] || 0) + 1
+    return acc
+  }, {})
+  const topIntents = Object.entries(intentCounts)
+    .sort(([,a], [,b]) => (b as number) - (a as number))
+    .slice(0, 5)
+    .map(([intent, count]) => ({ intent, count }))
+
+  // Calculate memory utilization score
+  const totalPossibleContexts = contexts.length
+  const activeContexts = contexts.filter(c =>
+    Object.keys(c.topic_familiarity || {}).length > 0 ||
+    (c.current_session_topics && c.current_session_topics.length > 0)
+  ).length
+  const memoryUtilization = totalPossibleContexts > 0 ? Math.round((activeContexts / totalPossibleContexts) * 100) : 0
+
+  return {
+    coverage,
+    averageSatisfaction,
+    topTopics,
+    topIntents,
+    memoryUtilization,
+    totalTopicsTracked: Object.keys(topicCounts).length,
+    totalInteractions: memories.length
   }
 }

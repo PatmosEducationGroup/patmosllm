@@ -13,7 +13,9 @@
     "test:artillery": "npm run test:quick && echo '\n🎯 Run npm run test:load for full Artillery load test'",
     "monitor": "./monitor-performance.sh",
     "health": "curl -s http://localhost:3000/api/admin/system-health | jq . || curl -s http://localhost:3000/api/admin/system-health",
-    "verify": "echo '🔍 Verifying Performance Improvements...' && npm run health && echo '\n📊 Run npm run test:performance for full validation'"
+    "verify": "echo '🔍 Verifying Performance Improvements...' && npm run health && echo '\n📊 Run npm run test:performance for full validation'",
+    "test:memory": "node scripts/test-memory-system.js",
+    "test:memory:health": "node scripts/test-memory-health-integration.js"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.31.2",
