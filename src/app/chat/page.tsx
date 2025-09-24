@@ -24,7 +24,7 @@ import {
   Shield
 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
-import { ToastProvider, useToast } from '@/components/ui/Toast'
+import { ToastProvider, useToast, useToastActions } from '@/components/ui/Toast'
 
 const ensureHttps = (url: string): string => {
   if (!url) return url
@@ -83,7 +83,7 @@ function ChatPageContent() {
   const { isLoaded, userId } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { success: showSuccessToast, error: showErrorToast } = useToast()
+  const { success: showSuccessToast, error: showErrorToast } = useToastActions()
   
   // =================================================================
   // CHAT STATE MANAGEMENT - Core chat functionality state

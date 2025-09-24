@@ -42,8 +42,8 @@ export const Tooltip = ({
 }: TooltipProps) => {
   const [isVisible, setIsVisible] = useState(false)
   const [calculatedPosition, setCalculatedPosition] = useState<'top' | 'bottom' | 'left' | 'right'>('top')
-  const showTimeoutRef = useRef<NodeJS.Timeout>()
-  const hideTimeoutRef = useRef<NodeJS.Timeout>()
+  const showTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const triggerRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
 
@@ -79,7 +79,7 @@ export const Tooltip = ({
   const showTooltip = () => {
     if (disabled) return
 
-    clearTimeout(hideTimeoutRef.current)
+    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
 
     if (delay > 0) {
       showTimeoutRef.current = setTimeout(() => {
@@ -93,7 +93,7 @@ export const Tooltip = ({
   }
 
   const hideTooltip = () => {
-    clearTimeout(showTimeoutRef.current)
+    if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current)
 
     if (hideDelay > 0) {
       hideTimeoutRef.current = setTimeout(() => {
@@ -164,8 +164,8 @@ export const Tooltip = ({
   // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
-      clearTimeout(showTimeoutRef.current)
-      clearTimeout(hideTimeoutRef.current)
+      if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current)
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
     }
   }, [])
 
@@ -185,7 +185,7 @@ export const Tooltip = ({
 
   const tooltipProps = {
     ...(trigger === 'hover' && {
-      onMouseEnter: () => clearTimeout(hideTimeoutRef.current),
+      onMouseEnter: () => { if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current) },
       onMouseLeave: hideTooltip
     })
   }

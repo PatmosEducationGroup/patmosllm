@@ -1,7 +1,7 @@
 import React, { forwardRef, useRef, useImperativeHandle, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 
-interface TextareaProps extends React.TextareaHTMLAttributes{
+interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string
   description?: string
   error?: string
@@ -237,7 +237,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({
 Textarea.displayName = 'Textarea'
 
 // Enhanced Textarea with additional features
-interface EnhancedTextareaProps extends TextareaProps {
+interface EnhancedTextareaProps extends Omit<TextareaProps, 'autoComplete'> {
   autoComplete?: boolean
   suggestions?: string[]
   onSuggestionSelect?: (suggestion: string) => void

@@ -2118,7 +2118,10 @@ function AdminPageContent() {
                             </button>
                             {userData?.role === 'SUPER_ADMIN' && (
                               <button
-                                onClick={() => openDeleteModal(doc.id, doc.title)}
+                                onClick={() => {
+                                  setDocumentToDelete({id: doc.id, title: doc.title})
+                                  setShowDeleteModal(true)
+                                }}
                                 style={{
                                   padding: '4px 12px',
                                   fontSize: '12px',
@@ -2451,7 +2454,7 @@ function AdminPageContent() {
               </Button>
               <Button
                 variant="destructive"
-                onClick={deleteDocument}
+                onClick={() => documentToDelete && deleteDocument(documentToDelete.id)}
               >
                 Delete Document
               </Button>

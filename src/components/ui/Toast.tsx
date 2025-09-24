@@ -130,7 +130,7 @@ const ToastComponent = ({ toast, index }: { toast: Toast; index: number }) => {
   const { removeToast } = useToast()
   const [isVisible, setIsVisible] = useState(false)
   const [isExiting, setIsExiting] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Animate in on mount
   useEffect(() => {
@@ -268,7 +268,7 @@ const ToastComponent = ({ toast, index }: { toast: Toast; index: number }) => {
 
 // Convenience hook for common toast types
 export const useToastActions = () => {
-  const { addToast } = useToast()
+  const { addToast, removeToast } = useToast()
 
   return {
     success: (message: string, options?: Partial<Omit<Toast, 'id' | 'type' | 'message'>>) =>
