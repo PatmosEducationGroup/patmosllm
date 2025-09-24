@@ -64,15 +64,6 @@ export default function LandingPage() {
     }
   }
 
-  // Handle successful authentication
-  const handleAuthSuccess = () => {
-    if (selectedQuestion) {
-      const encodedQuestion = encodeURIComponent(selectedQuestion)
-      router.push(`/chat?question=${encodedQuestion}`)
-    } else {
-      router.push('/chat')
-    }
-  }
 
   // Loading state
   if (!isLoaded) {
@@ -183,7 +174,7 @@ export default function LandingPage() {
                 <CardContent className="pt-0">
                   <div className="bg-gradient-to-r from-neutral-50 to-neutral-100 rounded-xl p-4 mb-4">
                     <p className="text-neutral-800 font-medium text-center leading-relaxed">
-                      "{option.question}"
+                      &ldquo;{option.question}&rdquo;
                     </p>
                   </div>
                   <div className="flex items-center justify-center text-primary-600 font-medium text-sm group-hover:text-primary-700 transition-colors">
@@ -263,7 +254,7 @@ export default function LandingPage() {
                   </h3>
                   {selectedQuestion && (
                     <p className="text-sm text-neutral-600 mt-1">
-                      You'll be taken to your question after signing in
+                      You&apos;ll be taken to your question after signing in
                     </p>
                   )}
                 </div>
