@@ -4,9 +4,8 @@ import { withSupabaseAdmin, getSupabaseHealth } from '@/lib/supabase'
 import { advancedCache } from '@/lib/advanced-cache'
 import { testConnection as testPineconeConnection } from '@/lib/pinecone'
 import { getCurrentUser } from '@/lib/auth'
-import { userContextManager } from '@/lib/userContextManager'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Check admin authentication
     const { userId } = await auth()
@@ -203,12 +202,27 @@ async function testMemorySystemHealth() {
   }
 }
 
-function calculateMemoryMetrics(contexts: any[], memories: any[], progressions: any[]) {
+function calculateMemoryMetrics(contexts: Array<{
+  topic_familiarity: Record<string, {
+    level: number;
+    interactions: number;
+    lastAsked: string;
+    commonQuestions: string[];
+  }>;
+  current_session_topics: string[];
+}>, memories: Array<{
+  user_satisfaction: number | null;
+  extracted_topics: string[];
+  question_intent: string;
+}>, progressions: Array<{
+  expertise_level: number;
+  total_interactions: number;
+}>) {
   // Calculate memory coverage (% of users with context vs total users)
   const coverage = contexts.length > 0 ? Math.round((contexts.length / Math.max(contexts.length, 1)) * 100) : 0
 
   // Calculate average user satisfaction
-  const satisfactionScores = memories.filter(m => m.user_satisfaction !== null).map(m => m.user_satisfaction)
+  const satisfactionScores = memories.filter(m => m.user_satisfaction !== null).map(m => m.user_satisfaction as number)
   const averageSatisfaction = satisfactionScores.length > 0
     ? Math.round((satisfactionScores.reduce((a, b) => a + b, 0) / satisfactionScores.length) * 100) / 100
     : 0

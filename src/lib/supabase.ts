@@ -155,9 +155,9 @@ class SupabaseManager {
 
   // Optimized query helper with built-in connection management
   public async executeOptimizedQuery<T>(
-    query: (client: SupabaseClient) => Promise<{ data: T[] | null; error: any }>,
+    query: (client: SupabaseClient) => Promise<{ data: T[] | null; error: Error | null }>,
     useAdmin = false,
-    cacheKey?: string
+    _cacheKey?: string
   ): Promise<T[] | null> {
     return this.withConnection(async (client) => {
       const { data, error } = await query(client)
@@ -197,7 +197,7 @@ export const getSupabaseHealth = () => supabaseManager.getConnectionHealth()
  */
 export async function validateChatSession(sessionId: string, userId: string): Promise<boolean> {
   return supabaseManager.executeOptimizedQuery<{id: string}>(
-    (client) => client
+    async (client) => await client
       .from('chat_sessions')
       .select('id')
       .eq('id', sessionId)
@@ -212,7 +212,7 @@ export async function validateChatSession(sessionId: string, userId: string): Pr
  */
 export async function fetchConversationHistory(sessionId: string, userId: string, limit: number = 10): Promise<Array<{question: string; answer: string}> | null> {
   return supabaseManager.executeOptimizedQuery<{question: string; answer: string}>(
-    (client) => client
+    async (client) => await client
       .from('conversations')
       .select('question, answer')
       .eq('session_id', sessionId)
@@ -231,10 +231,10 @@ export async function insertConversation(data: {
   session_id: string
   question: string
   answer: string
-  sources: any
+  sources: Array<{title: string; author?: string; chunk_id: string}>
 }): Promise<string | null> {
   const result = await supabaseManager.executeOptimizedQuery<{id: string}>(
-    (client) => client
+    async (client) => await client
       .from('conversations')
       .insert(data)
       .select('id')
@@ -248,8 +248,8 @@ export async function insertConversation(data: {
  * Optimized session timestamp update - minimal data transfer
  */
 export async function updateSessionTimestamp(sessionId: string): Promise<boolean> {
-  return supabaseManager.executeOptimizedQuery<any>(
-    (client) => client
+  return supabaseManager.executeOptimizedQuery<{updated_at: string}>(
+    async (client) => await client
       .from('chat_sessions')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', sessionId),

@@ -191,7 +191,7 @@ class UserContextManager {
     userId: string,
     question: string,
     response: string,
-    sources: any[],
+    sources: Array<{title: string; author?: string; chunk_id: string}>,
     sessionId: string,
     userSatisfaction?: number
   ): Promise<void> {
@@ -229,7 +229,7 @@ class UserContextManager {
   // =================================================================
   // TOPIC EXTRACTION - Extract main topics from conversation using GPT
   // =================================================================
-  private async extractTopics(question: string, response: string, sources: any[]): Promise<string[]> {
+  private async extractTopics(question: string, response: string, sources: Array<{title: string; author?: string}>): Promise<string[]> {
     try {
       // Import OpenAI instance dynamically to avoid import issues
       const { openai } = await import('@/lib/openai')
@@ -440,7 +440,7 @@ Example: ["prayer", "spiritual warfare", "missions"]`
     conversationId: string | null,
     question: string,
     response: string,
-    sources: any[],
+    sources: Array<{title: string; author?: string; chunk_id: string}>,
     satisfaction?: number
   ): Promise<void> {
     try {
@@ -491,8 +491,8 @@ Example: ["prayer", "spiritual warfare", "missions"]`
     const context = await this.getUserContext(userId)
 
     const expertiseAreas = Object.entries(context.topicFamiliarity)
-      .filter(([_, data]) => data.level > 0.6)
-      .map(([topic, _]) => topic)
+      .filter(([_topic, data]) => data.level > 0.6)
+      .map(([topic, _data]) => topic)
 
     const learningProgress = Object.fromEntries(
       Object.entries(context.topicFamiliarity)
