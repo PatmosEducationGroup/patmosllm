@@ -962,9 +962,26 @@ export class IntelligentClarificationSystem {
       return false
     }
 
+    const queryLower = query.toLowerCase().trim()
+
+    // PRIORITY 1: Check for contextual follow-up questions (pronouns referring to previous topic)
+    const contextualFollowUpPatterns = [
+      /^(is\s+)?(it|this|that|they|he|she)\s+(a|an)?\s*\w+/i,  // "is it a person", "is this correct", etc.
+      /^(what|how|why|when|where|who)['']?s\s+(it|this|that|they|their)/i,  // "what's it", "how's this", etc.
+      /^(does|did|can|will|would|should|could)\s+(it|this|that|they|he|she)/i,  // "does it work", etc.
+      /^(and|but|also|so|then)\s/i,  // Questions starting with conjunctions
+      /^(tell me|show me|explain)\s+(more|about|how|why)/i  // "tell me more", "explain how"
+    ]
+
+    const isContextualFollowUp = contextualFollowUpPatterns.some(pattern => pattern.test(queryLower))
+
+    if (isContextualFollowUp) {
+      console.log(`✅ CONTEXTUAL FOLLOW-UP detected: "${query}" - likely refers to previous topic`)
+      return true
+    }
+
     // Check the most recent conversation for clarification patterns
     const mostRecentAnswer = recentConversations[0]?.answer?.toLowerCase() || ''
-    const queryLower = query.toLowerCase().trim()
 
     // Check if the most recent answer was a clarification (contains clarification keywords)
     const clarificationIndicators = [
