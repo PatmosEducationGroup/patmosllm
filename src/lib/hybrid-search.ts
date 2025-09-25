@@ -3,7 +3,7 @@ import { searchChunks } from './pinecone'
 import { supabaseAdmin } from './supabase'
 import { advancedCache, CACHE_NAMESPACES, CACHE_TTL } from './advanced-cache'
 
-interface SearchResult {
+export interface SearchResult {
   id: string
   score: number
   documentId: string

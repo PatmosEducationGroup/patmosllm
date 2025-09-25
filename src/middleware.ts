@@ -7,6 +7,8 @@ const isProtectedRoute = createRouteMatcher([
   '/api/upload',
   '/api/ingest',
   '/api/chat',
+  '/api/chat/clarify',
+  '/api/question-assistant',
   '/api/documents'
 ])
 

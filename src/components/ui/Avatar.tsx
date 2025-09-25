@@ -1,4 +1,5 @@
 import React from 'react'
+import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
 interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -124,11 +125,13 @@ export const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
                 'absolute inset-0 rounded-full animate-pulse bg-neutral-200'
               )} />
             )}
-            <img
+            <Image
               src={src}
               alt={alt || name || 'Avatar'}
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
               className={cn(
-                'h-full w-full rounded-full object-cover transition-opacity duration-200',
+                'rounded-full object-cover transition-opacity duration-200',
                 imageLoaded ? 'opacity-100' : 'opacity-0'
               )}
               onLoad={() => setImageLoaded(true)}

@@ -647,11 +647,11 @@ function ChatPageContent() {
                 } else if (data.type === 'complete') {
                   isStreamComplete = true
                   batchUpdate() // Final update
-                  
-                  setMessages(prev => prev.map(msg => 
+
+                  setMessages(prev => prev.map(msg =>
                     msg.id === assistantMessageId
-                      ? { 
-                          ...msg, 
+                      ? {
+                          ...msg,
                           content: streamedContent + buffer || data.fullResponse || 'No content received',
                           sources: sources,
                           isStreaming: false
@@ -1048,6 +1048,7 @@ function ChatPageContent() {
                         {message.isStreaming && (
                           <span className="inline-block w-0.5 h-5 ml-1 bg-primary-400 animate-pulse" />
                         )}
+
                       </div>
                     ) : (
                       <div className="whitespace-pre-wrap text-white/95">

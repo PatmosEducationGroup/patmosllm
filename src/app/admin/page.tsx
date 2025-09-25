@@ -7,8 +7,7 @@ import AdminNavbar from '@/components/AdminNavbar'
 import { validateFile } from '@/lib/clientValidation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from '@/components/ui/Card'
-import { Badge } from '@/components/ui/Badge'
+import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/Card'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Alert } from '@/components/ui/Alert'
 import { ToastProvider, useToast } from '@/components/ui/Toast'
@@ -64,7 +63,7 @@ interface ScrapedPage {
 
 function AdminPageContent() {
   const { isLoaded, userId, getToken } = useAuth()
-  const { user: clerkUser } = useUser()
+  useUser() // Keep the hook call for proper loading state
   const router = useRouter()
   const { addToast } = useToast()
   const [documents, setDocuments] = useState<Document[]>([])
@@ -131,7 +130,7 @@ function AdminPageContent() {
     } else if (isLoaded && userId) {
       fetchUserData()
     }
-  }, [isLoaded, userId, router])
+  }, [isLoaded, userId, router]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchUserData = async () => {
     try {

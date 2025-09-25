@@ -4,13 +4,10 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import AdminNavbar from '@/components/AdminNavbar'
 import { Modal } from '@/components/ui/Modal'
-import { 
-  FileText, 
-  TrendingUp, 
-  TrendingDown, 
-  Eye, 
-  MessageSquare, 
-  Calendar,
+import {
+  FileText,
+  Eye,
+  MessageSquare,
   BarChart3,
   AlertTriangle,
   CheckCircle,
@@ -91,7 +88,7 @@ export default function DocumentAnalyticsPage() {
 
   useEffect(() => {
     fetchAnalytics()
-  }, [])
+  }, [fetchAnalytics])
 
   const formatFileSize = (bytes: number) => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB']

@@ -9,6 +9,7 @@ import { getIdentifier } from '@/lib/get-identifier';
 import { sanitizeInput } from '@/lib/input-sanitizer';
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 import { userContextManager } from '@/lib/userContextManager'
+import { intelligentClarification } from '@/lib/intelligent-clarification'
 import {
   advancedCache,
   CACHE_NAMESPACES,
@@ -209,6 +210,28 @@ export async function POST(request: NextRequest) {
     console.log(`Cache miss for user ${currentUserId}, proceeding with full processing`)
 
     // =================================================================
+    // STEP 1.6: CLARIFICATION ANALYSIS - Check if question needs clarification
+    // =================================================================
+    // First get conversation history for context
+    let recentConversationsForClarification = getCachedConversationHistory(sessionId)
+
+    if (!recentConversationsForClarification) {
+      recentConversationsForClarification = await withSupabaseAdmin(async (supabase) => {
+        const { data, error } = await supabase
+          .from('conversations')
+          .select('question, answer')
+          .eq('session_id', sessionId)
+          .eq('user_id', currentUserId)
+          .order('created_at', { ascending: false })
+          .limit(3) // Get last 3 for clarification context
+
+        return error ? [] : (data || [])
+      })
+    }
+
+    // REMOVED: Clarification system - proceeding directly to search
+
+    // =================================================================
     // ONBOARDING TRACKING - Track first chat milestone
     // =================================================================
     await trackOnboardingMilestone({
@@ -292,6 +315,75 @@ export async function POST(request: NextRequest) {
 
     const relevantChunks = searchResult.results
     console.log(`Hybrid search completed: ${relevantChunks.length} chunks found using ${searchResult.searchStrategy} (confidence: ${(searchResult.confidence * 100).toFixed(1)}%)`)
+
+    // =================================================================
+    // INTELLIGENT CLARIFICATION ANALYSIS - Check if clarification would improve results
+    // =================================================================
+    const clarificationAnalysis = intelligentClarification.analyzeSearchResults({
+      query: trimmedQuestion,
+      searchResults: relevantChunks,
+      searchConfidence: searchResult.confidence,
+      searchStrategy: searchResult.searchStrategy,
+      recentConversations: recentConversationsForClarification as Array<{ question: string; answer: string }> || [],
+      // Pass info about whether the search query was enhanced with context
+      wasQueryEnhanced: contextualSearchQuery !== trimmedQuestion,
+      originalQuery: trimmedQuestion,
+      enhancedQuery: contextualSearchQuery
+    })
+
+    // If clarification is beneficial, provide conversational guidance
+    if (clarificationAnalysis.needsClarification && clarificationAnalysis.clarificationMessage) {
+      console.log(`🎯 INTELLIGENT CLARIFICATION TRIGGERED: ${clarificationAnalysis.clarificationType} (confidence: ${(clarificationAnalysis.confidence * 100).toFixed(1)}%)`)
+      console.log(`📊 Decision reasoning: ${clarificationAnalysis.reasoning}`)
+
+      // Generate enhanced conversational clarification
+      const conversationalMessage = intelligentClarification.generateConversationalClarification(
+        clarificationAnalysis,
+        trimmedQuestion
+      )
+
+      // Save the clarification response as a conversation
+      await withSupabaseAdmin(async (supabase) => {
+        await supabase
+          .from('conversations')
+          .insert({
+            user_id: currentUserId,
+            session_id: sessionId,
+            question: trimmedQuestion,
+            answer: conversationalMessage,
+            sources: []
+          })
+      })
+
+      // Return clarification as streaming response
+      const encoder = new TextEncoder()
+      const readable = new ReadableStream({
+        start(controller) {
+          // Send sources (empty for clarification)
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: 'sources',
+            sources: [],
+            chunksFound: 0
+          })}\n\n`))
+
+          // Send the enhanced clarification message
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: 'complete',
+            fullResponse: conversationalMessage
+          })}\n\n`))
+
+          controller.close()
+        }
+      })
+
+      return new Response(readable, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive'
+        }
+      })
+    }
 
     // =================================================================
     // HANDLE NO RESULTS - Return helpful message if no relevant content
@@ -381,18 +473,39 @@ export async function POST(request: NextRequest) {
     }
 
     // =================================================================
-    // SECURITY CHECK: REFUSE IF NO RELEVANT DOCUMENTS FOUND OR LOW CONFIDENCE
+    // NONSENSE QUERY CHECK - Early exit for gibberish/nonsense
     // =================================================================
-    if (context.length === 0 || searchResult.confidence < 0.1) {
-      console.log(`Security check triggered - context: ${context.length} chunks, confidence: ${searchResult.confidence}% - refusing to answer`)
+    // The clarificationAnalysis was already performed earlier in the route
+    // Check if it indicates very low confidence (nonsense/gibberish)
+    if (clarificationAnalysis.confidence <= 0.1) {
+      console.log(`🚫 NONSENSE/GIBBERISH DETECTED by intelligent system: "${trimmedQuestion}" (confidence: ${clarificationAnalysis.confidence}) - early exit`)
       return new Response(
         JSON.stringify({
-          answer: "I don't have information about that in the available documents. Please contact support if you need help with topics outside our knowledge base.",
+          answer: "I don't have information about that. Please ask about topics related to the available documents.",
           sources: [],
           session_id: sessionId,
           cached: false
         }),
-        { 
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // =================================================================
+    // SECURITY CHECK: REFUSE IF NO RELEVANT DOCUMENTS FOUND OR LOW CONFIDENCE
+    // =================================================================
+    if (context.length === 0 || searchResult.confidence <= 0.1) {
+      console.log(`🚫 NONSENSE QUERY - Early exit triggered - context: ${context.length} chunks, confidence: ${searchResult.confidence}% - providing brief response`)
+      return new Response(
+        JSON.stringify({
+          answer: "I don't have information about that. Please ask about topics related to the available documents.",
+          sources: [],
+          session_id: sessionId,
+          cached: false
+        }),
+        {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
         }

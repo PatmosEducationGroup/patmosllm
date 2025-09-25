@@ -13,6 +13,7 @@ export interface UserContext {
     interactions: number // How many times discussed
     lastAsked: Date     // When last discussed
     commonQuestions: string[] // Their typical question patterns
+    relatedConcepts?: string[] // Connected topics for this user
   }>
 
   // Question Patterns & Preferences
@@ -33,6 +34,7 @@ export interface UserContext {
     sessionId: string
     relatedTopics: string[]
     timestamp: Date
+    questionPatterns?: string[]
   }>
 
   // Behavioral Insights
@@ -477,6 +479,260 @@ Example: ["prayer", "spiritual warfare", "missions"]`
       console.error('Failed to log conversation memory:', error)
       // Don't throw - memory logging shouldn't break chat
     }
+  }
+
+  // =================================================================
+  // ENHANCED CONTEXT MANAGEMENT - Context validation and continuation
+  // =================================================================
+
+  /**
+   * Detect context gaps in user questions
+   */
+  async detectContextGaps(
+    question: string,
+    userId: string,
+    sessionId: string
+  ): Promise<{
+    hasContextGap: boolean
+    missingContext?: string[]
+    suggestedContext?: string[]
+    confirmationNeeded: boolean
+  }> {
+    const context = await this.getUserContext(userId)
+    const lowerQ = question.toLowerCase()
+
+    // Check for pronouns without clear antecedents
+    const pronouns = ['it', 'this', 'that', 'they', 'them', 'these', 'those']
+    const foundPronouns = pronouns.filter(pronoun =>
+      new RegExp(`\\b${pronoun}\\b`).test(lowerQ)
+    )
+
+    if (foundPronouns.length === 0) {
+      return { hasContextGap: false, confirmationNeeded: false }
+    }
+
+    // Look for recent session topics that might provide context
+    const recentSession = context.crossSessionConnections
+      .find(conn => conn.sessionId === sessionId)
+
+    const recentTopics = recentSession?.relatedTopics || []
+    const allRecentTopics = context.crossSessionConnections
+      .filter(conn => Date.now() - conn.timestamp.getTime() < 7 * 24 * 60 * 60 * 1000) // Last 7 days
+      .flatMap(conn => conn.relatedTopics)
+      .slice(0, 10)
+
+    return {
+      hasContextGap: true,
+      missingContext: foundPronouns,
+      suggestedContext: recentTopics.length > 0 ? recentTopics : allRecentTopics.slice(0, 3),
+      confirmationNeeded: recentTopics.length > 0
+    }
+  }
+
+  /**
+   * Generate context confirmation questions
+   */
+  async generateContextConfirmation(
+    question: string,
+    suggestedContext: string[],
+    userId: string
+  ): Promise<string[]> {
+    if (suggestedContext.length === 0) return []
+
+    const confirmations = []
+
+    // Generate contextual questions based on recent topics
+    if (suggestedContext.length === 1) {
+      confirmations.push(`Are you asking about ${suggestedContext[0]} from our previous conversation?`)
+    } else if (suggestedContext.length > 1) {
+      confirmations.push(`Are you referring to one of these topics we discussed: ${suggestedContext.slice(0, 3).join(', ')}?`)
+    }
+
+    return confirmations
+  }
+
+  /**
+   * Validate cross-session context continuation
+   */
+  async validateContextContinuation(
+    question: string,
+    userId: string,
+    sessionId: string,
+    conversationHistory: Array<{question: string; answer: string}>
+  ): Promise<{
+    isValidContinuation: boolean
+    contextualQuestion?: string
+    confidence: number
+  }> {
+    const context = await this.getUserContext(userId)
+
+    // Check if question seems to continue from previous sessions
+    const hasContextualTerms = /\b(it|this|that|they|them|we discussed|as mentioned|from before)\b/i.test(question)
+
+    if (!hasContextualTerms) {
+      return { isValidContinuation: true, confidence: 1.0 }
+    }
+
+    // If there's no conversation history in current session, might be cross-session reference
+    if (conversationHistory.length === 0) {
+      const recentTopics = context.crossSessionConnections
+        .filter(conn => conn.sessionId !== sessionId)
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .slice(0, 3)
+        .flatMap(conn => conn.relatedTopics)
+
+      if (recentTopics.length > 0) {
+        const contextualQuestion = this.buildContextualQuestion(question, recentTopics)
+        return {
+          isValidContinuation: false,
+          contextualQuestion,
+          confidence: 0.7
+        }
+      }
+    }
+
+    return { isValidContinuation: true, confidence: 0.8 }
+  }
+
+  /**
+   * Build enhanced contextual question with cross-session information
+   */
+  private buildContextualQuestion(originalQuestion: string, recentTopics: string[]): string {
+    // Create a more informed question by adding recent context
+    const contextSummary = recentTopics.slice(0, 3).join(', ')
+    return `${originalQuestion} (Context from recent conversations: ${contextSummary})`
+  }
+
+  /**
+   * Improve context tracking with topic threads
+   */
+  async trackTopicThread(
+    userId: string,
+    sessionId: string,
+    topics: string[],
+    question: string
+  ): Promise<void> {
+    const context = await this.getUserContext(userId)
+
+    // Enhanced topic tracking with question patterns
+    for (const topic of topics) {
+      // Track how this topic connects to others in the thread
+      const relatedTopics = topics.filter(t => t !== topic)
+
+      // Update topic familiarity with thread information
+      if (context.topicFamiliarity[topic]) {
+        // Add cross-topic relationships
+        if (!context.topicFamiliarity[topic].relatedConcepts) {
+          context.topicFamiliarity[topic].relatedConcepts = []
+        }
+
+        // Add unique related concepts
+        const existingRelated = context.topicFamiliarity[topic].relatedConcepts || []
+        context.topicFamiliarity[topic].relatedConcepts = [
+          ...new Set([...existingRelated, ...relatedTopics])
+        ].slice(0, 10) // Keep top 10 related concepts
+      }
+    }
+
+    // Update cross-session connections with enhanced information
+    const existingConnection = context.crossSessionConnections.find(c => c.sessionId === sessionId)
+
+    if (existingConnection) {
+      existingConnection.relatedTopics = [...new Set([...existingConnection.relatedTopics, ...topics])]
+      existingConnection.timestamp = new Date()
+
+      // Add question patterns for this session
+      if (!existingConnection.questionPatterns) {
+        existingConnection.questionPatterns = []
+      }
+      existingConnection.questionPatterns.push(question)
+      existingConnection.questionPatterns = existingConnection.questionPatterns.slice(-5) // Keep last 5
+    } else {
+      context.crossSessionConnections.push({
+        sessionId,
+        relatedTopics: topics,
+        timestamp: new Date(),
+        questionPatterns: [question]
+      })
+    }
+
+    // Update the context in memory and database
+    await this.saveContextToDB(context)
+  }
+
+  /**
+   * Get contextual suggestions for better questions
+   */
+  async getContextualSuggestions(
+    userId: string,
+    currentQuestion: string
+  ): Promise<{
+    relatedTopics: string[]
+    suggestedQuestions: string[]
+    connectionOpportunities: string[]
+  }> {
+    const context = await this.getUserContext(userId)
+
+    // Find topics related to current question
+    const questionWords = currentQuestion.toLowerCase().split(/\s+/)
+    const relatedTopics = Object.keys(context.topicFamiliarity)
+      .filter(topic => {
+        return questionWords.some(word =>
+          topic.toLowerCase().includes(word) ||
+          word.includes(topic.toLowerCase())
+        )
+      })
+      .slice(0, 5)
+
+    // Generate suggestions based on user's learning patterns
+    const suggestedQuestions = this.generateContextualQuestions(context, relatedTopics)
+
+    // Find connection opportunities between topics
+    const connectionOpportunities = this.findTopicConnections(context, relatedTopics)
+
+    return {
+      relatedTopics,
+      suggestedQuestions,
+      connectionOpportunities
+    }
+  }
+
+  private generateContextualQuestions(context: UserContext, topics: string[]): string[] {
+    const suggestions = []
+
+    for (const topic of topics.slice(0, 3)) {
+      const familiarity = context.topicFamiliarity[topic]
+      if (familiarity) {
+        if (familiarity.level < 0.3) {
+          suggestions.push(`What are the basic principles of ${topic}?`)
+        } else if (familiarity.level < 0.7) {
+          suggestions.push(`How can I apply ${topic} in practical situations?`)
+        } else {
+          suggestions.push(`What are advanced concepts in ${topic} I should explore?`)
+        }
+      }
+    }
+
+    return suggestions.slice(0, 3)
+  }
+
+  private findTopicConnections(context: UserContext, currentTopics: string[]): string[] {
+    const connections = []
+
+    for (const topic of currentTopics) {
+      const familiarity = context.topicFamiliarity[topic]
+      if (familiarity && familiarity.relatedConcepts) {
+        const related = familiarity.relatedConcepts
+          .filter(concept => !currentTopics.includes(concept))
+          .slice(0, 2)
+
+        for (const concept of related) {
+          connections.push(`How does ${topic} relate to ${concept}?`)
+        }
+      }
+    }
+
+    return connections.slice(0, 3)
   }
 
   // =================================================================
