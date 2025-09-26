@@ -47,40 +47,33 @@ export async function processDocumentVectors(documentId: string, userId: string)
       throw new Error('No chunks created from document content')
     }
 
-    // Step 2: Create embeddings in batches with Voyage rate limiting
-    console.log('Creating embeddings in batches...')
-    const embeddings = []
-    const batchSize = 50 // Voyage AI batch limit
+    // Step 2: Create embeddings using token-aware batching
+    console.log('Creating embeddings with automatic token-aware batching...')
     const chunkContents = chunks.map(chunk => chunk.content)
+    let embeddings: number[][]
 
-    for (let i = 0; i < chunkContents.length; i += batchSize) {
-      const batch = chunkContents.slice(i, i + batchSize)
-      const batchNumber = Math.floor(i/batchSize) + 1
-      const totalBatches = Math.ceil(chunkContents.length/batchSize)
-      
-      console.log(`Processing embedding batch ${batchNumber}/${totalBatches} (${batch.length} chunks)`)
-      
-      try {
-        const batchEmbeddings = await createEmbeddings(batch)
-        embeddings.push(...batchEmbeddings)
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('429')) {
-          console.log('Rate limit hit, waiting 30 seconds before retry...')
-          await new Promise(resolve => setTimeout(resolve, 30000)) // Wait 30 seconds
-          
-          // Retry the batch
-          console.log(`Retrying embedding batch ${batchNumber}/${totalBatches}`)
-          const batchEmbeddings = await createEmbeddings(batch)
-          embeddings.push(...batchEmbeddings)
-        } else {
-          throw error
-        }
+    try {
+      // The createEmbeddings function now handles token validation and automatic batching
+      embeddings = await createEmbeddings(chunkContents)
+      console.log(`Successfully created ${embeddings.length} embeddings`)
+
+      if (embeddings.length !== chunks.length) {
+        throw new Error(`Embedding count mismatch: expected ${chunks.length}, got ${embeddings.length}`)
       }
-      
-      // Add minimal delay between batches (with payment method, much higher limits)
-      if (batchNumber < totalBatches) {
-        console.log('Waiting 1 second between batches...')
-        await new Promise(resolve => setTimeout(resolve, 1000))
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('429')) {
+        console.log('Rate limit hit, waiting 30 seconds before retry...')
+        await new Promise(resolve => setTimeout(resolve, 30000))
+
+        // Retry with the improved system
+        console.log('Retrying with token-aware batching...')
+        embeddings = await createEmbeddings(chunkContents)
+
+        if (embeddings.length !== chunks.length) {
+          throw new Error(`Embedding count mismatch on retry: expected ${chunks.length}, got ${embeddings.length}`)
+        }
+      } else {
+        throw error
       }
     }
 
