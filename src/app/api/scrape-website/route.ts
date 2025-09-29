@@ -47,7 +47,7 @@ class BrowserPool {
 const browserPool = new BrowserPool()
 
 // Request deduplication
-const pendingRequests = new Map<string, Promise<any>>()
+const pendingRequests = new Map<string, Promise<unknown>>()
 async function deduplicatedFetch<T>(url: string, fetcher: () => Promise<T>): Promise<T> {
   if (pendingRequests.has(url)) {
     return pendingRequests.get(url) as Promise<T>
