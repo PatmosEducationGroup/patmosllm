@@ -56,30 +56,121 @@ Remember: Your goal is to have a natural conversation while sharing helpful info
 
 // Create embedding for text using Voyage AI
 export async function createEmbedding(text: string): Promise<number[]> {
+  const startTime = Date.now()
+  const estimatedTokens = estimateTokenCount(text)
+
   try {
     const response = await voyage.embed({
       input: [text.trim()],
-      model: 'voyage-3-large'
+      model: EMBEDDING_CONFIG.MODEL
     })
-    
+
     if (!response.data || !response.data[0] || !response.data[0].embedding) {
       throw new Error('No embedding returned from Voyage API')
     }
+
+    // Report success metrics
+    if (metricsCallback) {
+      metricsCallback({
+        operation: 'single',
+        inputSize: 1,
+        estimatedTokens,
+        actualRetries: 0,
+        processingTime: Date.now() - startTime,
+        success: true
+      })
+    }
+
     return response.data[0].embedding
   } catch (error) {
     console.error('Error creating embedding:', error)
-    throw new Error(`Failed to create embedding: ${error instanceof Error ? error.message : 'Unknown error'}`)
+
+    const errorType = classifyError(error)
+
+    // Report error metrics
+    if (metricsCallback) {
+      metricsCallback({
+        operation: 'single',
+        inputSize: 1,
+        estimatedTokens,
+        actualRetries: 0,
+        errorType: errorType.category,
+        processingTime: Date.now() - startTime,
+        success: false
+      })
+    }
+
+    const enhancedMessage = `Failed to create embedding\n` +
+      `Error Type: ${errorType.category}\n` +
+      `Details: ${errorType.originalMessage}\n` +
+      `Suggestion: ${errorType.suggestion}`
+
+    throw new Error(enhancedMessage)
   }
+}
+
+// Future-proof configuration constants for easy maintenance
+export const EMBEDDING_CONFIG = {
+  MODEL: 'voyage-3-large' as const,
+  MAX_RETRIES: 3,
+  // Progressive token limits for multilingual content (ultra-conservative)
+  TOKEN_LIMITS: [15000, 10000, 7000, 5000, 3000, 1000],
+  // Backoff strategies for different error types (milliseconds)
+  BACKOFF_STRATEGIES: {
+    TOKEN_LIMIT: { base: 3000, multiplier: 2 },     // 6s, 12s, 24s
+    RATE_LIMIT: { base: 30000, increment: 15000 },  // 30s, 45s, 60s
+    MODEL_UNAVAILABLE: { base: 60000, increment: 30000 }, // 60s, 90s, 120s
+    NETWORK: { base: 5000, increment: 5000 },       // 5s, 10s, 15s
+  },
+  // Content type detection and token estimation
+  CONTENT_DETECTION: {
+    SAMPLE_SIZE: 1000,
+    CHAR_TO_TOKEN_RATIOS: {
+      ARABIC: 0.6,
+      CJK: 0.7,
+      MULTILINGUAL: 0.8,
+      LATIN: 1.0
+    },
+    SAFETY_MARGINS: {
+      ARABIC: 1.4,      // 40% safety margin
+      CJK: 1.35,        // 35% safety margin
+      MULTILINGUAL: 1.3, // 30% safety margin
+      LATIN: 1.25       // 25% safety margin
+    },
+    UNICODE_RANGES: {
+      ARABIC: /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/g,
+      CJK: /[\u4E00-\u9FFF\u3400-\u4DBF\u3040-\u309F\u30A0-\u30FF]/g,
+      LATIN: /[a-zA-Z]/g
+    }
+  }
+} as const
+
+// Performance monitoring hook for tracking embedding operations
+export interface EmbeddingMetrics {
+  operation: 'single' | 'batch'
+  inputSize: number
+  estimatedTokens: number
+  actualRetries: number
+  errorType?: string
+  processingTime: number
+  success: boolean
+}
+
+// Optional metrics callback for monitoring (can be set by calling code)
+export let metricsCallback: ((metrics: EmbeddingMetrics) => void) | null = null
+
+export function setEmbeddingMetricsCallback(callback: (metrics: EmbeddingMetrics) => void) {
+  metricsCallback = callback
 }
 
 // Create embeddings for multiple texts with progressive retry and batch size reduction
 export async function createEmbeddings(texts: string[], retryCount: number = 0): Promise<number[][]> {
-  const maxRetries = 3
-  const baseMaxTokens = 110000 // Conservative limit under 120K
+  const startTime = Date.now()
+  const estimatedTokens = estimateBatchTokenCount(texts)
 
   try {
-    // Adjust token limit based on retry count (progressive reduction)
-    const maxTokens = baseMaxTokens - (retryCount * 20000) // Reduce by 20K tokens per retry
+    // Use configurable limits for future-proof architecture
+    const maxTokens = EMBEDDING_CONFIG.TOKEN_LIMITS[retryCount] || EMBEDDING_CONFIG.TOKEN_LIMITS[EMBEDDING_CONFIG.TOKEN_LIMITS.length - 1]
     const batchTokens = estimateBatchTokenCount(texts)
 
     if (batchTokens > maxTokens) {
@@ -110,42 +201,106 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
     console.log(`Processing single batch (${texts.length} texts, ~${batchTokens} tokens)`)
     const response = await voyage.embed({
       input: texts.map(text => text.trim()),
-      model: 'voyage-3-large'
+      model: EMBEDDING_CONFIG.MODEL
     })
 
-    return response.data?.map(item => item?.embedding).filter(Boolean) as number[][] || []
+    const result = response.data?.map(item => item?.embedding).filter(Boolean) as number[][] || []
+
+    // Report success metrics
+    if (metricsCallback) {
+      metricsCallback({
+        operation: 'batch',
+        inputSize: texts.length,
+        estimatedTokens,
+        actualRetries: retryCount,
+        processingTime: Date.now() - startTime,
+        success: true
+      })
+    }
+
+    return result
   } catch (error) {
     console.error(`Error creating embeddings (attempt ${retryCount + 1}):`, error)
 
-    // Check if this is a token limit error and we haven't exceeded max retries
-    if (error instanceof Error &&
-        (error.message.includes('max allowed tokens') || error.message.includes('too large')) &&
-        retryCount < maxRetries) {
-
-      const newRetryCount = retryCount + 1
-      const waitTime = Math.pow(2, newRetryCount) * 5000 // Exponential backoff: 10s, 20s, 40s
-
-      console.log(`Token limit error detected. Retrying with smaller batches in ${waitTime/1000}s (attempt ${newRetryCount}/${maxRetries})...`)
-      await new Promise(resolve => setTimeout(resolve, waitTime))
-
-      // Retry with reduced token limit
-      return createEmbeddings(texts, newRetryCount)
-    }
-
-    // Check for rate limit errors
-    if (error instanceof Error && error.message.includes('429')) {
-      const waitTime = 30000 + (retryCount * 15000) // 30s + 15s per retry
-      console.log(`Rate limit error. Waiting ${waitTime/1000}s before retry...`)
-      await new Promise(resolve => setTimeout(resolve, waitTime))
-
-      if (retryCount < maxRetries) {
-        return createEmbeddings(texts, retryCount + 1)
-      }
-    }
-
-    // Enhanced error message with token information
+    const errorType = classifyError(error)
     const batchTokens = estimateBatchTokenCount(texts)
-    const errorMessage = `Failed to create embeddings after ${retryCount + 1} attempts (${texts.length} texts, ~${batchTokens} tokens): ${error instanceof Error ? error.message : 'Unknown error'}`
+
+    // Handle different error types with configurable strategies
+    switch (errorType.category) {
+      case 'TOKEN_LIMIT':
+        if (retryCount < EMBEDDING_CONFIG.MAX_RETRIES) {
+          const newRetryCount = retryCount + 1
+          const { base, multiplier } = EMBEDDING_CONFIG.BACKOFF_STRATEGIES.TOKEN_LIMIT
+          const waitTime = Math.pow(multiplier, newRetryCount) * base
+
+          console.log(`🔄 TOKEN LIMIT: Retrying with smaller batches in ${waitTime/1000}s (attempt ${newRetryCount}/${EMBEDDING_CONFIG.MAX_RETRIES})`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          return createEmbeddings(texts, newRetryCount)
+        }
+        break
+
+      case 'RATE_LIMIT':
+        if (retryCount < EMBEDDING_CONFIG.MAX_RETRIES) {
+          const { base, increment } = EMBEDDING_CONFIG.BACKOFF_STRATEGIES.RATE_LIMIT
+          const waitTime = errorType.suggestedWait || (base + (retryCount * increment))
+          console.log(`⏳ RATE LIMIT: Waiting ${waitTime/1000}s before retry (attempt ${retryCount + 1}/${EMBEDDING_CONFIG.MAX_RETRIES})`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          return createEmbeddings(texts, retryCount + 1)
+        }
+        break
+
+      case 'MODEL_UNAVAILABLE':
+        if (retryCount < EMBEDDING_CONFIG.MAX_RETRIES) {
+          const { base, increment } = EMBEDDING_CONFIG.BACKOFF_STRATEGIES.MODEL_UNAVAILABLE
+          const waitTime = base + (retryCount * increment)
+          console.log(`🚨 MODEL UNAVAILABLE: Waiting ${waitTime/1000}s for model recovery (attempt ${retryCount + 1}/${EMBEDDING_CONFIG.MAX_RETRIES})`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          return createEmbeddings(texts, retryCount + 1)
+        }
+        break
+
+      case 'NETWORK':
+        if (retryCount < EMBEDDING_CONFIG.MAX_RETRIES) {
+          const { base, increment } = EMBEDDING_CONFIG.BACKOFF_STRATEGIES.NETWORK
+          const waitTime = base + (retryCount * increment)
+          console.log(`🌐 NETWORK ERROR: Retrying connection in ${waitTime/1000}s (attempt ${retryCount + 1}/${EMBEDDING_CONFIG.MAX_RETRIES})`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          return createEmbeddings(texts, retryCount + 1)
+        }
+        break
+
+      case 'AUTH':
+        // Don't retry auth errors - they won't resolve automatically
+        console.error('🔑 AUTHENTICATION ERROR: Check API key configuration')
+        break
+
+      case 'QUOTA':
+        // Don't retry quota errors - user needs to check billing
+        console.error('💳 QUOTA EXCEEDED: Check account billing and usage limits')
+        break
+
+      default:
+        console.error(`❓ UNKNOWN ERROR: ${errorType.originalMessage}`)
+    }
+
+    // Report error metrics
+    if (metricsCallback) {
+      metricsCallback({
+        operation: 'batch',
+        inputSize: texts.length,
+        estimatedTokens,
+        actualRetries: retryCount,
+        errorType: errorType.category,
+        processingTime: Date.now() - startTime,
+        success: false
+      })
+    }
+
+    // Enhanced error message with classification and suggestions
+    const errorMessage = `Failed to create embeddings after ${retryCount + 1} attempts (${texts.length} texts, ~${batchTokens} tokens)\n` +
+      `Error Type: ${errorType.category}\n` +
+      `Details: ${errorType.originalMessage}\n` +
+      `Suggestion: ${errorType.suggestion}`
 
     throw new Error(errorMessage)
   }
@@ -223,14 +378,73 @@ ${contextString}`;
   }
 }
 
-// Count tokens in text (improved approximation for Voyage models)
+// Enhanced token counting with multilingual content detection
 export function estimateTokenCount(text: string): number {
-  // Voyage tokenizer is similar to other modern tokenizers
-  // More conservative estimate: ~3.2 chars per token for mixed content
-  // Add padding for safety margins and special tokens
-  const baseTokens = Math.ceil(text.length / 3.2)
-  const paddingFactor = 1.15 // 15% safety margin
-  return Math.ceil(baseTokens * paddingFactor)
+  // Detect content type for accurate token estimation
+  const contentType = detectContentType(text)
+
+  // Get char-to-token ratio based on content type
+  const charsPerToken = getCharsPerTokenRatio(contentType)
+
+  // Calculate base tokens with detected ratio
+  const baseTokens = Math.ceil(text.length / charsPerToken)
+
+  // Apply aggressive safety margin for multilingual content
+  const safetyMargin = getSafetyMargin(contentType)
+
+  return Math.ceil(baseTokens * safetyMargin)
+}
+
+// Detect content type based on character analysis using configurable constants
+function detectContentType(text: string): 'latin' | 'arabic' | 'cjk' | 'multilingual' {
+  const sample = text.substring(0, EMBEDDING_CONFIG.CONTENT_DETECTION.SAMPLE_SIZE)
+
+  // Count character types using configurable Unicode ranges
+  const arabicChars = (sample.match(EMBEDDING_CONFIG.CONTENT_DETECTION.UNICODE_RANGES.ARABIC) || []).length
+  const cjkChars = (sample.match(EMBEDDING_CONFIG.CONTENT_DETECTION.UNICODE_RANGES.CJK) || []).length
+  const latinChars = (sample.match(EMBEDDING_CONFIG.CONTENT_DETECTION.UNICODE_RANGES.LATIN) || []).length
+
+  const totalChars = sample.length
+  const arabicRatio = arabicChars / totalChars
+  const cjkRatio = cjkChars / totalChars
+
+  // Determine dominant script with configurable thresholds
+  if (arabicRatio > 0.3) return 'arabic'
+  if (cjkRatio > 0.3) return 'cjk'
+  if (arabicRatio > 0.1 || cjkRatio > 0.1) return 'multilingual'
+  return 'latin'
+}
+
+// Get character-to-token ratio based on content type using configuration constants
+function getCharsPerTokenRatio(contentType: string): number {
+  const ratios = EMBEDDING_CONFIG.CONTENT_DETECTION.CHAR_TO_TOKEN_RATIOS
+  switch (contentType) {
+    case 'arabic':
+      return ratios.ARABIC
+    case 'cjk':
+      return ratios.CJK
+    case 'multilingual':
+      return ratios.MULTILINGUAL
+    case 'latin':
+    default:
+      return ratios.LATIN
+  }
+}
+
+// Get safety margin based on content type using configuration constants
+function getSafetyMargin(contentType: string): number {
+  const margins = EMBEDDING_CONFIG.CONTENT_DETECTION.SAFETY_MARGINS
+  switch (contentType) {
+    case 'arabic':
+      return margins.ARABIC
+    case 'cjk':
+      return margins.CJK
+    case 'multilingual':
+      return margins.MULTILINGUAL
+    case 'latin':
+    default:
+      return margins.LATIN
+  }
 }
 
 // Estimate total tokens for a batch of texts
@@ -238,8 +452,8 @@ export function estimateBatchTokenCount(texts: string[]): number {
   return texts.reduce((total, text) => total + estimateTokenCount(text), 0)
 }
 
-// Create token-aware batches for Voyage API (120K token limit per batch)
-export function createTokenAwareBatches(texts: string[], maxTokensPerBatch: number = 110000): string[][] {
+// Create token-aware batches for Voyage API using configurable limits
+export function createTokenAwareBatches(texts: string[], maxTokensPerBatch: number = EMBEDDING_CONFIG.TOKEN_LIMITS[0]): string[][] {
   const batches: string[][] = []
   let currentBatch: string[] = []
   let currentBatchTokens = 0
@@ -335,4 +549,113 @@ export function truncateToTokenLimit(text: string, maxTokens: number): string {
   }
 
   return truncated + '...'
+}
+
+// Enhanced error classification for intelligent retry strategies
+interface ErrorClassification {
+  category: 'TOKEN_LIMIT' | 'RATE_LIMIT' | 'MODEL_UNAVAILABLE' | 'NETWORK' | 'AUTH' | 'QUOTA' | 'UNKNOWN'
+  originalMessage: string
+  suggestion: string
+  suggestedWait?: number
+  retryable: boolean
+}
+
+export function classifyError(error: unknown): ErrorClassification {
+  const errorMessage = error instanceof Error ? error.message : String(error)
+  const errorString = errorMessage.toLowerCase()
+
+  // Token limit errors (should retry with smaller batches)
+  if (errorString.includes('max allowed tokens') ||
+      errorString.includes('too large') ||
+      errorString.includes('token limit') ||
+      errorString.includes('exceeds maximum')) {
+    return {
+      category: 'TOKEN_LIMIT',
+      originalMessage: errorMessage,
+      suggestion: 'Automatically retrying with smaller batches and reduced token limits',
+      retryable: true
+    }
+  }
+
+  // Rate limit errors (429, rate limit exceeded)
+  if (errorString.includes('429') ||
+      errorString.includes('rate limit') ||
+      errorString.includes('too many requests')) {
+
+    // Extract suggested wait time from error message if available
+    const waitMatch = errorMessage.match(/try again in (\d+) seconds/i)
+    const suggestedWait = waitMatch ? parseInt(waitMatch[1]) * 1000 : undefined
+
+    return {
+      category: 'RATE_LIMIT',
+      originalMessage: errorMessage,
+      suggestion: 'Waiting before retry with exponential backoff',
+      suggestedWait,
+      retryable: true
+    }
+  }
+
+  // Model availability errors
+  if (errorString.includes('model unavailable') ||
+      errorString.includes('service unavailable') ||
+      errorString.includes('temporarily unavailable') ||
+      errorString.includes('503') ||
+      errorString.includes('502')) {
+    return {
+      category: 'MODEL_UNAVAILABLE',
+      originalMessage: errorMessage,
+      suggestion: 'Waiting longer for model/service recovery',
+      retryable: true
+    }
+  }
+
+  // Network/connection errors
+  if (errorString.includes('network') ||
+      errorString.includes('connection') ||
+      errorString.includes('timeout') ||
+      errorString.includes('econnreset') ||
+      errorString.includes('enotfound') ||
+      errorString.includes('fetch failed')) {
+    return {
+      category: 'NETWORK',
+      originalMessage: errorMessage,
+      suggestion: 'Quick retry for network connectivity issues',
+      retryable: true
+    }
+  }
+
+  // Authentication errors (don't retry)
+  if (errorString.includes('unauthorized') ||
+      errorString.includes('invalid api key') ||
+      errorString.includes('authentication') ||
+      errorString.includes('401')) {
+    return {
+      category: 'AUTH',
+      originalMessage: errorMessage,
+      suggestion: 'Check API key configuration in environment variables',
+      retryable: false
+    }
+  }
+
+  // Quota/billing errors (don't retry)
+  if (errorString.includes('quota') ||
+      errorString.includes('billing') ||
+      errorString.includes('payment') ||
+      errorString.includes('insufficient') ||
+      errorString.includes('credits')) {
+    return {
+      category: 'QUOTA',
+      originalMessage: errorMessage,
+      suggestion: 'Check account billing status and usage limits',
+      retryable: false
+    }
+  }
+
+  // Unknown errors
+  return {
+    category: 'UNKNOWN',
+    originalMessage: errorMessage,
+    suggestion: 'Review error details and check system configuration',
+    retryable: true
+  }
 }

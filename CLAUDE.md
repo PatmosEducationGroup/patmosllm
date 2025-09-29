@@ -149,7 +149,7 @@ RESEND_API_KEY
 
 #### Analytics & Insights
 - **Usage metrics** - Comprehensive user behavior tracking
-- **Document relationships** - Intelligent content linking
+- **Document relationships** - Intelligent content linking ([Full Roadmap](./DOCUMENT-RELATIONSHIP-ROADMAP.md))
 - **Topic clustering** - Automatic categorization
 - **Performance insights** - System optimization recommendations
 
@@ -161,6 +161,16 @@ RESEND_API_KEY
 ---
 
 ## 📚 IMPLEMENTATION HISTORY
+
+### Voyage-3-large Token Limit Fix (September 26th)
+- Fixed token limit errors with intelligent batching system (35% more accurate token counting)
+- Updated estimation from 4 chars/token to 3.2 chars/token + 15% safety margin
+- Implemented dynamic token-aware batching with automatic splitting at 110K token limit
+- Enhanced createEmbeddings function with pre-validation and recursive batch processing
+- Added progressive retry logic with 3-tier system (110K → 90K → 70K → 50K tokens)
+- Improved ingest pipeline with intelligent token-based batching replacing fixed 50-chunk batching
+- Prevents 205K+ token batches that caused deployment errors
+- Maintains performance - only splits when necessary, backward compatible
 
 ### Contextual Follow-up Question Detection Enhancement (September 25th)
 - Fixed conversational flow issue where follow-up questions triggered clarification instead of direct answers

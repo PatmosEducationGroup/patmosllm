@@ -40,13 +40,15 @@ export async function GET(request: NextRequest) {
         contact_email,
         uploaded_by,
         created_at,
+        source_type,
+        source_url,
         users!documents_uploaded_by_fkey(email, name)
       `)
       .order('created_at', { ascending: false })
 
-    // If CONTRIBUTOR or regular ADMIN, only show their own documents
-    // If SUPER_ADMIN, show all documents
-    if (user.role === 'ADMIN' || user.role === 'CONTRIBUTOR') {
+    // If CONTRIBUTOR, only show their own documents
+    // If ADMIN or SUPER_ADMIN, show all documents
+    if (user.role === 'CONTRIBUTOR') {
       query = query.eq('uploaded_by', user.id)
     }
 
@@ -77,6 +79,8 @@ export async function GET(request: NextRequest) {
       contact_person: doc.contact_person,
       contact_email: doc.contact_email,
       uploaded_by: doc.uploaded_by,
+      source_type: doc.source_type,
+      source_url: doc.source_url,
       users: doc.users
     })) || []
 

@@ -23,19 +23,25 @@ export async function storeChunks(chunks: Array<{
   }
 }>): Promise<void> {
   try {
-    // Convert to Pinecone format
-    const vectors = chunks.map(chunk => ({
-      id: chunk.id,
-      values: chunk.embedding,
-      metadata: {
-        documentId: chunk.documentId,
-        documentTitle: chunk.metadata.documentTitle,
-        documentAuthor: chunk.metadata.documentAuthor || '',
-        chunkIndex: chunk.chunkIndex,
-        tokenCount: chunk.metadata.tokenCount,
-        content: chunk.content // Store content in metadata for retrieval
+    // Convert to Pinecone format with size-limited metadata
+    const vectors = chunks.map(chunk => {
+      // Trim content to fit within Pinecone's 40KB metadata limit
+      const trimmedContent = trimContentForMetadata(chunk.content)
+
+      return {
+        id: chunk.id,
+        values: chunk.embedding,
+        metadata: {
+          documentId: chunk.documentId,
+          documentTitle: truncateString(chunk.metadata.documentTitle, 200),
+          documentAuthor: truncateString(chunk.metadata.documentAuthor || '', 100),
+          chunkIndex: chunk.chunkIndex,
+          tokenCount: chunk.metadata.tokenCount,
+          content: trimmedContent, // Store trimmed content in metadata
+          contentLength: chunk.content.length // Store original length for reference
+        }
       }
-    }))
+    })
 
     // Upload to Pinecone in batches
     const batchSize = 100
@@ -94,18 +100,47 @@ export async function searchChunks(
     }
 
     // Filter by minimum score and format results
-    const results = searchResponse.matches
-      .filter(match => (match.score || 0) >= minScore)
-      .map(match => ({
-        id: match.id,
-        score: match.score || 0,
-        documentId: match.metadata?.documentId as string,
-        documentTitle: match.metadata?.documentTitle as string,
-        documentAuthor: match.metadata?.documentAuthor as string,
-        chunkIndex: match.metadata?.chunkIndex as number,
-        content: match.metadata?.content as string,
-        tokenCount: match.metadata?.tokenCount as number
-      }))
+    const results = await Promise.all(
+      searchResponse.matches
+        .filter(match => (match.score || 0) >= minScore)
+        .map(async match => {
+          let content = match.metadata?.content as string
+
+          // If content was truncated, get full content from database
+          if (content && content.endsWith('...[truncated]')) {
+            try {
+              const fetchResponse = await index.fetch([match.id])
+              if (fetchResponse && fetchResponse.records && fetchResponse.records[match.id]) {
+                // Try to get full content from database
+                const supabase = await import('./supabase')
+                const { data: fullChunk } = await supabase.supabaseAdmin
+                  .from('chunks')
+                  .select('content')
+                  .eq('id', match.id)
+                  .single()
+
+                if (fullChunk?.content) {
+                  content = fullChunk.content
+                }
+              }
+            } catch (error) {
+              console.warn(`Could not retrieve full content for chunk ${match.id}:`, error)
+              // Use truncated content as fallback
+            }
+          }
+
+          return {
+            id: match.id,
+            score: match.score || 0,
+            documentId: match.metadata?.documentId as string,
+            documentTitle: match.metadata?.documentTitle as string,
+            documentAuthor: match.metadata?.documentAuthor as string,
+            chunkIndex: match.metadata?.chunkIndex as number,
+            content,
+            tokenCount: match.metadata?.tokenCount as number
+          }
+        })
+    )
 
     console.log(`Found ${results.length} relevant chunks (score >= ${minScore})`)
     
@@ -176,4 +211,40 @@ export async function testConnection(): Promise<boolean> {
     console.error('Pinecone connection test failed:', error)
     return false
   }
+}
+
+// Helper function to trim content to fit in Pinecone metadata (40KB limit)
+function trimContentForMetadata(content: string): string {
+  // Leave room for other metadata fields (estimate ~5KB for other fields)
+  const maxContentBytes = 35000
+
+  // Convert string to bytes (UTF-8 encoding)
+  const encoder = new TextEncoder()
+  const contentBytes = encoder.encode(content)
+
+  if (contentBytes.length <= maxContentBytes) {
+    return content
+  }
+
+  // Trim to fit, but try to break at sentence boundaries
+  let trimmed = new TextDecoder().decode(contentBytes.slice(0, maxContentBytes))
+
+  // Try to break at last sentence ending
+  const lastSentenceEnd = Math.max(
+    trimmed.lastIndexOf('.'),
+    trimmed.lastIndexOf('!'),
+    trimmed.lastIndexOf('?')
+  )
+
+  if (lastSentenceEnd > maxContentBytes * 0.8) {
+    trimmed = trimmed.substring(0, lastSentenceEnd + 1)
+  }
+
+  return trimmed + '...[truncated]'
+}
+
+// Helper function to truncate strings to specific lengths
+function truncateString(str: string, maxLength: number): string {
+  if (str.length <= maxLength) return str
+  return str.substring(0, maxLength - 3) + '...'
 }

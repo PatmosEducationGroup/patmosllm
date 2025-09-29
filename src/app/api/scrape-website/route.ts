@@ -6,6 +6,65 @@ import puppeteer from 'puppeteer'
 import robotsParser from 'robots-parser'
 import { URL } from 'url'
 
+// Browser pool for efficient Puppeteer reuse
+class BrowserPool {
+  private browsers: puppeteer.Browser[] = []
+  private maxBrowsers = 3
+  private currentIndex = 0
+
+  async getBrowser(): Promise<puppeteer.Browser> {
+    if (this.browsers.length < this.maxBrowsers) {
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu',
+          '--ignore-certificate-errors',
+          '--ignore-ssl-errors',
+          '--ignore-certificate-errors-spki-list'
+        ]
+      })
+      this.browsers.push(browser)
+      console.log(`Created browser instance ${this.browsers.length}/${this.maxBrowsers}`)
+      return browser
+    }
+
+    // Round-robin reuse
+    this.currentIndex = (this.currentIndex + 1) % this.browsers.length
+    return this.browsers[this.currentIndex]
+  }
+
+  async closeAll() {
+    console.log(`Closing ${this.browsers.length} browser instances`)
+    await Promise.all(this.browsers.map(b => b.close()))
+    this.browsers = []
+  }
+}
+
+const browserPool = new BrowserPool()
+
+// Request deduplication
+const pendingRequests = new Map<string, Promise<any>>()
+async function deduplicatedFetch<T>(url: string, fetcher: () => Promise<T>): Promise<T> {
+  if (pendingRequests.has(url)) {
+    return pendingRequests.get(url) as Promise<T>
+  }
+
+  const promise = fetcher().finally(() => {
+    pendingRequests.delete(url)
+  })
+
+  pendingRequests.set(url, promise)
+  return promise
+}
+
+// Sitemap caching
+const sitemapCache = new Map<string, { urls: string[], timestamp: number }>()
+const SITEMAP_CACHE_TTL = 3600000 // 1 hour
+
 // Enhanced helper function to check if URL belongs to same domain
 function isSameDomain(originalUrl: string, linkUrl: string, allowSubdomains = true): boolean {
   try {
@@ -53,139 +112,108 @@ function isSameDomain(originalUrl: string, linkUrl: string, allowSubdomains = tr
 }
 
 // Intelligent URL filtering to skip non-content pages
+// Minimal URL filtering - allow almost everything on the same domain
 function isContentUrl(url: string): boolean {
   try {
     const urlObj = new URL(url)
     const pathname = urlObj.pathname.toLowerCase()
     const search = urlObj.search.toLowerCase()
-    
-    // Skip common non-content path patterns
+
+    // Only skip obvious non-content files and system endpoints
     const skipPatterns = [
-      // Authentication & User Management
-      '/login', '/logout', '/signin', '/signup', '/register', '/auth',
-      '/account', '/profile', '/settings', '/preferences', '/dashboard',
-      
-      // Administrative & System
-      '/admin', '/wp-admin', '/administrator', '/cpanel', '/webmail',
-      '/api/', '/rest/', '/graphql', '/webhook', '/callback',
-      
-      // Commerce & Actions
-      '/cart', '/checkout', '/payment', '/subscribe', '/unsubscribe',
-      '/download', '/upload', '/submit', '/form', '/search',
-      
-      // Social & Interactive
-      '/share', '/like', '/comment', '/vote', '/rate', '/review',
-      '/contact', '/feedback', '/support', '/help/contact',
-      
-      // Technical & Meta
-      '/robots.txt', '/sitemap', '/favicon', '/manifest',
-      '/rss', '/feed', '/xml', '/json', '/ping', '/status',
-      
-      // Media & Assets (additional)
-      '/images/', '/img/', '/assets/', '/static/', '/media/',
-      '/css/', '/js/', '/fonts/', '/icons/',
-      
-      // Archive & Category pages that are often duplicative
-      '/tag/', '/tags/', '/category/', '/archive/', '/date/',
-      
-      // Print & Alternative versions
-      '/print', '/pdf', '/amp', '/mobile',
-      
-      // Language & Location redirects
-      '/redirect', '/goto', '/link', '/click'
+      // System/Technical files only
+      '/robots.txt', '/sitemap.xml', '/favicon.ico', '/manifest.json',
+
+      // Media assets only (not content pages about media)
+      '/css/', '/js/', '/fonts/', '/images/', '/img/', '/assets/', '/static/'
     ]
-    
-    // Check if URL matches any skip patterns
-    if (skipPatterns.some(pattern => pathname.includes(pattern))) {
+
+    // Check if URL matches any skip patterns (must be exact matches or start with folder)
+    if (skipPatterns.some(pattern => pathname === pattern || pathname.startsWith(pattern))) {
       return false
     }
-    
-    // Skip URLs with problematic query parameters
+
+    // Skip URLs with obvious non-content query parameters only
     const skipParams = [
-      'utm_', 'fbclid', 'gclid', 'ref=', 'source=', 'campaign=',
-      'print=', 'share=', 'download=', 'export=', 'format=pdf',
-      'action=', 'do=', 'task=', 'method=', 'mode=search'
+      'utm_', 'fbclid', 'gclid', 'print=1', 'format=pdf'
     ]
-    
+
     if (skipParams.some(param => search.includes(param))) {
       return false
     }
-    
-    // Skip URLs with too many path segments (often pagination or deep navigation)
-    const pathSegments = pathname.split('/').filter(segment => segment.length > 0)
-    if (pathSegments.length > 6) {
-      return false
-    }
-    
-    // Skip URLs that look like file downloads
+
+    // Skip URLs that look like direct file downloads only
     const fileExtensions = [
+      '.css', '.js', '.xml', '.json', '.txt',
       '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
       '.zip', '.rar', '.tar', '.gz', '.7z',
-      '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp',
+      '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.ico',
       '.mp3', '.mp4', '.avi', '.mov', '.wmv',
       '.exe', '.dmg', '.pkg', '.deb', '.rpm'
     ]
-    
+
     if (fileExtensions.some(ext => pathname.endsWith(ext))) {
       return false
     }
-    
-    // Skip URLs that are likely pagination or sorting
-    if (/\/page\/\d+|\/p\d+|\/\d+$|sort=|order=|limit=|offset=/.test(pathname + search)) {
-      return false
-    }
-    
+
+    // Allow everything else - including:
+    // - admin pages, search, contact, login pages (may have content links)
+    // - numbered pages (like /12345.aspx for people groups)
+    // - category/tag pages (may contain links to actual content)
+    // - any other HTML/ASPX/PHP pages
+    console.log(`✓ Allowing URL: ${url}`)
     return true
   } catch (error) {
-    // If URL parsing fails, skip it
     return false
   }
 }
 
-// Clean and extract main content from HTML
+// Optimized content extraction with single-pass cleanup
 function extractMainContent(html: string, url: string): { content: string; title: string } {
-  const $ = cheerio.load(html)
+  const $ = cheerio.load(html, {
+    normalizeWhitespace: true,
+    decodeEntities: true
+  })
+
+  // Single-pass removal of unwanted elements
+  const unwantedSelectors = 'script, style, nav, header, footer, aside, iframe, .nav, .menu, .sidebar, .advertisement, .ads, .social, .comments, [class*="nav"], [class*="menu"], [class*="sidebar"], [class*="ad"], [class*="social"], [class*="comment"], [id*="nav"], [id*="menu"], [id*="sidebar"], [id*="ad"], [id*="social"], [id*="comment"]'
+  $(unwantedSelectors).remove()
   
-  // Remove unwanted elements
-  $('script, style, nav, header, footer, aside, .nav, .menu, .sidebar, .advertisement, .ads, .social, .comments, .comment').remove()
-  $('[class*="nav"], [class*="menu"], [class*="sidebar"], [class*="ad"], [class*="social"], [class*="comment"]').remove()
-  $('[id*="nav"], [id*="menu"], [id*="sidebar"], [id*="ad"], [id*="social"], [id*="comment"]').remove()
-  
-  // Try to find main content areas (common patterns)
+  // Prioritized content selectors for faster extraction
   let content = ''
   const mainSelectors = [
-    'main',
+    'article[role="main"]',
+    'main article',
     '[role="main"]',
-    '.main-content',
-    '.content',
+    'article',
+    'main',
     '.post-content',
     '.article-content',
     '.entry-content',
+    '.content',
     'article',
     '.page-content'
   ]
   
+  // Try selectors and exit early when substantial content is found
   for (const selector of mainSelectors) {
-    const mainContent = $(selector)
-    if (mainContent.length > 0) {
-      content = mainContent.text().trim()
-      break
+    const element = $(selector).first()
+    if (element.length > 0) {
+      content = element.text()
+      if (content.length > 200) break // Found substantial content
     }
   }
-  
+
   // Fallback to body if no main content found
-  if (!content) {
-    content = $('body').text().trim()
+  if (!content || content.length < 200) {
+    content = $('body').text()
   }
-  
-  // Clean up content
-  content = content
-    .replace(/\s+/g, ' ')  // Normalize whitespace
-    .replace(/\n\s*\n/g, '\n\n')  // Clean line breaks
-    .trim()
-  
-  // Extract title
-  const title = $('title').text().trim() || $('h1').first().text().trim() || url
+
+  // Efficient whitespace normalization
+  content = content.replace(/\s+/g, ' ').trim()
+
+  // Extract title efficiently
+  const title = $('title').text().trim() || $('h1').first().text().trim() || new URL(url).hostname
   
   return { content, title }
 }
@@ -211,70 +239,32 @@ async function checkRobotsTxt(url: string): Promise<boolean> {
   }
 }
 
-// Main scraping function
+// Optimized main scraping function using hybrid approach
 async function scrapePage(url: string): Promise<{ success: boolean; content?: string; title?: string; error?: string }> {
-  let browser = null
-  
   try {
     // Check robots.txt
     const robotsAllowed = await checkRobotsTxt(url)
     if (!robotsAllowed) {
       return { success: false, error: 'Blocked by robots.txt' }
     }
-    
-    // Launch browser with SSL bypass for problematic sites
-    browser = await puppeteer.launch({ 
-      headless: true,
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox',
-        '--ignore-certificate-errors',
-        '--ignore-ssl-errors',
-        '--ignore-certificate-errors-spki-list'
-      ]
-    })
-    
-    const page = await browser.newPage()
-    await page.setUserAgent('Mozilla/5.0 (compatible; Heaven.Earth Web Scraper)')
-    
-    // Bypass CSP issues
-    await page.setBypassCSP(true)
-    
-    // Navigate to page with improved timeout and fallback strategy
-    try {
-      await page.goto(url, { waitUntil: 'networkidle0', timeout: 20000 })
-    } catch (error) {
-      // Fallback: try with domcontentloaded if networkidle0 times out
-      try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 })
-      } catch (fallbackError) {
-        // Final fallback: try with load event
-        try {
-          await page.goto(url, { waitUntil: 'load', timeout: 8000 })
-        } catch (finalError) {
-          throw new Error(`Failed to load page after multiple attempts: ${finalError instanceof Error ? finalError.message : 'Unknown error'}`)
-        }
-      }
-    }
-    
-    // Get page content
-    const html = await page.content()
-    const { content, title } = extractMainContent(html, url)
-    
-    if (!content || content.length < 100) {
+
+    // Use hybrid scraping approach
+    const result = await scrapePageWithFallback(url, url)
+
+    if (!result.content || result.content.length < 100) {
       return { success: false, error: 'Insufficient content found' }
     }
-    
-    return { success: true, content, title }
-    
-  } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Scraping failed' 
+
+    return {
+      success: true,
+      content: result.content,
+      title: result.title
     }
-  } finally {
-    if (browser) {
-      await browser.close()
+
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Scraping failed'
     }
   }
 }
@@ -350,6 +340,229 @@ async function parseRobotsForSitemaps(baseUrl: string): Promise<string[]> {
     return sitemapUrls
   } catch (e) {
     return []
+  }
+}
+
+// Lightweight HTTP + Cheerio scraping function
+async function scrapePageLightweight(url: string, baseUrl: string): Promise<{ title: string; content: string; links: string[] } | null> {
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout for HTTP (ASP.NET sites)
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Heaven.Earth Web Scraper',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate',
+        'DNT': '1',
+        'Connection': 'keep-alive'
+      },
+      signal: controller.signal,
+      redirect: 'follow'
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok || response.status >= 400) {
+      return null
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.includes('text/html')) {
+      return null
+    }
+
+    const html = await response.text()
+    const $ = cheerio.load(html)
+
+    // Remove unwanted elements
+    $('script, style, nav, header, footer, aside, .sidebar, .navigation, .menu, .ads, .advertisement').remove()
+
+    // Extract title
+    const title = $('title').text().trim() || $('h1').first().text().trim() || 'Untitled'
+
+    // Extract main content with prioritized selectors
+    let content = ''
+    const contentSelectors = [
+      'main',
+      '[role="main"]',
+      '.main-content',
+      '.content',
+      '.entry-content',
+      '.post-content',
+      'article',
+      '.article',
+      'body'
+    ]
+
+    for (const selector of contentSelectors) {
+      const element = $(selector)
+      if (element.length > 0) {
+        content = element.text().trim()
+        if (content.length > 200) break // Found substantial content
+      }
+    }
+
+    // Extract links
+    const links: string[] = []
+    $('a[href]').each((_, el) => {
+      const href = $(el).attr('href')
+      if (href) {
+        const absoluteUrl = new URL(href, baseUrl).toString()
+        if (isSameDomain(baseUrl, absoluteUrl, true) && isContentUrl(absoluteUrl)) {
+          links.push(absoluteUrl)
+        }
+      }
+    })
+
+    // Validate content quality
+    if (content.length < 100 || title.length < 3) {
+      return null // Content too short, likely failed
+    }
+
+    return {
+      title: title.substring(0, 500),
+      content: content.substring(0, 50000),
+      links: [...new Set(links)] // Remove duplicates
+    }
+  } catch (error) {
+    return null // Lightweight method failed
+  }
+}
+
+// Enhanced hybrid scraping with multiple fallback strategies
+async function scrapePageWithFallback(url: string, baseUrl: string): Promise<{ title: string; content: string; links: string[] }> {
+  // Strategy 1: Try lightweight HTTP + Cheerio first
+  const lightweightResult = await scrapePageLightweight(url, baseUrl)
+  if (lightweightResult) {
+    console.log(`✓ Lightweight scrape successful: ${url}`)
+    return lightweightResult
+  }
+
+  // Strategy 2: Try Puppeteer with domcontentloaded (fast)
+  console.log(`→ Trying Puppeteer (fast): ${url}`)
+  try {
+    const fastResult = await scrapePageWithPuppeteer(url, baseUrl, 'domcontentloaded', 10000)
+    if (fastResult) {
+      console.log(`✓ Puppeteer (fast) successful: ${url}`)
+      return fastResult
+    }
+  } catch (error) {
+    console.log(`→ Puppeteer (fast) failed, trying slower method: ${url}`)
+  }
+
+  // Strategy 3: Try Puppeteer with networkidle0 (slower but more complete)
+  console.log(`→ Trying Puppeteer (complete): ${url}`)
+  try {
+    const completeResult = await scrapePageWithPuppeteer(url, baseUrl, 'networkidle0', 20000)
+    if (completeResult) {
+      console.log(`✓ Puppeteer (complete) successful: ${url}`)
+      return completeResult
+    }
+  } catch (error) {
+    console.log(`→ All strategies failed for: ${url}`)
+  }
+
+  // Strategy 4: Last resort - return minimal data to keep crawling alive
+  console.warn(`⚠ All scraping strategies failed for ${url}, returning minimal data`)
+  return {
+    title: 'Failed to Load',
+    content: 'Content could not be extracted',
+    links: [] // Empty links array - this page won't contribute new URLs
+  }
+}
+
+// Helper function for Puppeteer scraping with configurable wait conditions
+async function scrapePageWithPuppeteer(
+  url: string,
+  baseUrl: string,
+  waitUntil: 'domcontentloaded' | 'networkidle0',
+  timeout: number
+): Promise<{ title: string; content: string; links: string[] } | null> {
+  const browser = await browserPool.getBrowser()
+  const page = await browser.newPage()
+
+  try {
+    await page.setViewport({ width: 1280, height: 720 })
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+
+    const response = await page.goto(url, {
+      waitUntil,
+      timeout
+    })
+
+    if (!response || response.status() >= 400) {
+      throw new Error(`HTTP ${response?.status()}`)
+    }
+
+    // Wait a bit for dynamic content (less for fast mode)
+    const waitTime = waitUntil === 'domcontentloaded' ? 500 : 2000
+    await page.waitForTimeout(waitTime)
+
+    const result = await page.evaluate((baseUrl) => {
+      // Remove unwanted elements
+      const unwantedSelectors = ['script', 'style', 'nav', 'header', 'footer', 'aside', '.sidebar', '.navigation', '.menu', '.ads', '.advertisement']
+      unwantedSelectors.forEach(selector => {
+        document.querySelectorAll(selector).forEach(el => el.remove())
+      })
+
+      // Extract title
+      const title = document.title.trim() ||
+                   document.querySelector('h1')?.textContent?.trim() ||
+                   'Untitled'
+
+      // Extract content with prioritized selectors
+      const contentSelectors = ['main', '[role="main"]', '.main-content', '.content', '.entry-content', '.post-content', 'article', '.article', 'body']
+      let content = ''
+
+      for (const selector of contentSelectors) {
+        const element = document.querySelector(selector)
+        if (element && element.textContent) {
+          content = element.textContent.trim()
+          if (content.length > 200) break
+        }
+      }
+
+      // Extract links more aggressively
+      const links: string[] = []
+      document.querySelectorAll('a[href]').forEach(link => {
+        const href = link.getAttribute('href')
+        if (href) {
+          try {
+            const absoluteUrl = new URL(href, baseUrl).toString()
+            links.push(absoluteUrl)
+          } catch (e) {
+            // Invalid URL, skip
+          }
+        }
+      })
+
+      return { title, content, links }
+    }, baseUrl)
+
+    // Filter links to same domain and content URLs
+    const filteredLinks = result.links
+      .filter(link => {
+        try {
+          return isSameDomain(baseUrl, link) && isContentUrl(link)
+        } catch {
+          return false
+        }
+      })
+      .filter((link, index, arr) => arr.indexOf(link) === index) // Remove duplicates
+
+    const finalResult = {
+      title: result.title.substring(0, 500),
+      content: result.content.substring(0, 50000),
+      links: filteredLinks
+    }
+
+    return finalResult
+  } finally {
+    await page.close()
+    // For now, close the browser directly - can optimize pooling later
+    await browser.close()
   }
 }
 
@@ -440,75 +653,59 @@ async function parseSitemap(baseUrl: string): Promise<string[]> {
   }
 }
 
-// Find all links on a page with enhanced filtering
+// Optimized link discovery using hybrid scraping with better error handling
 async function findLinksOnPage(url: string): Promise<string[]> {
-  let browser = null
-  
   try {
-    browser = await puppeteer.launch({ 
-      headless: true,
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox',
-        '--ignore-certificate-errors',
-        '--ignore-ssl-errors',
-        '--ignore-certificate-errors-spki-list'
-      ]
-    })
-    
-    const page = await browser.newPage()
-    await page.setUserAgent('Mozilla/5.0 (compatible; Heaven.Earth Web Scraper)')
-    
-    // Bypass CSP issues
-    await page.setBypassCSP(true)
-    
-    // Optimized timeout for bulk discovery - prioritize speed over completeness
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 6000 })
-    } catch (error) {
-      // Single fallback for bulk discovery
+    // Use hybrid scraping to get page content and links
+    const result = await scrapePageWithFallback(url, url)
+
+    // Enhanced filtering with intelligent content detection and debug logging
+    const rawLinks = result.links.length
+    const domainFilteredLinks = result.links.filter(link => {
       try {
-        await page.goto(url, { waitUntil: 'load', timeout: 4000 })
-      } catch (fallbackError) {
-        throw new Error(`Failed to load page for link discovery: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`)
+        return isSameDomain(url, link, true)
+      } catch {
+        return false
       }
-    }
-    
-    // Extract all links with additional context
-    const links = await page.evaluate(() => {
-      const anchors = Array.from(document.querySelectorAll('a[href]'))
-      return anchors
-        .map(anchor => {
-          const href = (anchor as HTMLAnchorElement).href
-          const text = anchor.textContent?.trim() || ''
-          return { href, text }
-        })
-        .filter(link => link.href && link.href !== '#' && !link.href.startsWith('javascript:'))
-        .map(link => link.href)
     })
-    
-    // Enhanced filtering with intelligent content detection
-    const filteredLinks = links
-      .filter(link => {
-        try {
-          // Basic domain and content filtering
-          return isSameDomain(url, link, true) && isContentUrl(link)
-        } catch {
-          return false
-        }
+
+    const contentFilteredLinks = domainFilteredLinks.filter(link => {
+      const isContent = isContentUrl(link)
+      if (!isContent) {
+        console.log(`Filtered out: ${link} (content filter)`)
+      }
+      return isContent
+    })
+
+    // Remove anchor fragments but keep the base URL
+    const noAnchorsLinks = contentFilteredLinks.map(link => {
+      const anchorIndex = link.indexOf('#')
+      return anchorIndex !== -1 ? link.substring(0, anchorIndex) : link
+    }).filter(link => link.length > 0) // Remove empty links
+    const filteredLinks = noAnchorsLinks.filter((link, index, arr) => arr.indexOf(link) === index) // Remove duplicates
+
+    console.log(`✓ Link discovery for ${url}: ${rawLinks} raw → ${domainFilteredLinks.length} same domain → ${contentFilteredLinks.length} content valid → ${noAnchorsLinks.length} no anchors → ${filteredLinks.length} final`)
+
+    // Debug: Show some of the filtered out links if there's a big difference
+    if (contentFilteredLinks.length > 50 && filteredLinks.length < 20) {
+      console.log(`🔍 DEBUG: Large link reduction detected. Sample of ${contentFilteredLinks.length} valid links:`)
+      contentFilteredLinks.slice(0, 10).forEach((link, i) => {
+        console.log(`  ${i+1}. ${link}`)
       })
-      .filter(link => !link.includes('#')) // Remove anchors
-      .filter((link, index, arr) => arr.indexOf(link) === index) // Remove duplicates
-    
-    return filteredLinks
-    
-  } catch (error) {
-    console.error('Error finding links on page:', url, error)
-    return []
-  } finally {
-    if (browser) {
-      await browser.close()
+      console.log(`  ... and ${contentFilteredLinks.length - 10} more links`)
+
+      console.log(`🔍 DEBUG: Final ${filteredLinks.length} unique links after deduplication:`)
+      filteredLinks.forEach((link, i) => {
+        console.log(`  ${i+1}. ${link}`)
+      })
     }
+
+    return filteredLinks
+
+  } catch (error) {
+    console.warn(`⚠ Failed to discover links on ${url}, continuing crawl:`, error instanceof Error ? error.message : 'Unknown error')
+    // Return empty array but don't throw - let crawling continue
+    return []
   }
 }
 
@@ -575,7 +772,7 @@ async function discoverAllPages(
     }
   }
   
-  const maxTimeoutMs = 300000 // 5 minutes maximum discovery time
+  const maxTimeoutMs = 600000 // 10 minutes maximum discovery time for comprehensive discovery
   
   console.log(`Starting parallel page discovery from: ${baseUrl} (max ${maxPages} pages, ${maxTimeoutMs/1000}s timeout)`)
   
@@ -586,8 +783,12 @@ async function discoverAllPages(
       sitemapUrls.forEach(url => discovered.add(url))
       console.log(`Added ${sitemapUrls.length} URLs from sitemap`)
     } catch (error) {
-      console.log('No sitemap found, proceeding with crawling')
+      console.log('No sitemap found, proceeding with aggressive crawling mode')
     }
+
+    // Always add the base URL to start crawling from
+    discovered.add(baseUrl)
+    queue.push({ url: baseUrl, depth: 0 })
   }
   
   // Parallel crawling with batches - increased for better performance
@@ -686,8 +887,8 @@ async function discoverAllPages(
       saveCheckpoint(checkpointId, currentCheckpoint)
     }
     
-    // Small delay between batches
-    await new Promise(resolve => setTimeout(resolve, 100))
+    // Minimal delay between batches for optimal performance
+    await new Promise(resolve => setTimeout(resolve, 50))
   }
   
   const result = Array.from(discovered)
@@ -747,7 +948,7 @@ export async function POST(request: NextRequest) {
       console.log(`Starting enhanced discovery for: ${normalizedUrl}`)
       
       // Use enhanced recursive discovery - no page limit, 3 levels deep
-      const maxDepth = 3  // Crawl up to 3 levels deep
+      const maxDepth = 5  // Crawl up to 5 levels deep for comprehensive discovery
       const maxPages = 10000 // Very high limit (effectively no limit)
       
       const allLinks = await discoverAllPages(normalizedUrl, maxDepth, maxPages, resumeFromCheckpoint)
@@ -806,8 +1007,8 @@ export async function POST(request: NextRequest) {
           ...result
         })
         
-        // Add small delay between requests to be respectful
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Minimal delay between requests for optimal performance
+        await new Promise(resolve => setTimeout(resolve, 200))
       }
       
       return NextResponse.json({
