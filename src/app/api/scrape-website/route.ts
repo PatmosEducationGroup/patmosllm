@@ -2,17 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import * as cheerio from 'cheerio'
-import puppeteer from 'puppeteer'
+import puppeteer, { Browser, Page } from 'puppeteer'
 import robotsParser from 'robots-parser'
 import { URL } from 'url'
 
 // Browser pool for efficient Puppeteer reuse
 class BrowserPool {
-  private browsers: puppeteer.Browser[] = []
+  private browsers: Browser[] = []
   private maxBrowsers = 3
   private currentIndex = 0
 
-  async getBrowser(): Promise<puppeteer.Browser> {
+  async getBrowser(): Promise<Browser> {
     if (this.browsers.length < this.maxBrowsers) {
       const browser = await puppeteer.launch({
         headless: true,
@@ -498,7 +498,7 @@ async function scrapePageWithPuppeteer(
 
     // Wait a bit for dynamic content (less for fast mode)
     const waitTime = waitUntil === 'domcontentloaded' ? 500 : 2000
-    await page.waitForTimeout(waitTime)
+    await new Promise(resolve => setTimeout(resolve, waitTime))
 
     const result = await page.evaluate((baseUrl) => {
       // Remove unwanted elements
