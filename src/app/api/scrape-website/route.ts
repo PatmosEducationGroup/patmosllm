@@ -124,6 +124,9 @@ function isContentUrl(url: string): boolean {
       // System/Technical files only
       '/robots.txt', '/sitemap.xml', '/favicon.ico', '/manifest.json',
 
+      // Cloudflare and CDN endpoints
+      '/cdn-cgi/', // Cloudflare email protection, cache, etc.
+
       // Media assets only (not content pages about media)
       '/css/', '/js/', '/fonts/', '/images/', '/img/', '/assets/', '/static/'
     ]
@@ -179,7 +182,7 @@ function extractMainContent(html: string, url: string): { content: string; title
   const unwantedSelectors = 'script, style, nav, header, footer, aside, iframe, .nav, .menu, .sidebar, .advertisement, .ads, .social, .comments, [class*="nav"], [class*="menu"], [class*="sidebar"], [class*="ad"], [class*="social"], [class*="comment"], [id*="nav"], [id*="menu"], [id*="sidebar"], [id*="ad"], [id*="social"], [id*="comment"]'
   $(unwantedSelectors).remove()
   
-  // Prioritized content selectors for faster extraction
+  // Prioritized content selectors for faster extraction (expanded for ASP.NET)
   let content = ''
   const mainSelectors = [
     'article[role="main"]',
@@ -191,8 +194,12 @@ function extractMainContent(html: string, url: string): { content: string; title
     '.article-content',
     '.entry-content',
     '.content',
-    'article',
-    '.page-content'
+    '#content', // Common ASP.NET pattern
+    '#main',
+    '#main-content',
+    '.container',
+    '.page-content',
+    'article'
   ]
   
   // Try selectors and exit early when substantial content is found
@@ -251,8 +258,10 @@ async function scrapePage(url: string): Promise<{ success: boolean; content?: st
     // Use hybrid scraping approach
     const result = await scrapePageWithFallback(url, url)
 
-    if (!result.content || result.content.length < 100) {
-      return { success: false, error: 'Insufficient content found' }
+    // Lower threshold for ASP.NET pages which may have less text
+    const minContentLength = url.includes('.aspx') ? 50 : 100
+    if (!result.content || result.content.length < minContentLength) {
+      return { success: false, error: `Insufficient content found (${result.content?.length || 0} chars)` }
     }
 
     return {
@@ -382,17 +391,22 @@ async function scrapePageLightweight(url: string, baseUrl: string): Promise<{ ti
     // Extract title
     const title = $('title').text().trim() || $('h1').first().text().trim() || 'Untitled'
 
-    // Extract main content with prioritized selectors
+    // Extract main content with prioritized selectors (expanded for ASP.NET)
     let content = ''
     const contentSelectors = [
       'main',
       '[role="main"]',
       '.main-content',
       '.content',
+      '#content', // Common ASP.NET pattern
+      '#main',
+      '#main-content',
       '.entry-content',
       '.post-content',
       'article',
       '.article',
+      '.container',
+      '.page-content',
       'body'
     ]
 
@@ -400,7 +414,7 @@ async function scrapePageLightweight(url: string, baseUrl: string): Promise<{ ti
       const element = $(selector)
       if (element.length > 0) {
         content = element.text().trim()
-        if (content.length > 200) break // Found substantial content
+        if (content.length > 100) break // Lower threshold for ASP.NET pages
       }
     }
 
@@ -416,8 +430,9 @@ async function scrapePageLightweight(url: string, baseUrl: string): Promise<{ ti
       }
     })
 
-    // Validate content quality
-    if (content.length < 100 || title.length < 3) {
+    // Validate content quality (lower threshold for ASP.NET)
+    const minLength = url.includes('.aspx') ? 50 : 100
+    if (content.length < minLength || title.length < 3) {
       return null // Content too short, likely failed
     }
 
@@ -464,11 +479,12 @@ async function scrapePageWithFallback(url: string, baseUrl: string): Promise<{ t
     console.log(`→ All strategies failed for: ${url}`)
   }
 
-  // Strategy 4: Last resort - return minimal data to keep crawling alive
+  // Strategy 4: Last resort - return minimal data with more context
   console.warn(`⚠ All scraping strategies failed for ${url}, returning minimal data`)
+  console.log(`   Possible reasons: Anti-bot protection, unusual page structure, or content behind authentication`)
   return {
-    title: 'Failed to Load',
-    content: 'Content could not be extracted',
+    title: `Page at ${new URL(url).pathname}`,
+    content: 'Content could not be extracted from this page. The page may require authentication, use anti-bot protection, or have an unusual structure.',
     links: [] // Empty links array - this page won't contribute new URLs
   }
 }
@@ -512,15 +528,21 @@ async function scrapePageWithPuppeteer(
                    document.querySelector('h1')?.textContent?.trim() ||
                    'Untitled'
 
-      // Extract content with prioritized selectors
-      const contentSelectors = ['main', '[role="main"]', '.main-content', '.content', '.entry-content', '.post-content', 'article', '.article', 'body']
+      // Extract content with prioritized selectors (expanded for ASP.NET sites)
+      const contentSelectors = [
+        'main', '[role="main"]', '.main-content', '.content',
+        '.entry-content', '.post-content', 'article', '.article',
+        '#content', '#main', '#main-content', // Common ASP.NET patterns
+        '.container', '.page-content',
+        'body' // Fallback
+      ]
       let content = ''
 
       for (const selector of contentSelectors) {
         const element = document.querySelector(selector)
         if (element && element.textContent) {
           content = element.textContent.trim()
-          if (content.length > 200) break
+          if (content.length > 100) break // Lower threshold
         }
       }
 

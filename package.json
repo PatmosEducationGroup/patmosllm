@@ -29,6 +29,7 @@
     "cheerio": "^1.1.2",
     "clsx": "^2.1.1",
     "dompurify": "^3.2.6",
+    "epub2": "^3.0.2",
     "file-type": "^21.0.0",
     "jsdom": "^26.1.0",
     "lucide-react": "^0.540.0",

@@ -28,6 +28,14 @@ export interface Document {
   uploaded_by?: string
   created_at: string
   processed_at?: string
+  source_type?: string
+  source_url?: string
+  amazon_url?: string
+  resource_url?: string
+  download_enabled?: boolean
+  contact_person?: string
+  contact_email?: string
+  metadata?: Record<string, unknown>
 }
 
 export interface Chunk {

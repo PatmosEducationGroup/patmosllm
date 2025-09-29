@@ -1,6 +1,7 @@
 import pdf2json from 'pdf2json'
 import mammoth from 'mammoth'
 import { processMultimediaFile, isMultimediaFile, MULTIMEDIA_MIME_TYPES } from './multimediaProcessors'
+import { EPubProcessor, isValidEPubBuffer } from './epubProcessor'
 
 // Supported file types (combining traditional document types with multimedia)
 export const SUPPORTED_MIME_TYPES = [
@@ -11,6 +12,7 @@ export const SUPPORTED_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/epub+zip',
 
   // Multimedia types
   ...MULTIMEDIA_MIME_TYPES
@@ -21,7 +23,7 @@ export const MAX_FILE_SIZE = 150 * 1024 * 1024 // 150MB for multimedia content
 // Supported file extensions
 export const SUPPORTED_EXTENSIONS = [
   // Documents
-  '.txt', '.md', '.pdf', '.docx', '.ppt', '.pptx',
+  '.txt', '.md', '.pdf', '.docx', '.ppt', '.pptx', '.epub',
   // Images
   '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.svg',
   // Audio
@@ -43,6 +45,7 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   '.ppt': 'application/vnd.ms-powerpoint',
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.epub': 'application/epub+zip',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.png': 'image/png',
@@ -80,7 +83,7 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
   if (!isSupportedMimeType && !isSupportedExtension) {
     return {
       valid: false,
-      error: `Unsupported file type: ${file.name} (${file.type || 'unknown MIME type'}). Supported types: TXT, MD, PDF, DOCX, PPTX, Images (JPG, PNG, etc.), Audio (MP3, WAV, etc.), Video (MP4, AVI, etc.)`
+      error: `Unsupported file type: ${file.name} (${file.type || 'unknown MIME type'}). Supported types: TXT, MD, PDF, DOCX, PPTX, EPUB, Images (JPG, PNG, etc.), Audio (MP3, WAV, etc.), Video (MP4, AVI, etc.)`
     }
   }
 
@@ -134,6 +137,9 @@ export async function extractTextFromFile(
       case 'application/vnd.ms-powerpoint':
       case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
         return await extractFromPowerPoint(buffer, filename)
+
+      case 'application/epub+zip':
+        return await extractFromEPub(buffer, filename)
 
       default:
         throw new Error(`Unsupported file type: ${actualMimeType}`)
@@ -340,13 +346,13 @@ async function extractFromWord(buffer: Buffer): Promise<{
   try {
     const result = await mammoth.extractRawText({ buffer })
     const content = result.value.trim()
-    
+
     if (!content) {
       throw new Error('No text content found in Word document')
     }
-    
+
     const wordCount = content.split(/\s+/).filter(word => word.length > 0).length
-    
+
     return {
       content,
       wordCount,
@@ -354,6 +360,55 @@ async function extractFromWord(buffer: Buffer): Promise<{
     }
   } catch (error) {
     throw new Error(`Word document processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+// Extract text from EPUB files using epub2
+async function extractFromEPub(buffer: Buffer, filename: string): Promise<{
+  content: string
+  wordCount: number
+  processorUsed: string
+  metadata?: Record<string, unknown>
+  pageCount?: number
+}> {
+  try {
+    console.log(`Processing EPUB: ${filename}`)
+
+    // Validate EPUB format
+    if (!isValidEPubBuffer(buffer)) {
+      throw new Error('Invalid EPUB file format')
+    }
+
+    // Process EPUB
+    const processor = new EPubProcessor(buffer)
+    const processed = await processor.parse()
+
+    console.log(`EPUB processed successfully: ${processed.chapterCount} chapters, ${processed.wordCount} words`)
+
+    // Return with metadata
+    return {
+      content: processed.fullText,
+      wordCount: processed.wordCount,
+      pageCount: processed.chapterCount, // Use chapter count as "pages"
+      processorUsed: 'epub2',
+      metadata: {
+        title: processed.metadata.title,
+        author: processed.metadata.creator,
+        publisher: processed.metadata.publisher,
+        description: processed.metadata.description,
+        language: processed.metadata.language,
+        publicationDate: processed.metadata.date,
+        chapters: processed.chapters.map(ch => ({
+          id: ch.id,
+          title: ch.title,
+          order: ch.order,
+          wordCount: ch.wordCount
+        }))
+      }
+    }
+  } catch (error) {
+    console.error('EPUB processing error:', error)
+    throw new Error(`EPUB processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 

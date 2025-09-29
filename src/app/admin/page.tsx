@@ -1153,7 +1153,7 @@ function AdminPageContent() {
                   <input
                     id="file-upload"
                     type="file"
-                    accept=".pdf,.txt,.md,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.svg,.mp3,.wav,.flac,.ogg,.m4a,.aac,.wma,.mp4,.mov,.avi,.wmv,.webm,.flv,.mkv,.3gp"
+                    accept=".pdf,.txt,.md,.docx,.ppt,.pptx,.epub,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.svg,.mp3,.wav,.flac,.ogg,.m4a,.aac,.wma,.mp4,.mov,.avi,.wmv,.webm,.flv,.mkv,.3gp"
                     multiple
                     onChange={handleFileSelect}
                     disabled={uploading || isProcessingQueue}

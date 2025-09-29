@@ -4,7 +4,7 @@
 // Supported file extensions
 export const SUPPORTED_EXTENSIONS = [
   // Documents
-  '.txt', '.md', '.pdf', '.docx', '.ppt', '.pptx',
+  '.txt', '.md', '.pdf', '.docx', '.ppt', '.pptx', '.epub',
   // Images
   '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.svg',
   // Audio
@@ -22,6 +22,7 @@ export const SUPPORTED_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/epub+zip',
 
   // Images
   'image/jpeg',
@@ -63,6 +64,7 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   '.ppt': 'application/vnd.ms-powerpoint',
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.epub': 'application/epub+zip',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.png': 'image/png',
@@ -107,7 +109,7 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
   if (!isSupportedMimeType && !isSupportedExtension) {
     return {
       valid: false,
-      error: `Unsupported file type: ${file.name} (${file.type || 'unknown MIME type'}). Supported types: TXT, MD, PDF, DOCX, PPTX, Images (JPG, PNG, etc.), Audio (MP3, WAV, etc.), Video (MP4, AVI, etc.)`
+      error: `Unsupported file type: ${file.name} (${file.type || 'unknown MIME type'}). Supported types: TXT, MD, PDF, DOCX, PPTX, EPUB, Images (JPG, PNG, etc.), Audio (MP3, WAV, etc.), Video (MP4, AVI, etc.)`
     }
   }
 
