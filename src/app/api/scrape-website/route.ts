@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import * as cheerio from 'cheerio'
-import puppeteer, { Browser, Page } from 'puppeteer'
+import puppeteer, { Browser } from 'puppeteer'
 import robotsParser from 'robots-parser'
 import { URL } from 'url'
 
