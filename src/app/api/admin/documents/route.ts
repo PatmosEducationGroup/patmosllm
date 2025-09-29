@@ -15,9 +15,9 @@ export async function GET(request: NextRequest) {
     }
 
     const user = await getCurrentUser()
-    if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json(
-        { success: false, error: 'Admin access required' },
+        { success: false, error: 'Admin or contributor access required' },
         { status: 403 }
       )
     }
@@ -44,9 +44,9 @@ export async function GET(request: NextRequest) {
       `)
       .order('created_at', { ascending: false })
 
-    // If regular ADMIN, only show their own documents
+    // If CONTRIBUTOR or regular ADMIN, only show their own documents
     // If SUPER_ADMIN, show all documents
-    if (user.role === 'ADMIN') {
+    if (user.role === 'ADMIN' || user.role === 'CONTRIBUTOR') {
       query = query.eq('uploaded_by', user.id)
     }
 

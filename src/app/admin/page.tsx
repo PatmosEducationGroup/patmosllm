@@ -104,6 +104,7 @@ function AdminPageContent() {
   const [accessDenied, setAccessDenied] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<{id: string, title: string} | null>(null)
+  const [reingestingDocs, setReingestingDocs] = useState<Set<string>>(new Set())
 
   // Metadata editing states
   const [editingDoc, setEditingDoc] = useState<Document | null>(null)
@@ -267,6 +268,54 @@ function AdminPageContent() {
   const handleCancel = () => {
     setEditingDoc(null)
     setError(null)
+  }
+
+  const handleReingest = async (documentId: string, documentTitle: string) => {
+    try {
+      // Add to reingesting set
+      setReingestingDocs(prev => new Set(prev).add(documentId))
+
+      const token = await getToken()
+      const response = await fetch('/api/ingest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          documentId: documentId
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        addToast({
+          type: 'success',
+          message: `Successfully started reingest for "${documentTitle}". Created ${data.chunksCreated || 'unknown'} chunks.`
+        })
+
+        // Refresh documents and ingest jobs to show updated status
+        await Promise.all([loadDocuments(), loadIngestJobs()])
+      } else {
+        addToast({
+          type: 'error',
+          message: `Failed to reingest "${documentTitle}": ${data.error || 'Unknown error'}`
+        })
+      }
+    } catch (err) {
+      addToast({
+        type: 'error',
+        message: `Failed to reingest "${documentTitle}": ${err instanceof Error ? err.message : 'Unknown error'}`
+      })
+    } finally {
+      // Remove from reingesting set
+      setReingestingDocs(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(documentId)
+        return newSet
+      })
+    }
   }
 
   // Web scraping functions
@@ -967,7 +1016,7 @@ function AdminPageContent() {
   if (loading) {
     return (
       <div>
-        <AdminNavbar />
+        <AdminNavbar userRole={userData?.role} />
         <div className="flex justify-center items-center min-h-[calc(100vh-80px)] bg-gradient-to-br from-slate-50 to-slate-200">
           <LoadingSpinner size="lg" text="Loading..." />
         </div>
@@ -977,7 +1026,7 @@ function AdminPageContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200">
-      <AdminNavbar />
+      <AdminNavbar userRole={userData?.role} />
 
       <div className="max-w-7xl mx-auto p-6">
         {/* Header */}
@@ -1012,13 +1061,17 @@ function AdminPageContent() {
               {/* File Selection */}
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                  Select Files (PDF, TXT, MD, DOCX, JPG, PNG, MP4 - Max 20 files, 150MB each)
+                  Select Files - Max 20 files, 150MB each
+                  <br />
+                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '400' }}>
+                    Documents: PDF, TXT, MD, DOCX, PPT, PPTX • Images: JPG, PNG, GIF, WebP, BMP, TIFF, SVG • Audio: MP3, WAV, FLAC, OGG, M4A, AAC, WMA • Video: MP4, AVI, MOV, WMV, WebM, FLV, MKV, 3GP
+                  </span>
                 </label>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
                   <input
                     id="file-upload"
                     type="file"
-                    accept=".pdf,.txt,.md,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.mp3,.wav,.flac,.ogg,.m4a,.mp4,.mov,.avi,.wmv,.webm"
+                    accept=".pdf,.txt,.md,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.svg,.mp3,.wav,.flac,.ogg,.m4a,.aac,.wma,.mp4,.mov,.avi,.wmv,.webm,.flv,.mkv,.3gp"
                     multiple
                     onChange={handleFileSelect}
                     disabled={uploading || isProcessingQueue}
@@ -1059,7 +1112,7 @@ function AdminPageContent() {
                 <input
                   id="add-more-files"
                   type="file"
-                  accept=".pdf,.txt,.md,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.mp3,.wav,.flac,.ogg,.m4a,.mp4,.mov,.avi,.wmv,.webm"
+                  accept=".pdf,.txt,.md,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.svg,.mp3,.wav,.flac,.ogg,.m4a,.aac,.wma,.mp4,.mov,.avi,.wmv,.webm,.flv,.mkv,.3gp"
                   multiple
                   onChange={handleFileSelect}
                   disabled={uploading || isProcessingQueue}
@@ -2115,6 +2168,34 @@ function AdminPageContent() {
                             >
                               Edit
                             </button>
+                            {/* Show reingest button only for documents that failed to ingest properly */}
+                            {(status === 'failed' || (status === 'completed' && (!job || job.chunks_created === 0))) && (
+                              <button
+                                onClick={() => handleReingest(doc.id, doc.title)}
+                                disabled={reingestingDocs.has(doc.id)}
+                                style={{
+                                  padding: '4px 12px',
+                                  fontSize: '12px',
+                                  color: reingestingDocs.has(doc.id) ? '#9ca3af' : '#059669',
+                                  backgroundColor: 'transparent',
+                                  border: `1px solid ${reingestingDocs.has(doc.id) ? '#9ca3af' : '#059669'}`,
+                                  borderRadius: '8px',
+                                  cursor: reingestingDocs.has(doc.id) ? 'not-allowed' : 'pointer',
+                                  transition: 'all 0.2s',
+                                  opacity: reingestingDocs.has(doc.id) ? 0.6 : 1
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!reingestingDocs.has(doc.id)) {
+                                    e.currentTarget.style.backgroundColor = 'rgba(5, 150, 105, 0.1)'
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent'
+                                }}
+                              >
+                                {reingestingDocs.has(doc.id) ? 'Reingesting...' : 'Reingest'}
+                              </button>
+                            )}
                             {userData?.role === 'SUPER_ADMIN' && (
                               <button
                                 onClick={() => {

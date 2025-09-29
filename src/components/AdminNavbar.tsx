@@ -3,28 +3,35 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { UserButton } from '@clerk/nextjs'
-import { 
-  MessageCircle, 
-  BookOpen, 
-  Users, 
-  Activity, 
-  TrendingUp, 
+import {
+  MessageCircle,
+  BookOpen,
+  Users,
+  Activity,
+  TrendingUp,
   Rocket,
   Bell,
   Settings
 } from 'lucide-react'
 
-export default function AdminNavbar() {
+interface AdminNavbarProps {
+  userRole?: string
+}
+
+export default function AdminNavbar({ userRole = 'USER' }: AdminNavbarProps) {
   const pathname = usePathname()
 
-  const navItems = [
-    { href: '/', label: 'Chat', icon: MessageCircle },
-    { href: '/admin', label: 'Documents', icon: BookOpen },
-    { href: '/admin/users', label: 'Users', icon: Users },
-    { href: '/admin/system-health', label: 'System Health', icon: Activity },
-    { href: '/admin/document-analytics', label: 'Document Analytics', icon: TrendingUp },
-    { href: '/admin/onboarding', label: 'Onboarding', icon: Rocket }
+  const allNavItems = [
+    { href: '/', label: 'Chat', icon: MessageCircle, roles: ['USER', 'CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'] },
+    { href: '/admin', label: 'Documents', icon: BookOpen, roles: ['CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'] },
+    { href: '/admin/users', label: 'Users', icon: Users, roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { href: '/admin/system-health', label: 'System Health', icon: Activity, roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { href: '/admin/document-analytics', label: 'Document Analytics', icon: TrendingUp, roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { href: '/admin/onboarding', label: 'Onboarding', icon: Rocket, roles: ['ADMIN', 'SUPER_ADMIN'] }
   ]
+
+  // Filter navigation items based on user role
+  const navItems = allNavItems.filter(item => item.roles.includes(userRole))
 
   const isActive = (href: string) => {
     if (href === '/admin') {
@@ -99,7 +106,7 @@ export default function AdminNavbar() {
 
           {/* Navigation Links */}
           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-            {navItems.map((item, index) => {
+            {navItems.map((item) => {
               const Icon = item.icon
               const active = isActive(item.href)
               
@@ -252,7 +259,6 @@ export default function AdminNavbar() {
               </div>
             </div>
             <UserButton
-              afterSignOutUrl="/"
               appearance={{
                 elements: {
                   avatarBox: 'w-10 h-10 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200'
