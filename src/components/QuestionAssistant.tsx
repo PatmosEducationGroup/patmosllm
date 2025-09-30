@@ -25,7 +25,7 @@ export function QuestionAssistant({ question, onQuestionChange, onClose, classNa
   const [templates, setTemplates] = useState<QuestionTemplate[]>([])
   const [loading, setLoading] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
-  const [showBuilder, setShowBuilder] = useState(false)
+  const [_showBuilder, _setShowBuilder] = useState(false)
   const [isExpanded, setIsExpanded] = useState(true)
 
   // Debounced analysis
@@ -40,6 +40,7 @@ export function QuestionAssistant({ question, onQuestionChange, onClose, classNa
     }, 500)
 
     return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question])
 
   const analyzeQuestion = async () => {
@@ -57,7 +58,6 @@ export function QuestionAssistant({ question, onQuestionChange, onClose, classNa
         setTemplates(data.templates || [])
       }
     } catch (error) {
-      console.error('Failed to analyze question:', error)
     }
     setLoading(false)
   }

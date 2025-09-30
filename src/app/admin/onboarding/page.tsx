@@ -31,7 +31,6 @@ export default function OnboardingAnalyticsPage() {
         
         setIsAuthorized(true)
       } catch (error) {
-        console.error('Auth check failed:', error)
         router.push('/')
       }
     }

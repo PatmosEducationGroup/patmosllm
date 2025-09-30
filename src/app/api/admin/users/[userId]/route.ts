@@ -75,7 +75,6 @@ if (currentUser.role === 'ADMIN') {
       .single()
 
     if (error) {
-      console.error('Error updating user role:', error)
       return NextResponse.json(
         { success: false, error: 'Failed to update user role' },
         { status: 500 }
@@ -88,7 +87,6 @@ if (currentUser.role === 'ADMIN') {
     })
 
   } catch (error) {
-    console.error('Update user role error:', error)
     return NextResponse.json(
       { 
         success: false, 

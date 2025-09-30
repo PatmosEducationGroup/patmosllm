@@ -83,7 +83,6 @@ export async function createEmbedding(text: string): Promise<number[]> {
 
     return response.data[0].embedding
   } catch (error) {
-    console.error('Error creating embedding:', error)
 
     const errorType = classifyError(error)
 
@@ -220,7 +219,6 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
 
     return result
   } catch (error) {
-    console.error(`Error creating embeddings (attempt ${retryCount + 1}):`, error)
 
     const errorType = classifyError(error)
     const batchTokens = estimateBatchTokenCount(texts)
@@ -280,7 +278,6 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
         break
 
       default:
-        console.error(`❓ UNKNOWN ERROR: ${errorType.originalMessage}`)
     }
 
     // Report error metrics
@@ -373,8 +370,7 @@ ${contextString}`;
       }
     }
   } catch (error) {
-    console.error('Error generating chat response:', error)
-    throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to generate response: ${''}`)
   }
 }
 
@@ -402,7 +398,7 @@ function detectContentType(text: string): 'latin' | 'arabic' | 'cjk' | 'multilin
   // Count character types using configurable Unicode ranges
   const arabicChars = (sample.match(EMBEDDING_CONFIG.CONTENT_DETECTION.UNICODE_RANGES.ARABIC) || []).length
   const cjkChars = (sample.match(EMBEDDING_CONFIG.CONTENT_DETECTION.UNICODE_RANGES.CJK) || []).length
-  const latinChars = (sample.match(EMBEDDING_CONFIG.CONTENT_DETECTION.UNICODE_RANGES.LATIN) || []).length
+  const _latinChars = (sample.match(EMBEDDING_CONFIG.CONTENT_DETECTION.UNICODE_RANGES.LATIN) || []).length
 
   const totalChars = sample.length
   const arabicRatio = arabicChars / totalChars
@@ -561,7 +557,7 @@ interface ErrorClassification {
 }
 
 export function classifyError(error: unknown): ErrorClassification {
-  const errorMessage = error instanceof Error ? error.message : String(error)
+  const errorMessage = String(error)
   const errorString = errorMessage.toLowerCase()
 
   // Token limit errors (should retry with smaller batches)

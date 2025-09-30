@@ -7,10 +7,10 @@ import { getIdentifier } from '@/lib/get-identifier'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 import { SUPPORTED_MIME_TYPES, SUPPORTED_EXTENSIONS } from '@/lib/clientValidation'
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Rate limiting
-    const identifier = getIdentifier(request)
+    const identifier = getIdentifier(_request)
     const rateLimitResult = uploadRateLimit(identifier)
     
     if (!rateLimitResult.success) {
@@ -38,7 +38,7 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
   )
 }
 
-    const { fileName, fileSize, mimeType } = await request.json()
+    const { fileName, fileSize, mimeType } = await _request.json()
 
     if (!fileName || !fileSize || !mimeType) {
       return NextResponse.json(
@@ -84,7 +84,6 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       })
 
     if (presignedError) {
-      console.error('Presigned URL generation error:', presignedError)
       return NextResponse.json(
         { success: false, error: 'Failed to generate upload URL' },
         { status: 500 }
@@ -92,7 +91,7 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
     }
 
     // Store upload metadata for later processing
-    const uploadMetadata = {
+    const _uploadMetadata = {
       userId: user.id,
       storagePath,
       fileName,
@@ -130,11 +129,10 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
     })
 
   } catch (error) {
-    console.error('Presigned URL API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to generate upload URL' 
+        error: 'Failed to generate upload URL' 
       },
       { status: 500 }
     )

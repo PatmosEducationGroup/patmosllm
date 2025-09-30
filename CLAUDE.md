@@ -162,6 +162,22 @@ RESEND_API_KEY
 
 ## 📚 IMPLEMENTATION HISTORY
 
+### Document Audit & Ingestion Verification (September 30th)
+- Conducted comprehensive audit of 462 uploaded documents to verify ingestion status
+- Identified 4 failed documents (Hindi, Chinese, Bengali, Arabic) with extracted content but no chunks
+- Created re-ingestion script (`scripts/reingest-failed-docs-simple.js`) with proper Pinecone index configuration
+- Successfully re-ingested all 4 documents, adding 2,157 new chunks (Hindi: 516, Chinese: 249, Bengali: 736, Arabic: 656)
+- Achieved 100% document ingestion success rate (462/462 documents, 7,956+ total chunks)
+- Fixed Pinecone dimension mismatch by using correct `patmosllm-voyage` index (1024-dim Voyage-3-large)
+
+### Admin Dashboard Chunk Count Display (September 30th)
+- Enhanced admin interface to display chunk counts for each document
+- Modified `/api/admin/documents` route to include `chunks(count)` in Supabase aggregation query
+- Added `chunkCount` field to Document interface with proper TypeScript typing
+- Implemented chunk count display beneath "Completed" status badges for both uploaded and scraped documents
+- Fixed TypeScript compilation errors related to Supabase response typing
+- Provides instant visibility into document processing quality and completeness
+
 ### Puppeteer & Production Build Fixes (September 29th)
 - Fixed puppeteer TypeScript errors for production build compatibility
 - Resolved unused import warnings preventing clean builds

@@ -33,6 +33,7 @@ interface Document {
   uploaded_by: string
   source_type?: string
   source_url?: string
+  chunkCount?: number
   users?: {
     email: string
     name?: string
@@ -120,10 +121,10 @@ function AdminPageContent() {
   const [isScrapingPages, setIsScrapingPages] = useState(false)
   const [scrapedContent, setScrapedContent] = useState<ScrapedPage[]>([])
   const [showPreview, setShowPreview] = useState(false)
-  
+
   // Pagination states (for discovery pages)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pagesPerPage, setPagesPerPage] = useState(20)
+  const [pagesPerPage, _setPagesPerPage] = useState(20)
   const [showAllPages, setShowAllPages] = useState(false)
 
   // New states for document and scraped page management
@@ -184,8 +185,7 @@ function AdminPageContent() {
       loadDocuments()
       loadIngestJobs()
       
-    } catch (err) {
-      console.error('Error fetching user data:', err)
+    } catch (error) {
       setAccessDenied(true)
       setError('Access denied: Unable to verify your permissions.')
       setLoading(false)
@@ -210,7 +210,7 @@ function AdminPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to load documents')
     } finally {
       setLoading(false)
@@ -225,13 +225,13 @@ function AdminPageContent() {
       if (data.success) {
         setIngestJobs(data.jobs)
       }
-    } catch (err) {
-      console.error('Failed to load ingest jobs:', err)
+    } catch (error) {
+      // Failed to load ingest jobs
     }
   }
 
   // Metadata editing functions
-  const handleEdit = (doc: Document) => {
+  const _handleEdit = (doc: Document) => {
     setEditingDoc({...doc})
     setError(null)
   }
@@ -271,7 +271,7 @@ function AdminPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to save document changes')
     } finally {
       setSaving(false)
@@ -313,13 +313,13 @@ function AdminPageContent() {
       } else {
         addToast({
           type: 'error',
-          message: `Failed to reingest "${documentTitle}": ${data.error || 'Unknown error'}`
+          message: `Failed to reingest "${documentTitle}": ${data.error || ''}`
         })
       }
-    } catch (err) {
+    } catch (error) {
       addToast({
         type: 'error',
-        message: `Failed to reingest "${documentTitle}": ${err instanceof Error ? err.message : 'Unknown error'}`
+        message: `Failed to reingest "${documentTitle}"`
       })
     } finally {
       // Remove from reingesting set
@@ -360,51 +360,53 @@ function AdminPageContent() {
       const data = await response.json()
       
       if (data.success) {
-        setDiscoveredPages(data.links.map((url: string) => ({ url, selected: false })))
+        const pages = data.links.map((url: string) => ({ url, selected: false }))
+        setDiscoveredPages(pages)
         setCurrentPage(1)
         setShowAllPages(false)
-        
+
         const discoveryMethod = data.discoveryMethod === 'recursive_crawl' ? 'Enhanced Crawling' : 'Single Page'
-        const methodDetails = data.discoveryMethod === 'recursive_crawl' 
-          ? ` (depth: ${data.crawlDepth} levels)` 
+        const methodDetails = data.discoveryMethod === 'recursive_crawl'
+          ? ` (depth: ${data.crawlDepth} levels)`
           : ''
-        
+
         const message = data.totalFound > 1 ?
           `Found ${data.totalFound} pages using ${discoveryMethod}${methodDetails}.` :
           null
-          
+
         setScrapingMessage(message)
         setScrapingMessageType('info')
+        setIsDiscovering(false)
       } else {
         setScrapingMessage(data.error || 'Failed to discover pages')
         setScrapingMessageType('error')
+        setIsDiscovering(false)
       }
-    } catch (err) {
+    } catch (error) {
       setScrapingMessage('Failed to discover website pages')
       setScrapingMessageType('error')
-    } finally {
       setIsDiscovering(false)
     }
   }
 
   const scrapeSelectedPages = async () => {
     const selectedUrls = discoveredPages.filter(page => page.selected).map(page => page.url)
-    
+
     if (selectedUrls.length === 0) {
       setScrapingMessage('Please select at least one page to scrape')
       setScrapingMessageType('error')
       return
     }
-    
+
     setIsScrapingPages(true)
     setScrapingProgress(0)
     setScrapingMessage(null)
-    
+
     try {
       const token = await getToken()
       const response = await fetch('/api/scrape-website', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
@@ -413,16 +415,16 @@ function AdminPageContent() {
           urls: selectedUrls
         })
       })
-      
+
       const data = await response.json()
-      
+
       if (data.success) {
         setScrapedContent(data.results.map((result: ScrapedPage) => ({
           ...result,
           selected: result.success
         })))
         setShowPreview(true)
-        
+
         const failedCount = data.results.filter((r: ScrapedPage) => !r.success).length
         if (failedCount > 0) {
           setScrapingMessage(`Warning: ${failedCount} pages failed to scrape. Review the results below.`)
@@ -432,7 +434,7 @@ function AdminPageContent() {
         setScrapingMessage(data.error || 'Failed to scrape pages')
         setScrapingMessageType('error')
       }
-    } catch (err) {
+    } catch (error) {
       setScrapingMessage('Failed to scrape website pages')
       setScrapingMessageType('error')
     } finally {
@@ -505,8 +507,8 @@ function AdminPageContent() {
         throw new Error(data.error || 'Batch processing failed')
       }
         
-    } catch (err) {
-      setScrapingMessage('Failed to save scraped content: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    } catch (error) {
+      setScrapingMessage('Failed to save scraped content')
       setScrapingMessageType('error')
     } finally {
       setUploading(false)
@@ -654,8 +656,7 @@ function AdminPageContent() {
     
     // Check for duplicates against already uploaded documents in database
     const existingDocNames = documents.map(doc => doc.title)
-    const fileBasenames = files.map(file => file.name.replace(/\.[^/.]+$/, ''))
-    
+
     const queueDuplicates = files.filter(file => existingQueueFiles.includes(`${file.name}-${file.size}`))
     const dbDuplicates = files.filter(file => {
       const basename = file.name.replace(/\.[^/.]+$/, '')
@@ -775,12 +776,12 @@ function AdminPageContent() {
           index === i ? {
             ...item,
             status: 'error' as const,
-            error: error instanceof Error ? error.message : 'Upload failed'
+            error: 'Upload failed'
           } : item
         ))
 
         // Show error toast for individual file
-        const errorMessage = error instanceof Error ? error.message : 'Upload failed'
+        const errorMessage = 'Upload failed'
         addToast({
           type: 'error',
           title: 'Upload Failed',
@@ -1019,7 +1020,7 @@ function AdminPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to delete document')
     }
   }
@@ -2323,74 +2324,85 @@ function AdminPageContent() {
                           )}
                         </td>
                         <td style={{ padding: '12px' }}>
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                          }}>
-                            <span style={{
-                              fontSize: '12px',
-                              fontWeight: '500',
-                              color: statusColors.text,
-                              backgroundColor: statusColors.bg,
-                              padding: '4px 8px',
-                              borderRadius: '8px',
-                              textTransform: 'capitalize',
+                          <div>
+                            <div style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '4px'
+                              gap: '8px',
+                              marginBottom: '4px'
                             }}>
                               <span style={{
-                                width: '6px',
-                                height: '6px',
-                                borderRadius: '50%',
-                                backgroundColor: statusColors.dot
-                              }}></span>
-                              {status}
-                            </span>
-                            {status === 'failed' && (
-                              <button
-                                onClick={() => handleReingest(doc.id, doc.title)}
-                                disabled={reingestingDocs.has(doc.id)}
-                                style={{
-                                  fontSize: '12px',
-                                  fontWeight: '500',
-                                  color: 'rgb(130, 179, 219)',
-                                  backgroundColor: 'transparent',
-                                  border: '1px solid rgb(130, 179, 219)',
-                                  padding: '4px 8px',
-                                  borderRadius: '8px',
-                                  cursor: reingestingDocs.has(doc.id) ? 'not-allowed' : 'pointer',
-                                  opacity: reingestingDocs.has(doc.id) ? 0.5 : 1,
-                                  transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (!reingestingDocs.has(doc.id)) {
-                                    e.currentTarget.style.backgroundColor = 'rgb(130, 179, 219)'
-                                    e.currentTarget.style.color = 'white'
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (!reingestingDocs.has(doc.id)) {
-                                    e.currentTarget.style.backgroundColor = 'transparent'
-                                    e.currentTarget.style.color = 'rgb(130, 179, 219)'
-                                  }
-                                }}
-                              >
-                                {reingestingDocs.has(doc.id) ? 'Reingesting...' : 'Retry'}
-                              </button>
-                            )}
-                            {!doc.download_enabled && (
-                              <span style={{
-                                fontSize: '11px',
-                                color: '#f59e0b',
-                                backgroundColor: '#fef3c7',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontWeight: '500'
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                color: statusColors.text,
+                                backgroundColor: statusColors.bg,
+                                padding: '4px 8px',
+                                borderRadius: '8px',
+                                textTransform: 'capitalize',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
                               }}>
-                                Private
+                                <span style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  borderRadius: '50%',
+                                  backgroundColor: statusColors.dot
+                                }}></span>
+                                {status}
                               </span>
+                              {status === 'failed' && (
+                                <button
+                                  onClick={() => handleReingest(doc.id, doc.title)}
+                                  disabled={reingestingDocs.has(doc.id)}
+                                  style={{
+                                    fontSize: '12px',
+                                    fontWeight: '500',
+                                    color: 'rgb(130, 179, 219)',
+                                    backgroundColor: 'transparent',
+                                    border: '1px solid rgb(130, 179, 219)',
+                                    padding: '4px 8px',
+                                    borderRadius: '8px',
+                                    cursor: reingestingDocs.has(doc.id) ? 'not-allowed' : 'pointer',
+                                    opacity: reingestingDocs.has(doc.id) ? 0.5 : 1,
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!reingestingDocs.has(doc.id)) {
+                                      e.currentTarget.style.backgroundColor = 'rgb(130, 179, 219)'
+                                      e.currentTarget.style.color = 'white'
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!reingestingDocs.has(doc.id)) {
+                                      e.currentTarget.style.backgroundColor = 'transparent'
+                                      e.currentTarget.style.color = 'rgb(130, 179, 219)'
+                                    }
+                                  }}
+                                >
+                                  {reingestingDocs.has(doc.id) ? 'Reingesting...' : 'Retry'}
+                                </button>
+                              )}
+                              {!doc.download_enabled && (
+                                <span style={{
+                                  fontSize: '11px',
+                                  color: '#f59e0b',
+                                  backgroundColor: '#fef3c7',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontWeight: '500'
+                                }}>
+                                  Private
+                                </span>
+                              )}
+                            </div>
+                            {status === 'completed' && doc.chunkCount !== undefined && (
+                              <div style={{
+                                fontSize: '12px',
+                                color: '#64748b'
+                              }}>
+                                Chunks: {doc.chunkCount.toLocaleString()}
+                              </div>
                             )}
                           </div>
                         </td>
@@ -2717,62 +2729,73 @@ function AdminPageContent() {
                           )}
                         </td>
                         <td style={{ padding: '12px' }}>
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                          }}>
-                            <span style={{
-                              fontSize: '12px',
-                              fontWeight: '500',
-                              color: statusColors.text,
-                              backgroundColor: statusColors.bg,
-                              padding: '4px 8px',
-                              borderRadius: '8px',
-                              textTransform: 'capitalize',
+                          <div>
+                            <div style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '4px'
+                              gap: '8px',
+                              marginBottom: '4px'
                             }}>
                               <span style={{
-                                width: '6px',
-                                height: '6px',
-                                borderRadius: '50%',
-                                backgroundColor: statusColors.dot
-                              }}></span>
-                              {status}
-                            </span>
-                            {status === 'failed' && (
-                              <button
-                                onClick={() => handleReingest(doc.id, doc.title)}
-                                disabled={reingestingDocs.has(doc.id)}
-                                style={{
-                                  fontSize: '12px',
-                                  fontWeight: '500',
-                                  color: 'rgb(130, 179, 219)',
-                                  backgroundColor: 'transparent',
-                                  border: '1px solid rgb(130, 179, 219)',
-                                  padding: '4px 8px',
-                                  borderRadius: '8px',
-                                  cursor: reingestingDocs.has(doc.id) ? 'not-allowed' : 'pointer',
-                                  opacity: reingestingDocs.has(doc.id) ? 0.5 : 1,
-                                  transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (!reingestingDocs.has(doc.id)) {
-                                    e.currentTarget.style.backgroundColor = 'rgb(130, 179, 219)'
-                                    e.currentTarget.style.color = 'white'
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (!reingestingDocs.has(doc.id)) {
-                                    e.currentTarget.style.backgroundColor = 'transparent'
-                                    e.currentTarget.style.color = 'rgb(130, 179, 219)'
-                                  }
-                                }}
-                              >
-                                {reingestingDocs.has(doc.id) ? 'Reingesting...' : 'Retry'}
-                              </button>
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                color: statusColors.text,
+                                backgroundColor: statusColors.bg,
+                                padding: '4px 8px',
+                                borderRadius: '8px',
+                                textTransform: 'capitalize',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                <span style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  borderRadius: '50%',
+                                  backgroundColor: statusColors.dot
+                                }}></span>
+                                {status}
+                              </span>
+                              {status === 'failed' && (
+                                <button
+                                  onClick={() => handleReingest(doc.id, doc.title)}
+                                  disabled={reingestingDocs.has(doc.id)}
+                                  style={{
+                                    fontSize: '12px',
+                                    fontWeight: '500',
+                                    color: 'rgb(130, 179, 219)',
+                                    backgroundColor: 'transparent',
+                                    border: '1px solid rgb(130, 179, 219)',
+                                    padding: '4px 8px',
+                                    borderRadius: '8px',
+                                    cursor: reingestingDocs.has(doc.id) ? 'not-allowed' : 'pointer',
+                                    opacity: reingestingDocs.has(doc.id) ? 0.5 : 1,
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!reingestingDocs.has(doc.id)) {
+                                      e.currentTarget.style.backgroundColor = 'rgb(130, 179, 219)'
+                                      e.currentTarget.style.color = 'white'
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!reingestingDocs.has(doc.id)) {
+                                      e.currentTarget.style.backgroundColor = 'transparent'
+                                      e.currentTarget.style.color = 'rgb(130, 179, 219)'
+                                    }
+                                  }}
+                                >
+                                  {reingestingDocs.has(doc.id) ? 'Reingesting...' : 'Retry'}
+                                </button>
+                              )}
+                            </div>
+                            {status === 'completed' && doc.chunkCount !== undefined && (
+                              <div style={{
+                                fontSize: '12px',
+                                color: '#64748b'
+                              }}>
+                                Chunks: {doc.chunkCount.toLocaleString()}
+                              </div>
                             )}
                           </div>
                         </td>

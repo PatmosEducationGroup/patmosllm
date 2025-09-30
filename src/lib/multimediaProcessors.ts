@@ -127,7 +127,6 @@ export async function extractFromImage(buffer: Buffer, filename: string): Promis
       }
     }
   } catch (error) {
-    console.error('Image processing error:', error)
 
     // Fallback: provide basic metadata without OCR
     try {
@@ -140,8 +139,8 @@ export async function extractFromImage(buffer: Buffer, filename: string): Promis
         processorUsed: 'sharp (metadata only)',
         metadata: metadata as unknown as Record<string, unknown>
       }
-    } catch (metadataError) {
-      throw new Error(`Image processing completely failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } catch (error) {
+      throw new Error(`Image processing completely failed: ${''}`)
     }
   }
 }
@@ -194,8 +193,7 @@ export async function extractFromAudio(buffer: Buffer, filename: string): Promis
       }
     }
   } catch (error) {
-    console.error('Audio processing error:', error)
-    throw new Error(`Audio processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Audio processing failed: ${''}`)
   } finally {
     // Clean up temp file
     if (tempPath) {
@@ -312,13 +310,12 @@ export async function extractFromVideo(buffer: Buffer, filename: string): Promis
     }
 
   } catch (error) {
-    console.error('Video processing error:', error)
     // Try fallback
     try {
       return await extractVideoMetadataFallback(buffer, filename)
     } catch (fallbackError) {
       console.error('Fallback video processing also failed:', fallbackError)
-      throw new Error(`Video processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      throw new Error(`Video processing failed: ${''}`)
     }
   } finally {
     // Clean up temp file
@@ -368,8 +365,7 @@ async function extractVideoMetadataFallback(buffer: Buffer, filename: string): P
       }
     }
   } catch (error) {
-    console.error('Fallback video processing error:', error)
-    throw new Error(`Video fallback processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Video fallback processing failed: ${''}`)
   }
 }
 

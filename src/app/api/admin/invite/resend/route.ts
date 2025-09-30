@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import { sendInvitationEmail, generateInvitationToken } from '@/lib/email'
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Check authentication
     const { userId } = await auth()
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { userId: targetUserId } = await request.json()
+    const { userId: targetUserId } = await _request.json()
 
     if (!targetUserId) {
       return NextResponse.json(
@@ -90,7 +90,6 @@ export async function POST(request: NextRequest) {
     )
 
     if (!emailResult.success) {
-      console.error('Failed to resend invitation email:', emailResult.error)
       return NextResponse.json(
         { success: false, error: 'Failed to send invitation email' },
         { status: 500 }
@@ -111,11 +110,10 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Resend invitation API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to resend invitation' 
+        error: 'Failed to resend invitation' 
       },
       { status: 500 }
     )

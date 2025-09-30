@@ -133,9 +133,9 @@ export class IntelligentClarificationSystem {
 
     // Analyze for different types of clarification opportunities
     const documentDiversityAnalysis = this.analyzeDocumentDiversity(searchResults)
-    const topicClusteringAnalysis = this.analyzeTopicClustering(searchResults, query)
+    const topicClusteringAnalysis = this.analyzeTopicClustering(searchResults, queryForAnalysis)
     const confidenceBreadthAnalysis = this.analyzeLowConfidenceBreadth(searchResults, searchConfidence)
-    const scopeAmbiguityAnalysis = this.analyzeScopeAmbiguity(searchResults, query)
+    const scopeAmbiguityAnalysis = this.analyzeScopeAmbiguity(searchResults, queryForAnalysis)
 
     // Smart clarification decision logic
     return this.makeSmartClarificationDecision({
@@ -248,7 +248,7 @@ export class IntelligentClarificationSystem {
       `${aspect.name} (from ${aspect.resultCount} sources)`
     )
 
-    const aspectDescriptions = topAspects
+    const _aspectDescriptions = topAspects
       .map(aspect => `• **${aspect.name}**: ${aspect.description}`)
       .join('\n')
 
@@ -396,7 +396,7 @@ export class IntelligentClarificationSystem {
    */
   private analyzeLowConfidenceBreadth(results: SearchResult[], confidence: number): ClarificationAnalysis {
     // Check for quality of results - distinguish broad but valid vs mostly irrelevant
-    const scores = results.map(r => r.score)
+    const _scores = results.map(r => r.score)
     const goodResults = results.filter(r => r.score >= 0.5) // Reasonably relevant results
     const decentResults = results.filter(r => r.score >= 0.4) // Marginally relevant results
 
@@ -1101,7 +1101,7 @@ export class IntelligentClarificationSystem {
 
     // Calculate coverage: number of chunks meeting quality thresholds
     const semanticThreshold = 0.35  // T_sem from OpenAI approach
-    const keywordThreshold = 0.12   // T_kw from OpenAI approach (we don't have separate keyword scores, so use semantic)
+    const _keywordThreshold = 0.12   // T_kw from OpenAI approach (we don't have separate keyword scores, so use semantic)
 
     const coverage = searchResults.filter(r => r.score >= semanticThreshold).length
     const minCoverage = 2  // MIN_COVERAGE from OpenAI approach

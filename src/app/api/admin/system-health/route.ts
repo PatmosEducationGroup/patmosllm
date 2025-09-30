@@ -146,7 +146,6 @@ export async function GET(_request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('System health check failed:', error)
     return NextResponse.json({
       success: false,
       error: 'System health check failed',
@@ -155,7 +154,7 @@ export async function GET(_request: NextRequest) {
           status: 'error',
           responseTime: null,
           connected: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: ''
         }
       }
     }, { status: 500 })
@@ -192,12 +191,11 @@ async function testMemorySystemHealth() {
       connected: true
     }
   } catch (error) {
-    console.error('Memory system health check failed:', error)
     return {
       status: 'error',
       responseTime: Date.now() - startTime,
       connected: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: ''
     }
   }
 }

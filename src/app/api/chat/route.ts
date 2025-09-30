@@ -73,12 +73,12 @@ function setCachedChatResponse(
   )
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // =================================================================
     // RATE LIMITING - Prevent abuse by limiting requests per user/IP
     // =================================================================
-    const identifier = getIdentifier(request);
+    const identifier = getIdentifier(_request);
     const rateLimitResult = chatRateLimit(identifier);
     
     if (!rateLimitResult.success) {
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     // =================================================================
     // INPUT VALIDATION - Get and sanitize the user's question
     // =================================================================
-    const { question, sessionId } = await request.json()
+    const { question, sessionId } = await _request.json()
     const sanitizedQuestion = sanitizeInput(question)
     
     if (!sanitizedQuestion || typeof sanitizedQuestion !== 'string' || sanitizedQuestion.length === 0) {
@@ -262,7 +262,6 @@ export async function POST(request: NextRequest) {
           .limit(2) // Get last 2 messages only
 
         if (error) {
-          console.error('Error fetching conversation history:', error)
           return []
         }
         return data || []
@@ -425,7 +424,6 @@ export async function POST(request: NextRequest) {
           1 // Low satisfaction score for no results
         )
       } catch (memoryError) {
-        console.error('Memory system error for no-results response:', memoryError)
       }
 
       return new Response(
@@ -535,7 +533,6 @@ export async function POST(request: NextRequest) {
         .in('title', uniqueDocumentTitles)
 
       if (error) {
-        console.error('Error fetching document metadata:', error)
         return []
       }
       return data || []
@@ -641,7 +638,7 @@ ${contextDocuments}`
       })
     } catch (openaiError) {
       console.error(`❌ OpenAI API call failed:`, openaiError)
-      throw new Error(`OpenAI API failed: ${openaiError instanceof Error ? openaiError.message : 'Unknown error'}`)
+      throw new Error(`OpenAI API failed: ${openaiError instanceof Error ? openaiError.message : ''}`)
     }
 
     // =================================================================
@@ -692,7 +689,6 @@ ${contextDocuments}`
           })}\n\n`))
 
         } catch (error) {
-          console.error('Streaming error:', error)
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({
             type: 'error',
             error: 'Failed to generate response'
@@ -764,7 +760,6 @@ ${contextDocuments}`
 
                 console.log(`✅ MEMORY: Updated user context and logged conversation for user ${currentUserId}`)
               } catch (memoryError) {
-                console.error('Memory system error (non-blocking):', memoryError)
                 // Don't throw - memory errors shouldn't break the chat experience
               }
 
@@ -787,7 +782,6 @@ ${contextDocuments}`
               console.log(`Successfully saved streaming conversation for user ${currentUserId}`)
               
             } catch (cacheError) {
-              console.error('Cache storage error:', cacheError)
             }
           }
         }
@@ -803,11 +797,10 @@ ${contextDocuments}`
     })
 
   } catch (error) {
-    console.error('Chat error:', error)
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : 'Chat request failed'
+        error: 'Chat request failed'
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     )

@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { processDocumentVectors } from '@/lib/ingest'
 
 // GET - Load ingest jobs for admin interface
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -42,11 +42,10 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
     })
 
   } catch (error) {
-    console.error('Ingest GET error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to load jobs' 
+        error: 'Failed to load jobs' 
       },
       { status: 500 }
     )
@@ -54,7 +53,7 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
 }
 
 // POST - Start new ingest job
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Check authentication
     const { userId } = await auth()
@@ -75,7 +74,7 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
 }
 
     // Get document ID from request
-    const { documentId } = await request.json()
+    const { documentId } = await _request.json()
     if (!documentId) {
       return NextResponse.json(
         { success: false, error: 'Document ID required' },
@@ -88,7 +87,6 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       const result = await processDocumentVectors(documentId, userId)
       return NextResponse.json(result)
     } catch (processingError) {
-      console.error('Processing error:', processingError)
       return NextResponse.json(
         { 
           success: false, 
@@ -99,11 +97,10 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
     }
 
   } catch (error) {
-    console.error('Ingest error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Ingestion failed' 
+        error: 'Ingestion failed' 
       },
       { status: 500 }
     )

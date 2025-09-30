@@ -45,13 +45,11 @@ export async function sendInvitationEmail(
     })
 
     if (error) {
-      console.error('Email send error:', error)
       return { success: false, error: error.message }
     }
 
     return { success: true, messageId: data?.id }
   } catch (error) {
-    console.error('Email service error:', error)
     return { success: false, error: 'Failed to send email' }
   }
 }

@@ -72,7 +72,6 @@ export async function GET(
     })
 
   } catch (error) {
-    console.error('Admin document GET error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to load document' },
       { status: 500 }
@@ -194,7 +193,6 @@ export async function PUT(
       .single()
 
     if (updateError) {
-      console.error('Document update error:', updateError)
       return NextResponse.json(
         { success: false, error: 'Failed to update document' },
         { status: 500 }
@@ -208,7 +206,6 @@ export async function PUT(
     })
 
   } catch (error) {
-    console.error('Admin document PUT error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to update document' },
       { status: 500 }

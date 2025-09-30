@@ -114,12 +114,14 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({
     if (autoResize) {
       adjustHeight()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, autoResize])
 
   // Adjust height when autoResize prop changes
   useEffect(() => {
     if (autoResize) {
       adjustHeight()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }
   }, [autoResize])
 

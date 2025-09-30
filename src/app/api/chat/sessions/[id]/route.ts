@@ -95,11 +95,10 @@ export async function GET(
     })
 
   } catch (error) {
-    console.error('Get session API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to fetch session' 
+        error: 'Failed to fetch session' 
       },
       { status: 500 }
     )
@@ -150,7 +149,6 @@ export async function PUT(
       .single()
 
     if (error) {
-      console.error('Error updating session:', error)
       return NextResponse.json(
         { success: false, error: 'Failed to update session' },
         { status: 500 }
@@ -172,11 +170,10 @@ export async function PUT(
     })
 
   } catch (error) {
-    console.error('Update session API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to update session' 
+        error: 'Failed to update session' 
       },
       { status: 500 }
     )
@@ -215,7 +212,6 @@ export async function DELETE(
       .eq('user_id', user.id)
 
     if (error) {
-      console.error('Error deleting session:', error)
       return NextResponse.json(
         { success: false, error: 'Failed to delete session' },
         { status: 500 }
@@ -234,11 +230,10 @@ export async function DELETE(
     })
 
   } catch (error) {
-    console.error('Delete session API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to delete session' 
+        error: 'Failed to delete session' 
       },
       { status: 500 }
     )

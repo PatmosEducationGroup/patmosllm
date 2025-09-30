@@ -57,8 +57,7 @@ export async function storeChunks(chunks: Array<{
 
     console.log(`Successfully stored ${vectors.length} chunks in Pinecone`)
   } catch (error) {
-    console.error('Error storing chunks in Pinecone:', error)
-    throw new Error(`Failed to store chunks: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to store chunks: ${''}`)
   }
 }
 
@@ -146,8 +145,7 @@ export async function searchChunks(
     
     return results
   } catch (error) {
-    console.error('Error searching Pinecone:', error)
-    throw new Error(`Failed to search chunks: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to search chunks: ${''}`)
   }
 }
 
@@ -176,8 +174,7 @@ export async function deleteDocumentChunks(documentId: string): Promise<void> {
       console.log(`Deleted ${chunkIds.length} chunks for document ${documentId}`)
     }
   } catch (error) {
-    console.error('Error deleting document chunks:', error)
-    throw new Error(`Failed to delete chunks: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to delete chunks: ${''}`)
   }
 }
 
@@ -197,8 +194,7 @@ export async function getIndexStats(): Promise<{
       namespace
     }
   } catch (error) {
-    console.error('Error getting index stats:', error)
-    throw new Error(`Failed to get index stats: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to get index stats: ${''}`)
   }
 }
 
@@ -208,7 +204,6 @@ export async function testConnection(): Promise<boolean> {
     await getIndexStats()
     return true
   } catch (error) {
-    console.error('Pinecone connection test failed:', error)
     return false
   }
 }

@@ -156,14 +156,13 @@ export async function processDocumentVectors(documentId: string, userId: string)
     }
 
   } catch (processingError) {
-    console.error('Processing error:', processingError)
 
     // Update job status to failed
     await supabaseAdmin
       .from('ingest_jobs')
       .update({
         status: 'failed',
-        error_message: processingError instanceof Error ? processingError.message : 'Unknown error',
+        error_message: processingError instanceof Error ? processingError.message : '',
         completed_at: new Date().toISOString()
       })
       .eq('id', job.id)

@@ -63,7 +63,7 @@ async function deduplicatedFetch<T>(url: string, fetcher: () => Promise<T>): Pro
 
 // Sitemap caching
 const sitemapCache = new Map<string, { urls: string[], timestamp: number }>()
-const SITEMAP_CACHE_TTL = 3600000 // 1 hour
+const _SITEMAP_CACHE_TTL = 3600000 // 1 hour
 
 // Enhanced helper function to check if URL belongs to same domain
 function isSameDomain(originalUrl: string, linkUrl: string, allowSubdomains = true): boolean {
@@ -106,7 +106,6 @@ function isSameDomain(originalUrl: string, linkUrl: string, allowSubdomains = tr
     
     return false
   } catch (error) {
-    console.error('Domain comparison error:', error)
     return false
   }
 }
@@ -241,7 +240,7 @@ async function checkRobotsTxt(url: string): Promise<boolean> {
     const robots = robotsParser(robotsUrl, robotsText)
     
     return robots.isAllowed(url, 'Heaven.Earth Web Scraper') !== false && robots.isAllowed(url, '*') !== false
-  } catch {
+  } catch (error) {
     return true // If error checking robots.txt, assume allowed
   }
 }
@@ -273,7 +272,7 @@ async function scrapePage(url: string): Promise<{ success: boolean; content?: st
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Scraping failed'
+      error: 'Scraping failed'
     }
   }
 }
@@ -307,7 +306,7 @@ async function parseSitemapFile(sitemapUrl: string, baseUrl: string): Promise<st
     }
     
     return urls
-  } catch (e) {
+  } catch (error) {
     return []
   }
 }
@@ -347,7 +346,7 @@ async function parseRobotsForSitemaps(baseUrl: string): Promise<string[]> {
     
     console.log(`Found ${sitemapUrls.length} sitemap references in robots.txt`)
     return sitemapUrls
-  } catch (e) {
+  } catch (error) {
     return []
   }
 }
@@ -373,12 +372,15 @@ async function scrapePageLightweight(url: string, baseUrl: string): Promise<{ ti
 
     clearTimeout(timeoutId)
 
+    console.log(`    HTTP Response: ${response.status} ${response.statusText}`)
+
     if (!response.ok || response.status >= 400) {
       return null
     }
 
     const contentType = response.headers.get('content-type') || ''
     if (!contentType.includes('text/html')) {
+      console.log(`    ⚠ Wrong content-type: ${contentType}`)
       return null
     }
 
@@ -433,8 +435,11 @@ async function scrapePageLightweight(url: string, baseUrl: string): Promise<{ ti
     // Validate content quality (lower threshold for ASP.NET)
     const minLength = url.includes('.aspx') ? 50 : 100
     if (content.length < minLength || title.length < 3) {
+      console.log(`    ⚠ Validation failed: content=${content.length}/${minLength} chars, title="${title.substring(0, 50)}" (${title.length} chars)`)
       return null // Content too short, likely failed
     }
+
+    console.log(`    ✓ Validation passed: content=${content.length} chars, title="${title.substring(0, 50)}"`)
 
     return {
       title: title.substring(0, 500),
@@ -448,40 +453,43 @@ async function scrapePageLightweight(url: string, baseUrl: string): Promise<{ ti
 
 // Enhanced hybrid scraping with multiple fallback strategies
 async function scrapePageWithFallback(url: string, baseUrl: string): Promise<{ title: string; content: string; links: string[] }> {
+  console.log(`\n🔍 Starting scrape for: ${url}`)
+
   // Strategy 1: Try lightweight HTTP + Cheerio first
+  console.log(`  → Strategy 1: Lightweight HTTP + Cheerio`)
   const lightweightResult = await scrapePageLightweight(url, baseUrl)
   if (lightweightResult) {
-    console.log(`✓ Lightweight scrape successful: ${url}`)
+    console.log(`  ✓ SUCCESS: Lightweight scrape (${lightweightResult.content.length} chars, ${lightweightResult.links.length} links)`)
     return lightweightResult
   }
+  console.log(`  ✗ FAILED: Lightweight method`)
 
   // Strategy 2: Try Puppeteer with domcontentloaded (fast)
-  console.log(`→ Trying Puppeteer (fast): ${url}`)
+  console.log(`  → Strategy 2: Puppeteer (domcontentloaded, 10s timeout)`)
   try {
     const fastResult = await scrapePageWithPuppeteer(url, baseUrl, 'domcontentloaded', 10000)
     if (fastResult) {
-      console.log(`✓ Puppeteer (fast) successful: ${url}`)
+      console.log(`  ✓ SUCCESS: Puppeteer fast (${fastResult.content.length} chars, ${fastResult.links.length} links)`)
       return fastResult
     }
+    console.log(`  ✗ FAILED: Puppeteer fast returned null`)
   } catch (error) {
-    console.log(`→ Puppeteer (fast) failed, trying slower method: ${url}`)
   }
 
   // Strategy 3: Try Puppeteer with networkidle0 (slower but more complete)
-  console.log(`→ Trying Puppeteer (complete): ${url}`)
+  console.log(`  → Strategy 3: Puppeteer (networkidle0, 20s timeout)`)
   try {
     const completeResult = await scrapePageWithPuppeteer(url, baseUrl, 'networkidle0', 20000)
     if (completeResult) {
-      console.log(`✓ Puppeteer (complete) successful: ${url}`)
+      console.log(`  ✓ SUCCESS: Puppeteer complete (${completeResult.content.length} chars, ${completeResult.links.length} links)`)
       return completeResult
     }
+    console.log(`  ✗ FAILED: Puppeteer complete returned null`)
   } catch (error) {
-    console.log(`→ All strategies failed for: ${url}`)
   }
 
   // Strategy 4: Last resort - return minimal data with more context
   console.warn(`⚠ All scraping strategies failed for ${url}, returning minimal data`)
-  console.log(`   Possible reasons: Anti-bot protection, unusual page structure, or content behind authentication`)
   return {
     title: `Page at ${new URL(url).pathname}`,
     content: 'Content could not be extracted from this page. The page may require authentication, use anti-bot protection, or have an unusual structure.',
@@ -509,8 +517,12 @@ async function scrapePageWithPuppeteer(
     })
 
     if (!response || response.status() >= 400) {
-      throw new Error(`HTTP ${response?.status()}`)
+      const status = response?.status() || 'no response'
+      console.log(`    ⚠ Puppeteer navigation failed: HTTP ${status}`)
+      throw new Error(`HTTP ${status}`)
     }
+
+    console.log(`    Puppeteer navigation successful: HTTP ${response.status()}`)
 
     // Wait a bit for dynamic content (less for fast mode)
     const waitTime = waitUntil === 'domcontentloaded' ? 500 : 2000
@@ -554,7 +566,7 @@ async function scrapePageWithPuppeteer(
           try {
             const absoluteUrl = new URL(href, baseUrl).toString()
             links.push(absoluteUrl)
-          } catch (e) {
+          } catch (error) {
             // Invalid URL, skip
           }
         }
@@ -568,7 +580,7 @@ async function scrapePageWithPuppeteer(
       .filter(link => {
         try {
           return isSameDomain(baseUrl, link) && isContentUrl(link)
-        } catch {
+        } catch (error) {
           return false
         }
       })
@@ -649,7 +661,7 @@ async function parseSitemap(baseUrl: string): Promise<string[]> {
                 try {
                   const childUrls = await parseSitemapFile(url, baseUrl)
                   childUrls.forEach(childUrl => allUrls.add(childUrl))
-                } catch (e) {
+                } catch (error) {
                   // Continue if child sitemap fails
                 }
               } else if (isSameDomain(baseUrl, url, true) && isContentUrl(url)) {
@@ -660,7 +672,7 @@ async function parseSitemap(baseUrl: string): Promise<string[]> {
             console.log(`Found ${urlsFound} URLs in sitemap: ${sitemapUrl}`)
           }
         }
-      } catch (e) {
+      } catch (error) {
         // Continue to next sitemap URL
         continue
       }
@@ -670,7 +682,6 @@ async function parseSitemap(baseUrl: string): Promise<string[]> {
     console.log(`Total sitemap discovery: ${foundSitemaps} sitemaps processed, ${result.length} unique URLs found`)
     return result
   } catch (error) {
-    console.error('Error parsing sitemap:', error)
     return []
   }
 }
@@ -686,7 +697,7 @@ async function findLinksOnPage(url: string): Promise<string[]> {
     const domainFilteredLinks = result.links.filter(link => {
       try {
         return isSameDomain(url, link, true)
-      } catch {
+      } catch (error) {
         return false
       }
     })
@@ -725,7 +736,7 @@ async function findLinksOnPage(url: string): Promise<string[]> {
     return filteredLinks
 
   } catch (error) {
-    console.warn(`⚠ Failed to discover links on ${url}, continuing crawl:`, error instanceof Error ? error.message : 'Unknown error')
+    console.warn(`⚠ Failed to discover links on ${url}, continuing crawl:`, '')
     // Return empty array but don't throw - let crawling continue
     return []
   }
@@ -768,8 +779,8 @@ function generateCheckpointId(baseUrl: string): string {
 
 // Enhanced parallel page discovery with checkpoint/resume system
 async function discoverAllPages(
-  baseUrl: string, 
-  maxDepth: number = 3, 
+  baseUrl: string,
+  maxDepth: number = 3,
   maxPages: number = 50,
   resumeFromCheckpoint: boolean = false
 ): Promise<string[]> {
@@ -867,13 +878,12 @@ async function discoverAllPages(
           const links = await findLinksOnPage(item.url)
           return { links, depth: item.depth }
         } catch (error) {
-          console.error(`Error crawling ${item.url}:`, error)
-          
+
           // For SSL errors, try to suggest the correct domain
           if (error instanceof Error && error.message.includes('ERR_CERT_COMMON_NAME_INVALID')) {
             console.log(`SSL certificate issue detected for ${item.url}. This might indicate the wrong domain.`)
           }
-          
+
           return { links: [], depth: item.depth }
         }
       })
@@ -920,7 +930,7 @@ async function discoverAllPages(
   return result
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Check authentication and admin permissions
     const { userId } = await auth()
@@ -939,7 +949,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body FIRST
-    const body = await request.json()
+    const body = await _request.json()
     const { action, url, urls, resumeFromCheckpoint = false } = body
 
     console.log('Scraping request:', { action, url, urls })
@@ -963,7 +973,7 @@ export async function POST(request: NextRequest) {
       // Validate URL format
       try {
         new URL(normalizedUrl)
-      } catch {
+      } catch (error) {
         return NextResponse.json({ error: 'Invalid URL format. Please use a valid domain like example.com or https://example.com' }, { status: 400 })
       }
       
@@ -1004,7 +1014,7 @@ export async function POST(request: NextRequest) {
         }
       })
     }
-    
+
     if (action === 'scrape') {
       if (!urls || !Array.isArray(urls)) {
         return NextResponse.json({ error: 'URLs array is required for scraping' }, { status: 400 })
@@ -1014,13 +1024,13 @@ export async function POST(request: NextRequest) {
       for (const targetUrl of urls) {
         try {
           new URL(targetUrl)
-        } catch {
+        } catch (error) {
           return NextResponse.json({ error: `Invalid URL format: ${targetUrl}` }, { status: 400 })
         }
       }
 
       const results = []
-      
+
       for (const targetUrl of urls) {
         console.log(`Scraping: ${targetUrl}`)
         const result = await scrapePage(targetUrl)
@@ -1028,11 +1038,11 @@ export async function POST(request: NextRequest) {
           url: targetUrl,
           ...result
         })
-        
+
         // Minimal delay between requests for optimal performance
         await new Promise(resolve => setTimeout(resolve, 200))
       }
-      
+
       return NextResponse.json({
         success: true,
         results
@@ -1042,9 +1052,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action. Must be "discover" or "scrape"' }, { status: 400 })
 
   } catch (error) {
-    console.error('Web scraping error:', error)
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Internal server error', details: '' },
       { status: 500 }
     )
   }

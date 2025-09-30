@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -111,7 +111,6 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Document analytics error:', error)
     return NextResponse.json({ success: false, error: 'Failed to fetch analytics' }, { status: 500 })
   }
 }

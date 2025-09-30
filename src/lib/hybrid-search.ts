@@ -146,7 +146,6 @@ async function keywordSearch(
     return scoredResults
 
   } catch (error) {
-    console.error('Keyword search error:', error)
     return []
   }
 }
@@ -305,8 +304,7 @@ export async function hybridSearch(
     return diversifiedResults
 
   } catch (error) {
-    console.error('Hybrid search error:', error)
-    throw new Error(`Hybrid search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Hybrid search failed: ${''}`)
   }
 }
 

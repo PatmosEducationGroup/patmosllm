@@ -23,10 +23,10 @@ function cleanTextContent(content: string): string {
     .trim()
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // RATE LIMITING - Check this FIRST
-    const identifier = getIdentifier(request)
+    const identifier = getIdentifier(_request)
     const rateLimitResult = uploadRateLimit(identifier)
     
     if (!rateLimitResult.success) {
@@ -73,7 +73,7 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
   download_enabled,
   contact_person,
   contact_email
-} = await request.json()
+} = await _request.json()
 
     if (!storagePath || !fileName) {
       return NextResponse.json(
@@ -179,7 +179,6 @@ const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
   .single()
 
     if (dbError) {
-      console.error('Database error:', dbError)
       
       // Provide more specific error messages for common issues
       let errorMessage = 'Failed to save document record'
@@ -246,11 +245,10 @@ const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
     })
 
   } catch (error) {
-    console.error('Processing error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Processing failed' 
+        error: 'Processing failed' 
       },
       { status: 500 }
     )

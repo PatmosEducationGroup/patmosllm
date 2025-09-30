@@ -58,7 +58,6 @@ export async function GET(
     return NextResponse.redirect(new URL('/', request.url))
 
   } catch (error) {
-    console.error('Account completion error:', error)
     return NextResponse.redirect(new URL('/', request.url))
   }
 }

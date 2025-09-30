@@ -127,7 +127,6 @@ class UserContextManager {
         .single()
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Error loading user context:', error)
         throw new Error('Failed to load user context')
       }
 
@@ -223,7 +222,6 @@ class UserContextManager {
       advancedCache.set(CACHE_NAMESPACES.USER_SESSIONS, cacheKey, context, CACHE_TTL.SHORT)
 
     } catch (error) {
-      console.error('Error updating user context:', error)
       // Don't throw - memory updates shouldn't break the main chat flow
     }
   }
@@ -270,13 +268,12 @@ Example: ["prayer", "spiritual warfare", "missions"]`
       try {
         const topics = JSON.parse(content)
         return Array.isArray(topics) ? topics.slice(0, 3) : ['general']
-      } catch {
+      } catch (error) {
         // Fallback: extract keywords if JSON parsing fails
         return this.extractKeywords(question, response).slice(0, 3)
       }
 
     } catch (error) {
-      console.error('Topic extraction failed:', error)
       return this.fallbackTopicExtraction(question, response)
     }
   }
@@ -427,7 +424,6 @@ Example: ["prayer", "spiritual warfare", "missions"]`
         })
 
       if (error) {
-        console.error('Error saving user context:', error)
         throw new Error('Failed to save user context')
       }
     })
@@ -472,11 +468,9 @@ Example: ["prayer", "spiritual warfare", "missions"]`
           })
 
         if (error) {
-          console.error('Error logging conversation memory:', error)
         }
       })
     } catch (error) {
-      console.error('Failed to log conversation memory:', error)
       // Don't throw - memory logging shouldn't break chat
     }
   }

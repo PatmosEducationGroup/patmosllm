@@ -145,8 +145,7 @@ export async function extractTextFromFile(
         throw new Error(`Unsupported file type: ${actualMimeType}`)
     }
   } catch (error) {
-    console.error(`Error extracting text from ${filename}:`, error)
-    throw new Error(`Failed to extract text from ${filename}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Failed to extract text from ${filename}: ${''}`)
   }
 }
 
@@ -238,8 +237,7 @@ Technical Details:
     }
 
   } catch (error) {
-    console.error('PowerPoint processing error:', error)
-    throw new Error(`PowerPoint processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`PowerPoint processing failed: ${''}`)
   }
 }
 
@@ -328,7 +326,7 @@ async function extractFromPDF(buffer: Buffer): Promise<{
           processorUsed: 'pdf2json'
         })
       } catch (error) {
-        reject(new Error(`Error processing PDF data: ${error instanceof Error ? error.message : 'Unknown error'}`))
+        reject(new Error(`Error processing PDF data: ${''}`))
       }
     })
     
@@ -359,7 +357,7 @@ async function extractFromWord(buffer: Buffer): Promise<{
       processorUsed: 'mammoth'
     }
   } catch (error) {
-    throw new Error(`Word document processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Word document processing failed: ${''}`)
   }
 }
 
@@ -407,8 +405,7 @@ async function extractFromEPub(buffer: Buffer, filename: string): Promise<{
       }
     }
   } catch (error) {
-    console.error('EPUB processing error:', error)
-    throw new Error(`EPUB processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`EPUB processing failed: ${''}`)
   }
 }
 

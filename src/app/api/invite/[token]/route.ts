@@ -57,7 +57,6 @@ export async function GET(
     })
 
   } catch (error) {
-    console.error('Invitation validation error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to validate invitation' },
       { status: 500 }
@@ -139,7 +138,6 @@ export async function PATCH(
     })
 
   } catch (error) {
-    console.error('Account linking error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to complete account setup' },
       { status: 500 }

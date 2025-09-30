@@ -6,7 +6,7 @@ import { SignUp } from '@clerk/nextjs'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/Card'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { Alert } from '@/components/ui/Alert'
+
 
 interface InvitationData {
   email: string
@@ -29,6 +29,7 @@ export default function InvitePage() {
     if (token) {
       validateInvitation()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   const validateInvitation = async () => {
@@ -41,7 +42,7 @@ export default function InvitePage() {
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to validate invitation')
     } finally {
       setLoading(false)

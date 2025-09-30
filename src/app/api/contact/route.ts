@@ -6,7 +6,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Check authentication
     const { userId } = await auth()
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       senderEmail,
       subject,
       message
-    } = await request.json()
+    } = await _request.json()
 
     // Validate required fields
     if (!to || !contactPerson || !documentTitle || !senderName || !senderEmail || !subject || !message) {
@@ -91,7 +91,6 @@ export async function POST(request: NextRequest) {
     })
 
     if (emailResult.error) {
-      console.error('Resend error:', emailResult.error)
       return NextResponse.json(
         { success: false, error: 'Failed to send email' },
         { status: 500 }
@@ -106,11 +105,10 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Contact API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to send message' 
+        error: 'Failed to send message' 
       },
       { status: 500 }
     )

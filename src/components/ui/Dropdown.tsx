@@ -79,7 +79,7 @@ export const Dropdown = ({
         case 'ArrowDown':
           event.preventDefault()
           setFocusedIndex(prev => {
-            const enabledOptions = options.filter(opt => !opt.disabled)
+            const _enabledOptions = options.filter(opt => !opt.disabled)
             const enabledIndexes = options
               .map((opt, idx) => opt.disabled ? -1 : idx)
               .filter(idx => idx !== -1)
@@ -95,7 +95,7 @@ export const Dropdown = ({
         case 'ArrowUp':
           event.preventDefault()
           setFocusedIndex(prev => {
-            const enabledOptions = options.filter(opt => !opt.disabled)
+            const _enabledOptions = options.filter(opt => !opt.disabled)
             const enabledIndexes = options
               .map((opt, idx) => opt.disabled ? -1 : idx)
               .filter(idx => idx !== -1)
@@ -105,7 +105,7 @@ export const Dropdown = ({
               ? currentEnabledIndex - 1
               : enabledIndexes.length - 1
 
-            return enabledIndexes[prevEnabledIndex] ?? enabledOptions.length - 1
+            return enabledIndexes[prevEnabledIndex] ?? enabledIndexes.length - 1
           })
           break
         case 'Enter':
@@ -124,6 +124,7 @@ export const Dropdown = ({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, focusedIndex, options])
 
   const handleToggle = () => {

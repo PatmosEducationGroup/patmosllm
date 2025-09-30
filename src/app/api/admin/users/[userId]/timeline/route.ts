@@ -163,7 +163,6 @@ export async function GET(
    })
 
  } catch (error) {
-   console.error('User timeline API error:', error)
    return NextResponse.json(
      { success: false, error: 'Failed to fetch user timeline' },
      { status: 500 }

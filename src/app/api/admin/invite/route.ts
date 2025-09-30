@@ -8,7 +8,7 @@ import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 // =================================================================
 // POST - Create new user invitation
 // =================================================================
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // =================================================================
     // AUTHENTICATION - Check if user is logged in
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     // =================================================================
     // INPUT VALIDATION - Get and validate invitation details
     // =================================================================
-    const { email, name, role = 'USER' } = await request.json()
+    const { email, name, role = 'USER' } = await _request.json()
 
     if (!email || !email.includes('@')) {
       return NextResponse.json(
@@ -124,7 +124,6 @@ export async function POST(request: NextRequest) {
     )
 
     if (!emailResult.success) {
-      console.error('Failed to send invitation email:', emailResult.error)
     }
 
     console.log(`Admin ${user.email} invited ${email} as ${role} with token ${invitationToken}`)
@@ -151,11 +150,10 @@ export async function POST(request: NextRequest) {
     // =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
-    console.error('Invite API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Invitation failed' 
+        error: 'Invitation failed' 
       },
       { status: 500 }
     )
@@ -165,7 +163,7 @@ export async function POST(request: NextRequest) {
 // =================================================================
 // GET - Retrieve all users for admin management
 // =================================================================
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // =================================================================
     // AUTHENTICATION - Check if user is logged in
@@ -207,7 +205,6 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching users:', error)
       return NextResponse.json(
         { success: false, error: 'Failed to fetch users' },
         { status: 500 }
@@ -237,11 +234,10 @@ export async function GET(request: NextRequest) {
     // =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
-    console.error('Get users API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to fetch users' 
+        error: 'Failed to fetch users' 
       },
       { status: 500 }
     )
@@ -251,7 +247,7 @@ export async function GET(request: NextRequest) {
 // =================================================================
 // DELETE - Remove pending invitation or delete active user
 // =================================================================
-export async function DELETE(request: NextRequest) {
+export async function DELETE(_request: NextRequest) {
   try {
     // =================================================================
     // AUTHENTICATION - Check if user is logged in
@@ -278,7 +274,7 @@ export async function DELETE(request: NextRequest) {
     // =================================================================
     // INPUT VALIDATION - Get target user ID from request
     // =================================================================
-    const { userId: targetUserId } = await request.json()
+    const { userId: targetUserId } = await _request.json()
 
     if (!targetUserId) {
       return NextResponse.json(
@@ -359,11 +355,10 @@ export async function DELETE(request: NextRequest) {
     // =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
-    console.error('Delete user API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to delete user' 
+        error: 'Failed to delete user' 
       },
       { status: 500 }
     )

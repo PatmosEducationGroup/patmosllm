@@ -5,18 +5,12 @@ import { useAuth, useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
 import {
-  Users,
-  Mail,
-  Shield,
-  Trash2,
   UserCheck,
-  UserX,
   AlertCircle,
   RefreshCw,
   Clock,
   FileText,
   MessageSquare,
-  Eye,
   Activity
 } from 'lucide-react'
 import { Select } from '@/components/ui/Select'
@@ -70,7 +64,7 @@ interface UserTimeline {
 
 export default function AdminUsersPage() {
   const { isLoaded, userId, getToken } = useAuth()
-  const { user: clerkUser } = useUser()
+  const { user: _clerkUser } = useUser()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [currentUser, setCurrentUser] = useState<UserData | null>(null)
@@ -101,6 +95,7 @@ export default function AdminUsersPage() {
     } else if (isLoaded && userId) {
       fetchUserData()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, userId, router])
 
   const fetchUserData = async () => {
@@ -140,8 +135,7 @@ export default function AdminUsersPage() {
       
       loadUsers()
       
-    } catch (err) {
-      console.error('Error fetching user data:', err)
+    } catch (error) {
       setAccessDenied(true)
       setError('Access denied: Unable to verify your permissions.')
       setLoading(false)
@@ -158,7 +152,7 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to load users')
     } finally {
       setLoading(false)
@@ -187,8 +181,7 @@ export default function AdminUsersPage() {
       } else {
         setError('Failed to fetch user timeline')
       }
-    } catch (err) {
-      console.error('Error fetching user timeline:', err)
+    } catch (error) {
       setError('Failed to load user timeline')
     } finally {
       setLoadingTimeline(false)
@@ -239,7 +232,7 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to update user role')
     } finally {
       setUpdatingRole(null)
@@ -270,12 +263,11 @@ export default function AdminUsersPage() {
 
       if (data.success) {
         setUsers(users.filter(user => user.id !== userToDelete.id))
-        const actionText = userToDelete.isActive ? 'deleted' : 'retracted'
-        // Toast notification would be added here instead of alert
+        // Toast notification would be added here
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to delete user')
     } finally {
       setDeleting(null)
@@ -315,7 +307,7 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to invite user')
     } finally {
       setInviting(false)

@@ -60,7 +60,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(({
   }
 
   const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`
-  const selectedOption = options.find(option => option.value === value)
+  const _selectedOption = options.find(option => option.value === value)
 
   return (
     <div className={cn('flex flex-col gap-1', className)}>

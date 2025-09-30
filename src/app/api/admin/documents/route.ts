@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 
 // GET - List documents based on user role
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
         created_at,
         source_type,
         source_url,
-        users!documents_uploaded_by_fkey(email, name)
+        users!documents_uploaded_by_fkey(email, name),
+        chunks(count)
       `)
       .order('created_at', { ascending: false })
 
@@ -55,7 +56,6 @@ export async function GET(request: NextRequest) {
     const { data: documents, error } = await query
 
     if (error) {
-      console.error('Database error:', error)
       return NextResponse.json(
         { success: false, error: 'Failed to load documents' },
         { status: 500 }
@@ -64,25 +64,33 @@ export async function GET(request: NextRequest) {
 
 
     // Transform snake_case to camelCase for frontend compatibility
-    const transformedDocuments = documents?.map(doc => ({
-      id: doc.id,
-      title: doc.title,
-      author: doc.author,
-      wordCount: doc.word_count,
-      pageCount: doc.page_count,
-      fileSize: doc.file_size,
-      mimeType: doc.mime_type,
-      createdAt: doc.created_at,
-      amazon_url: doc.amazon_url,
-      resource_url: doc.resource_url,
-      download_enabled: doc.download_enabled,
-      contact_person: doc.contact_person,
-      contact_email: doc.contact_email,
-      uploaded_by: doc.uploaded_by,
-      source_type: doc.source_type,
-      source_url: doc.source_url,
-      users: doc.users
-    })) || []
+    const transformedDocuments = documents?.map(doc => {
+      // Supabase returns chunks as an array with a single object containing {count: number}
+      const chunkCount = Array.isArray(doc.chunks) && doc.chunks.length > 0
+        ? (doc.chunks[0] as { count: number }).count
+        : 0
+
+      return {
+        id: doc.id,
+        title: doc.title,
+        author: doc.author,
+        wordCount: doc.word_count,
+        pageCount: doc.page_count,
+        fileSize: doc.file_size,
+        mimeType: doc.mime_type,
+        createdAt: doc.created_at,
+        amazon_url: doc.amazon_url,
+        resource_url: doc.resource_url,
+        download_enabled: doc.download_enabled,
+        contact_person: doc.contact_person,
+        contact_email: doc.contact_email,
+        uploaded_by: doc.uploaded_by,
+        source_type: doc.source_type,
+        source_url: doc.source_url,
+        users: doc.users,
+        chunkCount
+      }
+    }) || []
 
     return NextResponse.json({
       success: true,
@@ -91,11 +99,10 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Admin documents GET error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to load documents' 
+        error: 'Failed to load documents' 
       },
       { status: 500 }
     )

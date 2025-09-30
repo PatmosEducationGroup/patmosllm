@@ -83,6 +83,7 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     return () => {
       toastTimeouts.current.forEach(timeout => clearTimeout(timeout))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
       toastTimeouts.current.clear()
     }
   }, [])

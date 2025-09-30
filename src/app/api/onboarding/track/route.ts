@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { trackOnboardingMilestone, MilestoneType } from '@/lib/onboardingTracker'
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Fix 1: Add await to auth() call
     const { userId } = await auth()
@@ -18,10 +18,10 @@ export async function POST(request: NextRequest) {
     let metadata = {}
     
     try {
-      const body = await request.json()
+      const body = await _request.json()
       milestone = body.milestone
       metadata = body.metadata || {}
-    } catch (parseError) {
+    } catch (error) {
       return NextResponse.json(
         { error: 'Invalid JSON body' },
         { status: 400 }
@@ -61,15 +61,15 @@ export async function POST(request: NextRequest) {
       metadata: {
         ...metadata,
         tracked_at: new Date().toISOString(),
-        user_agent: request.headers.get('user-agent') || 'unknown',
+        user_agent: _request.headers.get('user-agent') || 'unknown',
         // Fix 4: Better IP address extraction
-        ip_address: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-                   request.headers.get('x-real-ip') || 
-                   request.headers.get('cf-connecting-ip') || // Cloudflare
+        ip_address: _request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+                   _request.headers.get('x-real-ip') ||
+                   _request.headers.get('cf-connecting-ip') || // Cloudflare
                    'unknown',
         // Fix 5: Add additional useful metadata
-        referer: request.headers.get('referer') || 'unknown',
-        origin: request.headers.get('origin') || 'unknown'
+        referer: _request.headers.get('referer') || 'unknown',
+        origin: _request.headers.get('origin') || 'unknown'
       }
     })
 
@@ -88,13 +88,12 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Error in milestone tracking API:', error)
     
     // Fix 6: Better error logging with context
     console.error('Request details:', {
-      method: request.method,
-      url: request.url,
-      headers: Object.fromEntries(request.headers.entries())
+      method: _request.method,
+      url: _request.url,
+      headers: Object.fromEntries(_request.headers.entries())
     })
     
     return NextResponse.json(

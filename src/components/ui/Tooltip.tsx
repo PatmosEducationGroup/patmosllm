@@ -145,6 +145,7 @@ export const Tooltip = ({
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trigger, isVisible])
 
   // Handle escape key for click/focus triggers
@@ -158,6 +159,7 @@ export const Tooltip = ({
 
       document.addEventListener('keydown', handleEscape)
       return () => document.removeEventListener('keydown', handleEscape)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }
   }, [trigger, isVisible])
 

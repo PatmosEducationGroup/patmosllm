@@ -6,12 +6,12 @@ import { chatRateLimit } from '@/lib/rate-limiter'
 import { getIdentifier } from '@/lib/get-identifier'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // =================================================================
     // RATE LIMITING & AUTHENTICATION
     // =================================================================
-    const identifier = getIdentifier(request)
+    const identifier = getIdentifier(_request)
     const rateLimitResult = chatRateLimit(identifier)
 
     if (!rateLimitResult.success) {
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     // =================================================================
     // HANDLE QUESTION ANALYSIS
     // =================================================================
-    const { action, question } = await request.json()
+    const { action, question } = await _request.json()
 
     if (action === 'analyze') {
       if (!question || typeof question !== 'string') {
@@ -57,7 +57,6 @@ export async function POST(request: NextRequest) {
         })
 
       } catch (error) {
-        console.error('Error analyzing question:', error)
         return NextResponse.json(
           { error: 'Failed to analyze question' },
           { status: 500 }
@@ -66,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'get_templates') {
-      const { topic } = await request.json()
+      const { topic } = await _request.json()
 
       try {
         const templates = topic
@@ -79,7 +78,6 @@ export async function POST(request: NextRequest) {
         })
 
       } catch (error) {
-        console.error('Error getting templates:', error)
         return NextResponse.json(
           { error: 'Failed to get templates' },
           { status: 500 }
@@ -88,7 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'get_builder') {
-      const { topic } = await request.json()
+      const { topic } = await _request.json()
 
       try {
         const builder = questionQualityAssistant.generateQuestionBuilder(topic)
@@ -99,7 +97,6 @@ export async function POST(request: NextRequest) {
         })
 
       } catch (error) {
-        console.error('Error getting question builder:', error)
         return NextResponse.json(
           { error: 'Failed to get question builder' },
           { status: 500 }
@@ -110,7 +107,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 
   } catch (error) {
-    console.error('Question assistant API error:', error)
     return NextResponse.json(
       { error: 'Question assistant request failed' },
       { status: 500 }
@@ -118,7 +114,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -130,11 +126,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 403 })
     }
 
-    const url = new URL(request.url)
+    const url = new URL(_request.url)
     const action = url.searchParams.get('action')
 
     if (action === 'templates') {
-      const category = url.searchParams.get('category')
+      const _category = url.searchParams.get('category')
 
       // This could be expanded to return filtered templates
       return NextResponse.json({
@@ -146,7 +142,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 
   } catch (error) {
-    console.error('Question assistant GET error:', error)
     return NextResponse.json(
       { error: 'Failed to process request' },
       { status: 500 }

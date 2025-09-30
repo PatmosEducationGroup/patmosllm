@@ -153,6 +153,7 @@ function ChatPageContent() {
     if (userId) {
       loadSessions()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
   // =================================================================
@@ -331,7 +332,7 @@ function ChatPageContent() {
       } else {
         showErrorToast(data.error || 'Failed to send message')
       }
-    } catch (err) {
+    } catch (error) {
       showErrorToast('Failed to send contact message')
     } finally {
       setSendingContact(false)
@@ -357,7 +358,7 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to load chat sessions')
     } finally {
       setLoadingSessions(false)
@@ -396,7 +397,7 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to load conversation')
     }
   }
@@ -423,7 +424,7 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to create new chat')
     }
   }
@@ -442,7 +443,7 @@ function ChatPageContent() {
         setCurrentSessionTitle(newTitle)
         loadSessions()
       }
-    } catch (err) {
+    } catch (error) {
       // Silent error handling for session title updates
     }
   }
@@ -470,7 +471,7 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (err) {
+    } catch (error) {
       setError('Failed to delete conversation')
     }
   }

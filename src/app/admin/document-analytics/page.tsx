@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import AdminNavbar from '@/components/AdminNavbar'
 import { Modal } from '@/components/ui/Modal'
@@ -55,11 +55,11 @@ export default function DocumentAnalyticsPage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedDocument, setSelectedDocument] = useState<DocumentAnalytics['documents'][0] | null>(null)
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       setLoading(true)
       const token = await getToken()
-      
+
       const response = await fetch('/api/admin/document-analytics', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -78,13 +78,12 @@ export default function DocumentAnalyticsPage() {
       } else {
         setError('Failed to fetch document analytics')
       }
-    } catch (err) {
-      console.error('Error fetching analytics:', err)
+    } catch (error) {
       setError('Failed to load analytics')
     } finally {
       setLoading(false)
     }
-  }
+  }, [getToken, setLoading, setAnalytics, setError])
 
   useEffect(() => {
     fetchAnalytics()
@@ -295,7 +294,7 @@ export default function DocumentAnalyticsPage() {
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-4">Popular Search Terms</h2>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {analytics.topSearchTerms.map((term, index) => (
+                {analytics.topSearchTerms.map((term) => (
                   <div key={term.term} className="text-center p-3 bg-gray-50 rounded-lg">
                     <div className="text-lg font-bold text-gray-900">{term.count}</div>
                     <div className="text-sm text-gray-600 truncate">{term.term}</div>

@@ -25,10 +25,10 @@ function cleanTextContent(content: string): string {
     .trim()
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // RATE LIMITING - Check this FIRST
-    const identifier = getIdentifier(request)
+    const identifier = getIdentifier(_request)
     const rateLimitResult = uploadRateLimit(identifier)
     
     if (!rateLimitResult.success) {
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the file and metadata from form data
-    const formData = await request.formData()
+    const formData = await _request.formData()
     const file = formData.get('file') as File
 
     // Extract document metadata from form data
@@ -189,8 +189,7 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch (error) {
-        console.error(`Download attempt ${attempt} failed with error:`, error)
-        downloadError = error instanceof Error ? error.message : 'Network error'
+        downloadError = 'Network error'
 
         if (attempt < 5) {
           const delay = Math.pow(2, attempt) * 3000
@@ -269,7 +268,6 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (dbError) {
-      console.error('Database error:', dbError)
       return NextResponse.json(
         { success: false, error: 'Failed to save document to database' },
         { status: 500 }
@@ -316,11 +314,10 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Blob upload error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to upload to blob storage' 
+        error: 'Failed to upload to blob storage' 
       },
       { status: 500 }
     )

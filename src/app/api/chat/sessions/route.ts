@@ -9,7 +9,7 @@ import {
 } from '@/lib/advanced-cache'
 
 // Get all chat sessions for user
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
       .order('updated_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching chat sessions:', error)
       return NextResponse.json(
         { success: false, error: 'Failed to fetch chat sessions' },
         { status: 500 }
@@ -88,11 +87,10 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Chat sessions API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to fetch sessions' 
+        error: 'Failed to fetch sessions' 
       },
       { status: 500 }
     )
@@ -100,7 +98,7 @@ export async function GET(request: NextRequest) {
 }
 
 // Create new chat session
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -118,7 +116,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { title = 'New Chat' } = await request.json()
+    const { title = 'New Chat' } = await _request.json()
 
     const { data: session, error } = await supabaseAdmin
       .from('chat_sessions')
@@ -130,7 +128,6 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('Error creating chat session:', error)
       return NextResponse.json(
         { success: false, error: 'Failed to create chat session' },
         { status: 500 }
@@ -153,11 +150,10 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Create session API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to create session' 
+        error: 'Failed to create session' 
       },
       { status: 500 }
     )

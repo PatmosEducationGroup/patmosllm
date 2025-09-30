@@ -7,10 +7,10 @@ import { uploadRateLimit } from '@/lib/rate-limiter'
 import { getIdentifier } from '@/lib/get-identifier'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // RATE LIMITING - Check this FIRST
-    const identifier = getIdentifier(request)
+    const identifier = getIdentifier(_request)
     const rateLimitResult = uploadRateLimit(identifier)
     
     if (!rateLimitResult.success) {
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get request data
-    const { storagePath, fileName, fileSize, mimeType, title, author } = await request.json()
+    const { storagePath, fileName, fileSize, mimeType, title, author } = await _request.json()
 
     if (!storagePath || !fileName) {
       return NextResponse.json(
@@ -112,7 +112,6 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (dbError) {
-      console.error('Database error:', dbError)
       return NextResponse.json(
         { success: false, error: 'Failed to save document record' },
         { status: 500 }
@@ -159,11 +158,10 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Processing error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Processing failed' 
+        error: 'Processing failed' 
       },
       { status: 500 }
     )

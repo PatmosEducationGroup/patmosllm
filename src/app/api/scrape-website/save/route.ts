@@ -46,7 +46,7 @@ interface BatchProcessResult {
   errors: string[]
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Check authentication
     const { userId } = await auth()
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    const { scrapedPages }: { scrapedPages: ScrapedPage[] } = await request.json()
+    const { scrapedPages }: { scrapedPages: ScrapedPage[] } = await _request.json()
 
     if (!scrapedPages || !Array.isArray(scrapedPages)) {
       return NextResponse.json({ error: 'Invalid scraped pages data' }, { status: 400 })
@@ -127,7 +127,6 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (dbError) {
-          console.error(`Database error for ${page.url}:`, dbError)
           result.failed++
           result.errors.push(`${page.url}: Database error - ${dbError.message}`)
           continue
@@ -136,7 +135,6 @@ export async function POST(request: NextRequest) {
         // Start vector processing (don't wait for completion)
         try {
           processDocumentVectors(document.id, user.id).catch(error => {
-            console.error(`Vector processing failed for document ${document.id}:`, error)
           })
         } catch (ingestError) {
           console.error(`Error starting vector processing for ${document.id}:`, ingestError)
@@ -158,7 +156,7 @@ export async function POST(request: NextRequest) {
       } catch (pageError) {
         console.error(`Error processing page ${page.url}:`, pageError)
         result.failed++
-        result.errors.push(`${page.url}: ${pageError instanceof Error ? pageError.message : 'Unknown error'}`)
+        result.errors.push(`${page.url}: ${pageError instanceof Error ? pageError.message : ''}`)
       }
     }
 
@@ -194,12 +192,11 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Batch scraping error:', error)
     return NextResponse.json(
       { 
         success: false, 
         error: 'Batch processing failed',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: ''
       },
       { status: 500 }
     )

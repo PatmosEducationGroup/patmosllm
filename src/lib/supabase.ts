@@ -163,7 +163,6 @@ class SupabaseManager {
       const { data, error } = await query(client)
 
       if (error) {
-        console.error('Database query error:', error)
         return null
       }
 

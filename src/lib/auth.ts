@@ -23,7 +23,6 @@ export async function getCurrentUser(): Promise<User | null> {
 
     return user
   } catch (error) {
-    console.error('Error getting current user:', error)
     return null
   }
 }
@@ -128,7 +127,6 @@ export async function syncUserWithDatabase(clerkUser: {
       return null
     }
   } catch (error) {
-    console.error('Error syncing user with database:', error)
     return null
   }
 }

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Plus, Menu, X, MessageCircle, User, Settings, Search, Clock, Globe, Download, ShoppingCart, Zap } from 'lucide-react';
+import { X, Plus, Search, User, Settings, Menu, Globe, ShoppingCart, Download, Clock, Zap, Send } from 'lucide-react';
 
 // TypeScript interfaces
 interface Source {

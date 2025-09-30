@@ -106,7 +106,7 @@ export default function SystemHealthPage() {
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string>('')
   const [showDetailsModal, setShowDetailsModal] = useState(false)
-  const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
+  const [_selectedMetric, _setSelectedMetric] = useState<string | null>(null)
 
   const fetchHealth = async () => {
     try {
@@ -129,8 +129,7 @@ export default function SystemHealthPage() {
       } else {
         setError(data.error || 'Failed to fetch system health')
       }
-    } catch (err) {
-      console.error('Error fetching system health:', err)
+    } catch (error) {
       setError('Failed to load system health')
     } finally {
       setLoading(false)
@@ -143,6 +142,7 @@ export default function SystemHealthPage() {
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchHealth, 30000)
     return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const formatBytes = (bytes: number) => {
@@ -152,7 +152,7 @@ export default function SystemHealthPage() {
     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
   }
 
-  const formatUptime = (seconds: number) => {
+  const _formatUptime = (seconds: number) => {
     const days = Math.floor(seconds / 86400)
     const hours = Math.floor((seconds % 86400) / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
@@ -571,8 +571,8 @@ export default function SystemHealthPage() {
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Active Performance Features</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {health.system.features.map((feature, index) => (
-                  <div key={index} className="flex items-center space-x-2">
+                {health.system.features.map((feature) => (
+                  <div key={feature} className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-500" />
                     <span className="text-sm text-gray-700">{feature}</span>
                   </div>
@@ -614,7 +614,7 @@ export default function SystemHealthPage() {
                         Popular Topics
                       </h3>
                       <div className="space-y-2">
-                        {health.memorySystem.topTopics.slice(0, 5).map((topic, index) => (
+                        {health.memorySystem.topTopics.slice(0, 5).map((topic) => (
                           <div key={topic.topic} className="flex justify-between items-center">
                             <span className="text-sm text-gray-700 capitalize">{topic.topic}</span>
                             <div className="flex items-center space-x-2">
@@ -640,7 +640,7 @@ export default function SystemHealthPage() {
                         Question Types
                       </h3>
                       <div className="space-y-2">
-                        {health.memorySystem.topIntents.slice(0, 5).map((intent, index) => (
+                        {health.memorySystem.topIntents.slice(0, 5).map((intent) => (
                           <div key={intent.intent} className="flex justify-between items-center">
                             <span className="text-sm text-gray-700 capitalize">{intent.intent}</span>
                             <div className="flex items-center space-x-2">

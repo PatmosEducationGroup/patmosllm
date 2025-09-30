@@ -129,7 +129,6 @@ export class EPubProcessor {
           wordCount: this.calculateWordCount(content)
         })
       } catch (error) {
-        console.error(`Failed to extract chapter ${chapter.id}:`, error)
         // Continue with other chapters
       }
     }

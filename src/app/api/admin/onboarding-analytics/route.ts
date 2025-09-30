@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // =================================================================
     // AUTHENTICATION - Verify user is logged in and has admin access
@@ -167,7 +167,6 @@ export async function GET(request: NextRequest) {
     // =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
-    console.error('Error in onboarding analytics API:', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

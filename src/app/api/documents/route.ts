@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Check authentication
     const { userId } = await auth()
@@ -49,7 +49,6 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching documents:', error)
       return NextResponse.json(
         { success: false, error: 'Failed to fetch documents' },
         { status: 500 }
@@ -89,11 +88,10 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Documents API error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Failed to fetch documents' 
+        error: 'Failed to fetch documents' 
       },
       { status: 500 }
     )
@@ -101,7 +99,7 @@ export async function GET(request: NextRequest) {
 }
 
 // Delete a document
-export async function DELETE(request: NextRequest) {
+export async function DELETE(_request: NextRequest) {
   try {
     // Check authentication
     const { userId } = await auth()
@@ -129,7 +127,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(_request.url)
     const documentId = searchParams.get('id')
 
     if (!documentId) {
@@ -168,7 +166,6 @@ export async function DELETE(request: NextRequest) {
         .remove([document.storage_path])
 
       if (storageError) {
-        console.error('Storage deletion error:', storageError)
         // Continue with database deletion even if storage deletion fails
       }
     }
@@ -180,7 +177,6 @@ export async function DELETE(request: NextRequest) {
       .eq('id', documentId)
 
     if (deleteError) {
-      console.error('Database deletion error:', deleteError)
       return NextResponse.json(
         { success: false, error: 'Failed to delete document from database' },
         { status: 500 }
@@ -206,11 +202,10 @@ export async function DELETE(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Delete document error:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Delete operation failed' 
+        error: 'Delete operation failed' 
       },
       { status: 500 }
     )

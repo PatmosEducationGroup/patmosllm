@@ -489,7 +489,6 @@ Format as JSON:
       }
 
     } catch (error) {
-      console.error('Failed to generate question examples:', error)
       return { current: question, improved: [] }
     }
   }

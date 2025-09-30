@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { userContextManager } from '@/lib/userContextManager'
 import { withSupabaseAdmin } from '@/lib/supabase'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Check admin authentication
     const { userId } = await auth()
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 })
     }
 
-    const url = new URL(request.url)
+    const url = new URL(_request.url)
     const targetUserId = url.searchParams.get('userId')
 
     if (targetUserId) {
@@ -97,16 +97,15 @@ export async function GET(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Memory API error:', error)
     return NextResponse.json({
       success: false,
-      error: error instanceof Error ? error.message : 'Memory API failed'
+      error: 'Memory API failed'
     }, { status: 500 })
   }
 }
 
 // Test endpoint for memory functionality
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -118,7 +117,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 })
     }
 
-    const { action, testUserId, testQuestion, testResponse } = await request.json()
+    const { action, testUserId, testQuestion, testResponse } = await _request.json()
 
     if (action === 'test_extraction') {
       // For testing, we'll create mock topics since extractTopics is private
@@ -156,10 +155,9 @@ export async function POST(request: NextRequest) {
     }, { status: 400 })
 
   } catch (error) {
-    console.error('Memory test error:', error)
     return NextResponse.json({
       success: false,
-      error: error instanceof Error ? error.message : 'Memory test failed'
+      error: 'Memory test failed'
     }, { status: 500 })
   }
 }
