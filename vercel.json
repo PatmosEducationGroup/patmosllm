@@ -1,0 +1,28 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "heaven.earth"
+        }
+      ],
+      "destination": "https://multiplytools.app/:path*",
+      "permanent": true,
+      "statusCode": 301
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.heaven.earth"
+        }
+      ],
+      "destination": "https://multiplytools.app/:path*",
+      "permanent": true,
+      "statusCode": 301
+    }
+  ]
+}
