@@ -9,7 +9,7 @@ const inter = Inter({
 })
 
 export const metadata = {
-  title: 'Heaven.Earth AI',
+  title: 'Multiply Tools AI',
   description: 'AI-powered document search and chat system',
   icons: {
     icon: '/favicon.ico',

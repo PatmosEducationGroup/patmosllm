@@ -69,6 +69,9 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 
 ### Environment Variables
 ```bash
+# Application
+NEXT_PUBLIC_APP_URL=https://multiplytools.app
+
 # Authentication
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 CLERK_SECRET_KEY
@@ -177,6 +180,26 @@ RESEND_API_KEY
 ---
 
 ## 📚 IMPLEMENTATION HISTORY
+
+### Domain Migration to multiplytools.app (October 1st)
+- Completed zero-downtime domain switch from heaven.earth to multiplytools.app
+- **DNS Configuration**:
+  - Added Cloudflare CNAME records for Clerk authentication (clerk.multiplytools.app, accounts.multiplytools.app)
+  - Configured DNS-only proxy mode for Clerk subdomains (gray cloud)
+- **Code Updates**:
+  - Updated middleware.ts Content Security Policy headers with new Clerk domains
+  - Created vercel.json with 301 redirect rules (heaven.earth → multiplytools.app)
+  - Fixed vercel.json syntax per Vercel docs (removed redundant statusCode field)
+- **Infrastructure Changes**:
+  - Updated Vercel environment variable: NEXT_PUBLIC_APP_URL → https://multiplytools.app
+  - Switched Clerk domain configuration from heaven.earth to multiplytools.app
+  - Updated Clerk publishable key in Vercel after domain switch
+  - Configured Vercel domain-level redirect for heaven.earth
+- **Testing & Verification**:
+  - Verified all functionality on new domain: load, sign in, upload, chat
+  - Confirmed heaven.earth redirects properly to multiplytools.app
+  - Zero downtime during migration process
+- **Commits**: 7dd680b, 11238d2, 2f60e75
 
 ### Admin Table Sorting & Download Controls (October 1st)
 - Implemented comprehensive table sorting functionality for admin documents interface

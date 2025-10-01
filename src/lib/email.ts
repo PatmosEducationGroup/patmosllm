@@ -18,15 +18,15 @@ export async function sendInvitationEmail(
     const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${token}`
     
     const { data, error } = await resend.emails.send({
-      from: 'Heaven.Earth <noreply@heaven.earth>',
+      from: 'Multiply Tools <noreply@multiplytools.app>',
       to: [email],
-      subject: 'You\'re invited to join Heaven.Earth',
+      subject: 'You\'re invited to join Multiply Tools',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>You're invited to join Heaven.Earth</h2>
+          <h2>You're invited to join Multiply Tools</h2>
           <p>Hello${name ? ` ${name}` : ''},</p>
-          <p>${invitedBy} has invited you to join Heaven.Earth as a <strong>${role}</strong>.</p>
-          <p>Heaven.Earth is an AI-powered document Q&A system where you can upload documents and ask intelligent questions about their content.</p>
+          <p>${invitedBy} has invited you to join Multiply Tools as a <strong>${role}</strong>.</p>
+          <p>Multiply Tools is an AI-powered document Q&A system where you can upload documents and ask intelligent questions about their content.</p>
           <div style="margin: 30px 0;">
             <a href="${inviteUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
               Accept Invitation

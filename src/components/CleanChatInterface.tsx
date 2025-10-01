@@ -120,9 +120,9 @@ export default function CleanChatInterface() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold" style={{ backgroundColor: 'rgb(130, 179, 219)' }}>
-                  H.E
+                  MT
                 </div>
-                <span className="font-semibold text-gray-900">PatmosLLM</span>
+                <span className="font-semibold text-gray-900">Multiply Tools</span>
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -213,7 +213,7 @@ export default function CleanChatInterface() {
                 </button>
               )}
               <div>
-                <h1 className="text-lg font-semibold text-gray-900">Heaven.Earth Assistant</h1>
+                <h1 className="text-lg font-semibold text-gray-900">Multiply Tools Assistant</h1>
                 <p className="text-sm text-gray-500">Ask me anything about your documents</p>
               </div>
             </div>
@@ -234,9 +234,9 @@ export default function CleanChatInterface() {
                   className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center text-white text-2xl font-bold shadow-lg"
                   style={{ backgroundColor: 'rgb(130, 179, 219)' }}
                 >
-                  H.E
+                  MT
                 </div>
-                <h2 className="text-2xl font-semibold text-gray-900 mb-3">Welcome to Heaven.Earth</h2>
+                <h2 className="text-2xl font-semibold text-gray-900 mb-3">Welcome to Multiply Tools</h2>
                 <p className="text-gray-600 mb-12 text-lg">I can help you explore and understand your document library. Ask me anything!</p>
 
                 {/* Suggested Questions */}

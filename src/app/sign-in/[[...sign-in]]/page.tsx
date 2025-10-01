@@ -11,7 +11,7 @@ export default function Page() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto animate-pulse shadow-2xl">
-            H.E
+            MT
           </div>
           <div className="text-neutral-600 text-lg font-medium">
             Loading authentication...
@@ -26,10 +26,10 @@ export default function Page() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto shadow-2xl">
-            H.E
+            MT
           </div>
           <h1 className="text-2xl font-bold text-neutral-800 mb-2">
-            Welcome to Heaven.Earth
+            Welcome to Multiply Tools
           </h1>
           <p className="text-neutral-600">
             Your AI-powered knowledge assistant

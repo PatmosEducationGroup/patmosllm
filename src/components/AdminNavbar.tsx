@@ -81,7 +81,7 @@ export default function AdminNavbar({ userRole = 'USER' }: AdminNavbarProps) {
               onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
               onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             >
-              H.E
+              MT
             </div>
             <div>
               <Link
@@ -96,7 +96,7 @@ export default function AdminNavbar({ userRole = 'USER' }: AdminNavbarProps) {
                 onMouseEnter={(e) => e.currentTarget.style.color = 'rgb(130, 179, 219)'}
                 onMouseLeave={(e) => e.currentTarget.style.color = '#1e293b'}
               >
-                Heaven.Earth
+                Multiply Tools
               </Link>
               <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>
                 Admin Panel

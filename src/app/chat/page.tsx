@@ -321,11 +321,11 @@ function ChatPageContent() {
         },
         body: JSON.stringify({
           to: 'patmoseducationgroup@gmail.com',
-          contactPerson: 'Heaven.Earth Team',
+          contactPerson: 'Multiply Tools Team',
           documentTitle: 'Beta Testing Feedback',
           senderName: feedbackForm.name,
           senderEmail: feedbackForm.email,
-          subject: 'Beta Feedback - Heaven.Earth',
+          subject: 'Beta Feedback - Multiply Tools',
           message: feedbackForm.message
         }),
       })
@@ -800,7 +800,7 @@ function ChatPageContent() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto animate-pulse shadow-2xl">
-            H.E
+            MT
           </div>
           <div className="text-neutral-600 text-lg font-medium">
             Loading your workspace...
@@ -965,10 +965,10 @@ function ChatPageContent() {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-sm">
-                    H.E
+                    MT
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-neutral-900">Heaven.Earth</div>
+                    <div className="text-sm font-medium text-neutral-900">Multiply Tools</div>
                     <div className="text-xs text-neutral-600">Knowledge Assistant</div>
                   </div>
                 </div>
@@ -1033,9 +1033,9 @@ function ChatPageContent() {
               {/* Mobile App Title */}
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-sm">
-                  H.E
+                  MT
                 </div>
-                <h1 className="text-lg font-semibold text-neutral-800">Heaven.Earth</h1>
+                <h1 className="text-lg font-semibold text-neutral-800">Multiply Tools</h1>
               </div>
 
               {/* Mobile User Button */}
@@ -1051,10 +1051,10 @@ function ChatPageContent() {
             {messages.length === 0 && !loading && (
               <div className="text-center py-20">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl font-bold mb-6 mx-auto animate-pulse shadow-2xl">
-                  H.E
+                  MT
                 </div>
                 <h3 className="text-xl font-semibold text-neutral-800 mb-2">
-                  Welcome to Heaven.Earth
+                  Welcome to Multiply Tools
                 </h3>
                 <p className="text-neutral-600 text-lg">
                   Ask any question about our knowledge base to get started

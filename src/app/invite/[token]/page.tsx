@@ -115,10 +115,10 @@ export default function InvitePage() {
         <Card className="mb-6 bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
           <CardHeader className="text-center">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto shadow-lg">
-              H.E
+              MT
             </div>
             <CardTitle className="text-2xl text-slate-800 mb-2">
-              Welcome to Heaven.Earth
+              Welcome to Multiply Tools
             </CardTitle>
             <CardDescription className="text-base text-neutral-600">
               <span className="font-medium">{invitation.invitedBy}</span> has invited you to join as a <span className="font-semibold text-primary-600">{invitation.role}</span>

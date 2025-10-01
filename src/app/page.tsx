@@ -148,10 +148,10 @@ export default function LandingPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto animate-pulse shadow-2xl">
-            H.E
+            MT
           </div>
           <div className="text-neutral-600 text-lg font-medium">
-            Loading Heaven.Earth...
+            Loading Multiply Tools...
           </div>
         </div>
       </div>
@@ -168,10 +168,10 @@ export default function LandingPage() {
             {/* Enhanced Logo */}
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                H.E
+                MT
               </div>
               <div>
-                <h1 className="text-lg md:text-xl font-bold text-neutral-800">Heaven.Earth</h1>
+                <h1 className="text-lg md:text-xl font-bold text-neutral-800">Multiply Tools</h1>
                 <p className="text-xs text-neutral-600 hidden sm:block">AI Knowledge Assistant</p>
               </div>
             </div>
@@ -370,10 +370,10 @@ export default function LandingPage() {
         <div className="text-center mb-6">
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-lg">
-              H.E
+              MT
             </div>
             <h3 className="text-xl font-bold text-neutral-800">
-              Sign in to Heaven.Earth
+              Sign in to Multiply Tools
             </h3>
           </div>
           {selectedQuestion && (

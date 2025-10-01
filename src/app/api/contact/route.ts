@@ -76,17 +76,17 @@ export async function POST(_request: NextRequest) {
         </div>
         
         <div style="margin-top: 1.5rem; padding: 1rem; background-color: #f3f4f6; border-radius: 0.5rem; font-size: 0.875rem; color: #6b7280;">
-          <p>This message was sent through the Heaven.Earth knowledge base system. You can reply directly to this email to respond to ${cleanSenderName}.</p>
+          <p>This message was sent through the Multiply Tools knowledge base system. You can reply directly to this email to respond to ${cleanSenderName}.</p>
         </div>
       </div>
     `
 
     // Send email using Resend
     const emailResult = await resend.emails.send({
-      from: 'Heaven.Earth <noreply@heaven.earth>',
+      from: 'Multiply Tools <noreply@multiplytools.app>',
       to: [to],
       replyTo: senderEmail,
-      subject: `[Heaven.Earth] ${cleanSubject}`,
+      subject: `[Multiply Tools] ${cleanSubject}`,
       html: emailHtml,
     })
 

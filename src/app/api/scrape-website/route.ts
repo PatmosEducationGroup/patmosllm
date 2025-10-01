@@ -231,7 +231,7 @@ async function checkRobotsTxt(url: string): Promise<boolean> {
     const robotsUrl = `${urlObj.protocol}//${urlObj.host}/robots.txt`
     
     const response = await fetch(robotsUrl, { 
-      headers: { 'User-Agent': 'Heaven.Earth Web Scraper' } 
+      headers: { 'User-Agent': 'Multiply Tools Web Scraper' } 
     })
     
     if (!response.ok) return true // If no robots.txt, assume allowed
@@ -239,7 +239,7 @@ async function checkRobotsTxt(url: string): Promise<boolean> {
     const robotsText = await response.text()
     const robots = robotsParser(robotsUrl, robotsText)
     
-    return robots.isAllowed(url, 'Heaven.Earth Web Scraper') !== false && robots.isAllowed(url, '*') !== false
+    return robots.isAllowed(url, 'Multiply Tools Web Scraper') !== false && robots.isAllowed(url, '*') !== false
   } catch (error) {
     return true // If error checking robots.txt, assume allowed
   }
@@ -284,7 +284,7 @@ async function parseSitemapFile(sitemapUrl: string, baseUrl: string): Promise<st
     const timeoutId = setTimeout(() => controller.abort(), 8000)
     
     const response = await fetch(sitemapUrl, { 
-      headers: { 'User-Agent': 'Heaven.Earth Web Scraper' },
+      headers: { 'User-Agent': 'Multiply Tools Web Scraper' },
       signal: controller.signal
     })
     
@@ -321,7 +321,7 @@ async function parseRobotsForSitemaps(baseUrl: string): Promise<string[]> {
     const timeoutId = setTimeout(() => controller.abort(), 8000)
     
     const response = await fetch(robotsUrl, { 
-      headers: { 'User-Agent': 'Heaven.Earth Web Scraper' },
+      headers: { 'User-Agent': 'Multiply Tools Web Scraper' },
       signal: controller.signal
     })
     
@@ -359,7 +359,7 @@ async function scrapePageLightweight(url: string, baseUrl: string): Promise<{ ti
 
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Heaven.Earth Web Scraper',
+        'User-Agent': 'Multiply Tools Web Scraper',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate',
@@ -639,7 +639,7 @@ async function parseSitemap(baseUrl: string): Promise<string[]> {
         const timeoutId = setTimeout(() => controller.abort(), 8000)
         
         const response = await fetch(sitemapUrl, { 
-          headers: { 'User-Agent': 'Heaven.Earth Web Scraper' },
+          headers: { 'User-Agent': 'Multiply Tools Web Scraper' },
           signal: controller.signal
         })
         
