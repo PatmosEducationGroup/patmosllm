@@ -17,6 +17,12 @@ npm run monitor                           # Real-time monitoring
 node scripts/backup-pinecone.js           # Backup vectors (≤10K)
 node scripts/backup-pinecone-large.js     # Backup large vectors
 node scripts/backup-supabase.js           # Database backup
+
+# Document Cleanup (See: DOCUMENT-CLEANUP-AND-DOWNLOAD-PLAN.md)
+node scripts/cleanup-titles.js --dry-run  # Preview title cleanup
+node scripts/cleanup-titles.js --verify   # Verify database integrity
+node scripts/cleanup-titles.js            # Execute title cleanup
+node scripts/prepare-github-files.js      # Download & rename files (reference only)
 ```
 
 ## System Architecture
@@ -59,6 +65,7 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 - `/api/upload/*` - Document processing pipeline
 - `/api/admin/*` - System administration
 - `/api/auth` - User synchronization
+- `/api/documents/download/[documentId]` - Secure document downloads with signed URLs
 
 ### Environment Variables
 ```bash
@@ -113,6 +120,15 @@ RESEND_API_KEY
 - ✅ **Component library** - 15+ reusable UI components
 - ✅ **Authentication polish** - Clerk integration enhancement
 
+### Document Management & Security (October 2024)
+- ✅ **Title cleanup system** - Automated professional title standardization
+- ✅ **Secure downloads** - Supabase signed URLs with 60-second expiration
+- ✅ **Authentication-required access** - Clerk integration for download security
+- ✅ **Database backups** - old_title column for audit trail and rollback
+- ✅ **Admin table sorting** - Sortable columns for title, author, size, words, date, uploader
+- ✅ **Download controls** - Admin ability to suppress downloads per document
+- ✅ **Auto-title cleaning** - Automatic removal of prefixes/underscores on upload
+
 ---
 
 ## 🚀 PRIORITY ROADMAP
@@ -161,6 +177,65 @@ RESEND_API_KEY
 ---
 
 ## 📚 IMPLEMENTATION HISTORY
+
+### Admin Table Sorting & Download Controls (October 1st)
+- Implemented comprehensive table sorting functionality for admin documents interface
+- Added sortable columns: Title, Author, File Size, Word Count, Date, and Uploader
+- Created sort handler with toggle logic (ascending/descending) and visual indicators (↑ ↓)
+- Implemented sortDocuments helper function with proper type handling for strings, numbers, and dates
+- Added Uploader column visibility for both ADMIN and SUPER_ADMIN roles (moved to front of table)
+- Enhanced admin interface with role-specific badges ("ADMIN - Viewing all documents" / "SUPER ADMIN - Viewing all documents")
+- Applied sorting to both uploaded documents and scraped pages tables
+- Implemented download suppression controls per document with `download_enabled` flag
+- Added "Buy Online" field for purchase links (renamed from Amazon URL)
+- Removed deprecated `resource_url` field from forms (kept in database for backwards compatibility)
+- Created automatic title cleaning on upload via `cleanTitle()` utility function
+- Added file size display to download buttons: "Download (2.4 MB)"
+- Ensured download suppression only affects download button visibility, not RAG functionality
+- Changed status badge from "Private" to "Download Disabled" for clarity
+
+### Secure Document Download System Implementation (October 1st)
+- **Completed** comprehensive document cleanup and secure download system
+- **Phase 1 - Title Cleanup** (8.1 minutes):
+  - Added `old_title` column to documents table for permanent database-level backup
+  - Executed cleanup-titles.js on 91/579 documents requiring cleanup
+  - Achieved 100% success rate with atomic Supabase + Pinecone updates
+  - Implemented 2-second Pinecone consistency wait + automatic retry logic
+  - Professional title standardization: removed prefixes (5a, 12b), underscores, whitespace
+  - Created backup JSON: `title-cleanup-2025-10-01T18-48-49-421Z.json`
+- **Phase 2a - File Preparation** (5.0 minutes):
+  - Downloaded and renamed 548/579 files from Supabase Storage
+  - Generated filesystem-safe filenames matching cleaned database titles
+  - Created file-mapping.json for reference
+  - Identified 17 failed documents (scraped web pages without files, expected)
+- **Phase 2b - Secure Downloads** (pivoted from GitHub to Supabase signed URLs):
+  - Created `/api/documents/download/[documentId]/route.ts` - secure download API
+  - Generates temporary 60-second signed URLs with Clerk authentication
+  - Updated chat API route to include `document_id` and `has_file` metadata
+  - Modified chat UI with `handleDocumentDownload` function for secure URL generation
+  - Changed download buttons from anchor tags to authenticated API calls
+- **Security Features**:
+  - Authentication required via Clerk (no public access)
+  - Temporary signed URLs expire after 60 seconds
+  - Uses existing Supabase Storage infrastructure
+  - No external repository or public file exposure needed
+- **Testing**: User confirmed "Nice. Worked perfectly" - downloads functional
+- **Documentation**: [DOCUMENT-CLEANUP-AND-DOWNLOAD-PLAN.md](./DOCUMENT-CLEANUP-AND-DOWNLOAD-PLAN.md)
+
+### Document Cleanup & Download System Planning (October 1st)
+- Created comprehensive implementation plan for cleaning 450+ document titles and adding secure downloads
+- Designed bulletproof two-phase system: (1) Clean titles in database, (2) Secure download implementation
+- Analyzed safety of title updates - verified core functionality (search, chat) uses UUID relationships and cannot break
+- Identified critical metadata matching by title in chat API - designed atomic updates to minimize mismatch window
+- Planned automatic backup, verification, retry logic, and three operating modes (--dry-run, --verify, execute)
+- **Documentation**: [DOCUMENT-CLEANUP-AND-DOWNLOAD-PLAN.md](./DOCUMENT-CLEANUP-AND-DOWNLOAD-PLAN.md)
+- **Timeline**: Phase 1 (20-25 min) + Phase 2 (30-35 min) = ~55-60 minutes total (actual: 13.1 min + implementation)
+
+### Sources Display Enhancement & Streaming Optimization (October 1st)
+- Enhanced sources display to show top 3 sources with expandable "Show more" button
+- Implemented per-message expansion state tracking using Set<string>
+- Added smooth expand/collapse animation with chevron icons
+- Displays remaining source count (e.g., "Show 5 more sources")
 
 ### Content Diversity Clarification Fix & Streaming UI Optimization (October 1st)
 - Fixed clarification system treating content diversity as a trigger for clarifying questions

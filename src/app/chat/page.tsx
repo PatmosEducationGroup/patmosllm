@@ -34,6 +34,13 @@ const ensureHttps = (url: string): string => {
   return `https://${url}`
 }
 
+const formatFileSize = (bytes: number): string => {
+  if (!bytes || bytes === 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 // =================================================================
 // TYPE DEFINITIONS - Interface definitions for data structures
 // =================================================================
@@ -41,6 +48,9 @@ interface Source {
   title: string
   author?: string
   chunk_id: string
+  document_id: string
+  has_file: boolean
+  file_size?: number
   amazon_url?: string
   resource_url?: string
   download_enabled: boolean
@@ -136,6 +146,45 @@ function ChatPageContent() {
   })
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
   const [feedbackSubmitStatus, setFeedbackSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle')
+
+  // =================================================================
+  // SOURCES EXPANSION STATE - Track which messages have expanded sources
+  // =================================================================
+  const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set())
+
+  const toggleSourcesExpansion = (messageId: string) => {
+    setExpandedSources(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId)
+      } else {
+        newSet.add(messageId)
+      }
+      return newSet
+    })
+  }
+
+  // =================================================================
+  // DOCUMENT DOWNLOAD HANDLER - Fetch secure signed URL and download
+  // =================================================================
+  const handleDocumentDownload = async (documentId: string, title: string) => {
+    try {
+      // Call API to get secure signed URL
+      const response = await fetch(`/api/documents/download/${documentId}`)
+
+      if (!response.ok) {
+        throw new Error('Failed to generate download URL')
+      }
+
+      const data = await response.json()
+
+      // Open the signed URL in a new tab to trigger download
+      window.open(data.url, '_blank')
+    } catch (error) {
+      console.error('Download failed:', error)
+      alert('Failed to download document. Please try again.')
+    }
+  }
 
   // =================================================================
   // AUTHENTICATION EFFECT - Redirect unauthenticated users
@@ -1068,10 +1117,13 @@ function ChatPageContent() {
                       <div className="mt-6 pt-4 border-t border-neutral-200/30">
                         <div className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
                           <Globe className="w-4 h-4" />
-                          Sources:
+                          Sources ({message.sources.length}):
                         </div>
                         <div className="flex flex-col gap-3">
-                          {message.sources.map((source, i) => (
+                          {(expandedSources.has(message.id)
+                            ? message.sources
+                            : message.sources.slice(0, 3)
+                          ).map((source, i) => (
                             <div
                               key={i}
                               className="bg-neutral-50/80 rounded-xl p-4 border border-neutral-200/40 transition-all duration-200 animate-slide-up hover:shadow-lg"
@@ -1099,20 +1151,18 @@ function ChatPageContent() {
                                     className="inline-flex items-center gap-2 px-4 py-3 text-xs font-medium rounded-lg no-underline transition-all duration-200 bg-gradient-to-r from-primary-400/20 to-primary-400/10 text-primary-600 border border-primary-400/30 hover:scale-105 min-h-[44px]"
                                   >
                                     <ShoppingCart className="w-3 h-3" />
-                                    Store
+                                    Buy Online
                                   </a>
                                 )}
 
-                                {source.resource_url && source.download_enabled && (
-                                  <a
-                                    href={ensureHttps(source.resource_url)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-2 px-4 py-3 text-xs font-medium rounded-lg no-underline transition-all duration-200 bg-gradient-to-r from-secondary-400/20 to-secondary-400/10 text-secondary-600 border border-secondary-400/30 hover:scale-105 min-h-[44px]"
+                                {source.has_file && source.download_enabled && (
+                                  <button
+                                    onClick={() => handleDocumentDownload(source.document_id, source.title)}
+                                    className="inline-flex items-center gap-2 px-4 py-3 text-xs font-medium rounded-lg transition-all duration-200 bg-gradient-to-r from-secondary-400/20 to-secondary-400/10 text-secondary-600 border border-secondary-400/30 hover:scale-105 min-h-[44px] cursor-pointer"
                                   >
                                     <Download className="w-3 h-3" />
-                                    Download
-                                  </a>
+                                    Download{source.file_size ? ` (${formatFileSize(source.file_size)})` : ''}
+                                  </button>
                                 )}
 
                                 {source.contact_person && source.contact_email && (
@@ -1135,6 +1185,30 @@ function ChatPageContent() {
                             </div>
                           ))}
                         </div>
+
+                        {/* Show More/Less Button */}
+                        {message.sources.length > 3 && (
+                          <button
+                            onClick={() => toggleSourcesExpansion(message.id)}
+                            className="mt-3 w-full py-2 px-4 text-sm font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+                          >
+                            {expandedSources.has(message.id) ? (
+                              <>
+                                Show less
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                </svg>
+                              </>
+                            ) : (
+                              <>
+                                Show {message.sources.length - 3} more source{message.sources.length - 3 !== 1 ? 's' : ''}
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     )}
 

@@ -80,15 +80,14 @@ function AdminPageContent() {
   const [scrapingMessageType, setScrapingMessageType] = useState<'info' | 'error'>('info')
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [uploadQueue, setUploadQueue] = useState<{
-    file: File, 
-    progress: number, 
-    status: 'pending' | 'uploading' | 'completed' | 'error', 
+    file: File,
+    progress: number,
+    status: 'pending' | 'uploading' | 'completed' | 'error',
     error?: string,
     metadata: {
       title: string,
       author: string,
       amazonUrl: string,
-      resourceUrl: string,
       contactPerson: string,
       contactEmail: string,
       downloadEnabled: boolean
@@ -100,7 +99,6 @@ function AdminPageContent() {
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadAuthor, setUploadAuthor] = useState('')
   const [uploadAmazonUrl, setUploadAmazonUrl] = useState('')
-  const [uploadResourceUrl, setUploadResourceUrl] = useState('')
   const [uploadDownloadEnabled, setUploadDownloadEnabled] = useState(true)
   const [uploadContactPerson, setUploadContactPerson] = useState('')
   const [uploadContactEmail, setUploadContactEmail] = useState('')
@@ -137,6 +135,76 @@ function AdminPageContent() {
   // Pagination states for scraped pages
   const [scrapedPagesCurrentPage, setScrapedPagesCurrentPage] = useState(1)
   const [scrapedPagesPerPage, setScrapedPagesPerPage] = useState(20)
+
+  // Sorting states
+  const [sortField, setSortField] = useState<'title' | 'author' | 'created_at' | 'file_size' | 'word_count' | 'uploader'>('created_at')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  // Sort handler
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      // Toggle direction if clicking the same field
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      // Set new field and default to ascending
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+  // Helper to sort documents
+  const sortDocuments = (docs: Document[]) => {
+    return [...docs].sort((a, b) => {
+      let aVal: string | number | undefined
+      let bVal: string | number | undefined
+
+      // Map sort field names to Document interface field names
+      switch (sortField) {
+        case 'title':
+          aVal = a.title
+          bVal = b.title
+          break
+        case 'author':
+          aVal = a.author || ''
+          bVal = b.author || ''
+          break
+        case 'created_at':
+          aVal = a.createdAt
+          bVal = b.createdAt
+          break
+        case 'file_size':
+          aVal = a.fileSize || 0
+          bVal = b.fileSize || 0
+          break
+        case 'word_count':
+          aVal = a.wordCount || 0
+          bVal = b.wordCount || 0
+          break
+        case 'uploader':
+          aVal = a.users?.name || a.users?.email || ''
+          bVal = b.users?.name || b.users?.email || ''
+          break
+        default:
+          aVal = a.createdAt
+          bVal = b.createdAt
+      }
+
+      // Handle undefined values
+      if (aVal === undefined || aVal === '') return 1
+      if (bVal === undefined || bVal === '') return -1
+
+      // Compare values
+      let comparison = 0
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        comparison = aVal.toLowerCase().localeCompare(bVal.toLowerCase())
+      } else {
+        comparison = aVal > bVal ? 1 : -1
+      }
+
+      // Apply sort direction
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+  }
 
   // Check authentication and permissions
   useEffect(() => {
@@ -254,7 +322,6 @@ function AdminPageContent() {
           title: editingDoc.title,
           author: editingDoc.author,
           amazon_url: editingDoc.amazon_url,
-          resource_url: editingDoc.resource_url,
           download_enabled: editingDoc.download_enabled,
           contact_person: editingDoc.contact_person,
           contact_email: editingDoc.contact_email
@@ -587,16 +654,18 @@ function AdminPageContent() {
 
   const getPaginatedDocuments = () => {
     const filtered = getFilteredDocuments()
+    const sorted = sortDocuments(filtered)
     const startIndex = (documentsCurrentPage - 1) * documentsPerPage
     const endIndex = startIndex + documentsPerPage
-    return filtered.slice(startIndex, endIndex)
+    return sorted.slice(startIndex, endIndex)
   }
 
   const getPaginatedScrapedPages = () => {
     const filtered = getFilteredScrapedPages()
+    const sorted = sortDocuments(filtered)
     const startIndex = (scrapedPagesCurrentPage - 1) * scrapedPagesPerPage
     const endIndex = startIndex + scrapedPagesPerPage
-    return filtered.slice(startIndex, endIndex)
+    return sorted.slice(startIndex, endIndex)
   }
 
   // Pagination helper functions
@@ -698,7 +767,6 @@ function AdminPageContent() {
           title: file.name.replace(/\.[^/.]+$/, ''),
           author: uploadAuthor,
           amazonUrl: uploadAmazonUrl,
-          resourceUrl: uploadResourceUrl,
           contactPerson: uploadContactPerson,
           contactEmail: uploadContactEmail,
           downloadEnabled: uploadDownloadEnabled
@@ -863,7 +931,6 @@ function AdminPageContent() {
       formData.append('title', uploadQueue[queueIndex].metadata.title.trim() || file.name)
       formData.append('author', uploadQueue[queueIndex].metadata.author.trim() || '')
       formData.append('amazon_url', uploadQueue[queueIndex].metadata.amazonUrl.trim() || '')
-      formData.append('resource_url', uploadQueue[queueIndex].metadata.resourceUrl.trim() || '')
       formData.append('download_enabled', uploadQueue[queueIndex].metadata.downloadEnabled.toString())
       formData.append('contact_person', uploadQueue[queueIndex].metadata.contactPerson.trim() || '')
       formData.append('contact_email', uploadQueue[queueIndex].metadata.contactEmail.trim() || '')
@@ -941,7 +1008,6 @@ function AdminPageContent() {
           title: uploadQueue[queueIndex].metadata.title.trim() || file.name,
           author: uploadQueue[queueIndex].metadata.author.trim() || null,
           amazon_url: uploadQueue[queueIndex].metadata.amazonUrl.trim() || null,
-          resource_url: uploadQueue[queueIndex].metadata.resourceUrl.trim() || null,
           download_enabled: uploadQueue[queueIndex].metadata.downloadEnabled,
           contact_person: uploadQueue[queueIndex].metadata.contactPerson.trim() || null,
           contact_email: uploadQueue[queueIndex].metadata.contactEmail.trim() || null
@@ -1227,48 +1293,25 @@ function AdminPageContent() {
               </div>
 
               {/* Resource Links Section */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                    Amazon/Bookstore URL (Optional)
-                  </label>
-                  <input
-                    type="url"
-                    value={uploadAmazonUrl}
-                    onChange={(e) => setUploadAmazonUrl(e.target.value)}
-                    disabled={uploading}
-                    placeholder="https://amazon.com/..."
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid rgba(203, 213, 225, 0.6)',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      background: 'rgba(255, 255, 255, 0.8)'
-                    }}
-                  />
-                </div>
-                
-                <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                    Resource URL (Optional)
-                  </label>
-                  <input
-                    type="url"
-                    value={uploadResourceUrl}
-                    onChange={(e) => setUploadResourceUrl(e.target.value)}
-                    disabled={uploading}
-                    placeholder="https://github.com/... or download link"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid rgba(203, 213, 225, 0.6)',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      background: 'rgba(255, 255, 255, 0.8)'
-                    }}
-                  />
-                </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                  Buy Online (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={uploadAmazonUrl}
+                  onChange={(e) => setUploadAmazonUrl(e.target.value)}
+                  disabled={uploading}
+                  placeholder="https://amazon.com/... or other purchase link"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid rgba(203, 213, 225, 0.6)',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    background: 'rgba(255, 255, 255, 0.8)'
+                  }}
+                />
               </div>
 
               {/* Contact Information Section */}
@@ -1301,7 +1344,7 @@ function AdminPageContent() {
                   checked={uploadDownloadEnabled}
                   onCheckedChange={setUploadDownloadEnabled}
                   disabled={uploading}
-                  label="Enable resource access for users"
+                  label="Enable resource access/download for users"
                 />
               </div>
 
@@ -1481,26 +1524,6 @@ function AdminPageContent() {
                               onChange={(e) => updateQueueItemMetadata(index, 'amazonUrl', e.target.value)}
                               disabled={item.status === 'uploading' || item.status === 'completed'}
                               placeholder="https://amazon.com/..."
-                              style={{
-                                width: '100%',
-                                padding: '6px',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                background: item.status === 'uploading' || item.status === 'completed' ? '#f8f9fa' : 'white'
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', marginBottom: '4px' }}>
-                              Resource URL
-                            </label>
-                            <input
-                              type="url"
-                              value={item.metadata.resourceUrl}
-                              onChange={(e) => updateQueueItemMetadata(index, 'resourceUrl', e.target.value)}
-                              disabled={item.status === 'uploading' || item.status === 'completed'}
-                              placeholder="https://github.com/..."
                               style={{
                                 width: '100%',
                                 padding: '6px',
@@ -2188,7 +2211,7 @@ function AdminPageContent() {
                     All
                   </button>
                 </div>
-                {userData?.role === 'SUPER_ADMIN' && (
+                {(userData?.role === 'ADMIN' || userData?.role === 'SUPER_ADMIN') && (
                   <span style={{
                     fontSize: '12px',
                     fontWeight: '500',
@@ -2196,7 +2219,7 @@ function AdminPageContent() {
                     padding: '4px 12px',
                     backgroundColor: '#d1fae5',
                     borderRadius: '16px'
-                  }}>SUPER ADMIN - Viewing all documents</span>
+                  }}>{userData?.role === 'SUPER_ADMIN' ? 'SUPER ADMIN' : 'ADMIN'} - Viewing all documents</span>
                 )}
               </div>
             </div>
@@ -2211,11 +2234,127 @@ function AdminPageContent() {
               <table style={{ width: '100%', tableLayout: 'auto' }}>
                 <thead style={{ backgroundColor: 'rgba(248, 250, 252, 0.8)' }}>
                   <tr>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
-                      Document
+                    {(userData?.role === 'ADMIN' || userData?.role === 'SUPER_ADMIN') && (
+                      <th
+                        onClick={() => handleSort('uploader')}
+                        style={{
+                          padding: '8px 12px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          color: sortField === 'uploader' ? '#2563eb' : '#64748b',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          userSelect: 'none'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          Uploader
+                          {sortField === 'uploader' && (
+                            <span style={{ fontSize: '10px' }}>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                          )}
+                        </div>
+                      </th>
+                    )}
+                    <th
+                      onClick={() => handleSort('title')}
+                      style={{
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        color: sortField === 'title' ? '#2563eb' : '#64748b',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        Title
+                        {sortField === 'title' && (
+                          <span style={{ fontSize: '10px' }}>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
                     </th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
-                      Details
+                    <th
+                      onClick={() => handleSort('author')}
+                      style={{
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        color: sortField === 'author' ? '#2563eb' : '#64748b',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        Author
+                        {sortField === 'author' && (
+                          <span style={{ fontSize: '10px' }}>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('file_size')}
+                      style={{
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        color: sortField === 'file_size' ? '#2563eb' : '#64748b',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        Size
+                        {sortField === 'file_size' && (
+                          <span style={{ fontSize: '10px' }}>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('word_count')}
+                      style={{
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        color: sortField === 'word_count' ? '#2563eb' : '#64748b',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        Words
+                        {sortField === 'word_count' && (
+                          <span style={{ fontSize: '10px' }}>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('created_at')}
+                      style={{
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        color: sortField === 'created_at' ? '#2563eb' : '#64748b',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        Date
+                        {sortField === 'created_at' && (
+                          <span style={{ fontSize: '10px' }}>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
                     </th>
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Links
@@ -2226,11 +2365,6 @@ function AdminPageContent() {
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Status
                     </th>
-                    {userData?.role === 'SUPER_ADMIN' && (
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
-                        Uploader
-                      </th>
-                    )}
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Actions
                     </th>
@@ -2244,40 +2378,52 @@ function AdminPageContent() {
 
                     return (
                       <tr key={doc.id} style={{ borderTop: '1px solid rgba(226, 232, 240, 0.4)' }}>
+                        {/* Uploader */}
+                        {(userData?.role === 'ADMIN' || userData?.role === 'SUPER_ADMIN') && (
+                          <td style={{ padding: '12px', fontSize: '14px', color: '#64748b' }}>
+                            {doc.users?.name || doc.users?.email || 'Unknown'}
+                          </td>
+                        )}
+                        {/* Title */}
                         <td style={{ padding: '12px' }}>
-                          <div>
-                            <div style={{
-                              fontSize: '14px',
-                              fontWeight: '500',
-                              color: '#111827',
-                              wordBreak: 'break-word',
-                              overflowWrap: 'anywhere',
-                              hyphens: 'auto',
-                              lineHeight: '1.4',
-                              maxWidth: '250px'
-                            }}>
-                              {doc.title}
+                          <div style={{
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            color: '#111827',
+                            wordBreak: 'break-word',
+                            overflowWrap: 'anywhere',
+                            hyphens: 'auto',
+                            lineHeight: '1.4',
+                            maxWidth: '250px'
+                          }}>
+                            {doc.title}
+                          </div>
+                          {doc.chunkCount !== undefined && (
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                              {doc.chunkCount} chunks
                             </div>
-                            {doc.author && (
-                              <div style={{
-                                fontSize: '14px',
-                                color: '#64748b',
-                                wordBreak: 'break-word',
-                                overflowWrap: 'anywhere',
-                                marginTop: '4px'
-                              }}>
-                                by {doc.author}
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </td>
+                        {/* Author */}
                         <td style={{ padding: '12px', fontSize: '14px', color: '#64748b' }}>
-                          <div>{formatFileSize(doc.fileSize)}</div>
-                          {doc.wordCount && !isNaN(doc.wordCount) && <div>{doc.wordCount.toLocaleString()} words</div>}
-                          {doc.pageCount && !isNaN(doc.pageCount) && <div>{doc.pageCount} pages</div>}
-                          <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                            {formatDate(doc.createdAt)}
-                          </div>
+                          {doc.author || '-'}
+                        </td>
+                        {/* File Size */}
+                        <td style={{ padding: '12px', fontSize: '14px', color: '#64748b' }}>
+                          {formatFileSize(doc.fileSize)}
+                        </td>
+                        {/* Word Count */}
+                        <td style={{ padding: '12px', fontSize: '14px', color: '#64748b' }}>
+                          {doc.wordCount && !isNaN(doc.wordCount) ? doc.wordCount.toLocaleString() : '-'}
+                          {doc.pageCount && !isNaN(doc.pageCount) && (
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                              {doc.pageCount} pages
+                            </div>
+                          )}
+                        </td>
+                        {/* Date */}
+                        <td style={{ padding: '12px', fontSize: '14px', color: '#64748b' }}>
+                          {formatDate(doc.createdAt)}
                         </td>
                         <td style={{ padding: '12px' }}>
                           {doc.amazon_url && (
@@ -2392,7 +2538,7 @@ function AdminPageContent() {
                                   borderRadius: '4px',
                                   fontWeight: '500'
                                 }}>
-                                  Private
+                                  Download Disabled
                                 </span>
                               )}
                             </div>
@@ -2406,11 +2552,6 @@ function AdminPageContent() {
                             )}
                           </div>
                         </td>
-                        {userData?.role === 'SUPER_ADMIN' && (
-                          <td style={{ padding: '12px', fontSize: '14px', color: '#64748b' }}>
-                            {doc.users?.name || doc.users?.email || 'Unknown'}
-                          </td>
-                        )}
                         <td style={{ padding: '12px' }}>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button
@@ -2659,11 +2800,67 @@ function AdminPageContent() {
               <table style={{ width: '100%', tableLayout: 'auto' }}>
                 <thead style={{ backgroundColor: 'rgba(248, 250, 252, 0.8)' }}>
                   <tr>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
-                      Webpage
+                    {(userData?.role === 'ADMIN' || userData?.role === 'SUPER_ADMIN') && (
+                      <th
+                        onClick={() => handleSort('uploader')}
+                        style={{
+                          padding: '8px 12px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          color: sortField === 'uploader' ? '#2563eb' : '#64748b',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          userSelect: 'none'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          Uploader
+                          {sortField === 'uploader' && (
+                            <span style={{ fontSize: '10px' }}>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                          )}
+                        </div>
+                      </th>
+                    )}
+                    <th
+                      onClick={() => handleSort('title')}
+                      style={{
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        color: sortField === 'title' ? '#2563eb' : '#64748b',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        Webpage
+                        {sortField === 'title' && (
+                          <span style={{ fontSize: '10px' }}>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
                     </th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
-                      Details
+                    <th
+                      onClick={() => handleSort('word_count')}
+                      style={{
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        color: sortField === 'word_count' ? '#2563eb' : '#64748b',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        Details
+                        {sortField === 'word_count' && (
+                          <span style={{ fontSize: '10px' }}>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
                     </th>
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Source URL
@@ -2671,11 +2868,6 @@ function AdminPageContent() {
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Status
                     </th>
-                    {userData?.role === 'SUPER_ADMIN' && (
-                      <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
-                        Uploader
-                      </th>
-                    )}
                     <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: '12px', fontWeight: '500', color: '#64748b', textTransform: 'uppercase' }}>
                       Actions
                     </th>
@@ -2689,6 +2881,12 @@ function AdminPageContent() {
 
                     return (
                       <tr key={doc.id} style={{ borderTop: '1px solid rgba(226, 232, 240, 0.4)' }}>
+                        {/* Uploader */}
+                        {(userData?.role === 'ADMIN' || userData?.role === 'SUPER_ADMIN') && (
+                          <td style={{ padding: '12px', fontSize: '14px', color: '#64748b' }}>
+                            {doc.users?.name || doc.users?.email || 'Unknown'}
+                          </td>
+                        )}
                         <td style={{ padding: '12px' }}>
                           <div style={{
                             fontSize: '14px',
@@ -2799,11 +2997,6 @@ function AdminPageContent() {
                             )}
                           </div>
                         </td>
-                        {userData?.role === 'SUPER_ADMIN' && (
-                          <td style={{ padding: '12px', fontSize: '14px', color: '#64748b' }}>
-                            {doc.users?.name || doc.users?.email || 'Unknown'}
-                          </td>
-                        )}
                         <td style={{ padding: '12px' }}>
                           <button
                             onClick={() => {
@@ -3017,37 +3210,13 @@ function AdminPageContent() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
-                    Amazon/Bookstore URL
+                    Buy Online
                   </label>
                   <input
                     type="url"
                     value={editingDoc.amazon_url || ''}
                     onChange={(e) => setEditingDoc({...editingDoc, amazon_url: e.target.value})}
-                    placeholder="https://amazon.com/..."
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid rgba(203, 213, 225, 0.6)',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      background: 'rgba(255, 255, 255, 0.8)',
-                      outline: 'none',
-                      transition: 'all 0.2s'
-                    }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = 'rgb(130, 179, 219)'}
-                    onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(203, 213, 225, 0.6)'}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#374151' }}>
-                    Resource URL (Git, FTP, Download, etc.)
-                  </label>
-                  <input
-                    type="url"
-                    value={editingDoc.resource_url || ''}
-                    onChange={(e) => setEditingDoc({...editingDoc, resource_url: e.target.value})}
-                    placeholder="https://github.com/... or https://yoursite.com/file.pdf"
+                    placeholder="https://amazon.com/... or other purchase link"
                     style={{
                       width: '100%',
                       padding: '12px',
@@ -3121,7 +3290,7 @@ function AdminPageContent() {
                     style={{ width: '16px', height: '16px' }}
                   />
                   <label style={{ fontSize: '14px', color: '#374151' }}>
-                    Enable download/resource access
+                    Enable resource access/download for users
                   </label>
                 </div>
               </div>

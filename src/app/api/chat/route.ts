@@ -501,11 +501,14 @@ export async function POST(_request: NextRequest) {
     
     // Fetch document metadata from database with connection pooling
     const documentsWithMetadata = await withSupabaseAdmin(async (supabase) => {
-      const { data, error } = await supabase
+      const { data, error} = await supabase
         .from('documents')
         .select(`
+          id,
           title,
           author,
+          storage_path,
+          file_size,
           amazon_url,
           resource_url,
           download_enabled,
@@ -531,6 +534,9 @@ export async function POST(_request: NextRequest) {
             title: chunk.documentTitle,
             author: chunk.documentAuthor || undefined,
             chunk_id: chunk.id,
+            document_id: chunk.documentId,
+            has_file: !!metadata?.storage_path,
+            file_size: metadata?.file_size || undefined,
             // Add metadata fields
             amazon_url: metadata?.amazon_url || undefined,
             resource_url: metadata?.resource_url || undefined,
@@ -544,6 +550,9 @@ export async function POST(_request: NextRequest) {
         title: string
         author?: string
         chunk_id: string
+        document_id: string
+        has_file: boolean
+        file_size?: number
         amazon_url?: string
         resource_url?: string
         download_enabled: boolean

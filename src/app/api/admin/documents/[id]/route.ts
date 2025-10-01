@@ -131,7 +131,6 @@ export async function PUT(
       title,
       author,
       amazon_url,
-      resource_url,
       download_enabled,
       contact_person,
       contact_email
@@ -142,7 +141,6 @@ export async function PUT(
   title?: string
   author?: string | null
   amazon_url?: string | null
-  resource_url?: string | null
   download_enabled?: boolean
   contact_person?: string | null
   contact_email?: string | null
@@ -150,7 +148,6 @@ export async function PUT(
     if (title !== undefined) updates.title = sanitizeInput(title)
     if (author !== undefined) updates.author = author ? sanitizeInput(author) : null
     if (amazon_url !== undefined) updates.amazon_url = amazon_url ? sanitizeInput(amazon_url) : null
-    if (resource_url !== undefined) updates.resource_url = resource_url ? sanitizeInput(resource_url) : null
     if (download_enabled !== undefined) updates.download_enabled = Boolean(download_enabled)
     if (contact_person !== undefined) updates.contact_person = contact_person ? sanitizeInput(contact_person) : null
     if (contact_email !== undefined) updates.contact_email = contact_email ? sanitizeInput(contact_email) : null

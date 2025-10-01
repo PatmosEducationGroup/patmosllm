@@ -8,6 +8,7 @@ import { getIdentifier } from '@/lib/get-identifier'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 import { processDocumentVectors } from '@/lib/ingest'
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
+import { cleanTitle } from '@/lib/titleCleaner'
 
 // Helper function to clean text content for database storage
 function cleanTextContent(content: string): string {
@@ -59,17 +60,16 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
 }
 
     // Get request data
-    const { 
-  storagePath, 
-  fileName, 
-  fileSize, 
-  mimeType, 
-  title, 
-  author, 
-  sourceType, 
+    const {
+  storagePath,
+  fileName,
+  fileSize,
+  mimeType,
+  title,
+  author,
+  sourceType,
   sourceUrl,
   amazon_url,
-  resource_url,
   download_enabled,
   contact_person,
   contact_email
@@ -90,13 +90,14 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       )
     }
 
-    // Sanitize inputs
-    const cleanTitle = sanitizeInput(title || fileName)
+    // Sanitize and clean inputs
+    const rawTitle = title || fileName
+    const sanitizedTitle = sanitizeInput(rawTitle)
+    const cleanedTitle = cleanTitle(sanitizedTitle)
     const cleanAuthor = author ? sanitizeInput(author) : null
     const cleanAmazonUrl = amazon_url ? sanitizeInput(amazon_url) : null
-const cleanResourceUrl = resource_url ? sanitizeInput(resource_url) : null
-const cleanContactPerson = contact_person ? sanitizeInput(contact_person) : null
-const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
+    const cleanContactPerson = contact_person ? sanitizeInput(contact_person) : null
+    const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
 
     console.log(`Processing uploaded file: ${storagePath}`)
 
@@ -146,7 +147,7 @@ const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
 
     // Prepare document record with multimedia support
     const documentRecord: Record<string, unknown> = {
-      title: cleanTitle,
+      title: cleanedTitle,
       author: cleanAuthor,
       storage_path: storagePath,
       mime_type: mimeType,
@@ -158,9 +159,8 @@ const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
       processed_at: new Date().toISOString(),
       source_type: sourceType || 'upload',
       source_url: sourceUrl || null,
-      // Add new metadata fields
+      // Add metadata fields
       amazon_url: cleanAmazonUrl,
-      resource_url: cleanResourceUrl,
       download_enabled: download_enabled !== undefined ? Boolean(download_enabled) : true,
       contact_person: cleanContactPerson,
       contact_email: cleanContactEmail

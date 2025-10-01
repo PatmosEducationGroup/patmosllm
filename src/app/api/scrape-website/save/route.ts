@@ -121,7 +121,13 @@ export async function POST(_request: NextRequest) {
             uploaded_by: user.id,
             processed_at: new Date().toISOString(),
             source_type: 'web_scraped',
-            source_url: page.url
+            source_url: page.url,
+            // Set metadata defaults for scraped content
+            amazon_url: null,
+            resource_url: null,
+            download_enabled: false,
+            contact_person: null,
+            contact_email: null
           })
           .select()
           .single()
