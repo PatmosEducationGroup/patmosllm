@@ -141,37 +141,53 @@ export async function POST(_request: NextRequest) {
       )
     }
 
-    // =================================================================
-    // SESSION VERIFICATION - Ensure session belongs to this user
-    // =================================================================
-    const session = await withSupabaseAdmin(async (supabase) => {
-      const { data, error } = await supabase
-        .from('chat_sessions')
-        .select('id')
-        .eq('id', sessionId)
-        .eq('user_id', currentUserId)
-        .single()
-      
-      if (error || !data) {
-        throw new Error('Invalid session')
-      }
-      return data
-    }).catch(() => null)
+    const trimmedQuestion = question.trim()
+    console.log(`Processing question: "${trimmedQuestion}" for user: ${userEmail}`)
 
-    if (!session) {
+    // =================================================================
+    // PARALLEL BATCH 1: SESSION VALIDATION + CACHE CHECK + CONVERSATION HISTORY
+    // Fetch everything we need upfront in parallel for maximum speed
+    // =================================================================
+    const [sessionValid, cachedResponse, conversationHistory] = await Promise.all([
+      // 1. Validate session (uses new composite index: idx_chat_sessions_id_user)
+      withSupabaseAdmin(async (supabase) => {
+        const { data } = await supabase
+          .from('chat_sessions')
+          .select('id')
+          .eq('id', sessionId)
+          .eq('user_id', currentUserId)
+          .single()
+        return !!data
+      }).catch(() => false),
+
+      // 2. Check cache for instant response
+      Promise.resolve(getCachedChatResponse(trimmedQuestion, currentUserId)),
+
+      // 3. Get conversation history (uses new composite index: idx_conversations_session_user_created)
+      getCachedConversationHistory(sessionId) ||
+        withSupabaseAdmin(async (supabase) => {
+          const { data } = await supabase
+            .from('conversations')
+            .select('question, answer')
+            .eq('session_id', sessionId)
+            .eq('user_id', currentUserId)
+            .order('created_at', { ascending: false })
+            .limit(3) // Keep for context quality
+          return data || []
+        })
+    ])
+
+    // Validate session result
+    if (!sessionValid) {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid session' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       )
     }
 
-    const trimmedQuestion = question.trim()
-    console.log(`Processing question: "${trimmedQuestion}" for user: ${userEmail}`)
-
     // =================================================================
-    // STEP 1.5: CHECK ADVANCED CACHE FOR INSTANT RESPONSES
+    // STEP 1.5: RETURN CACHED RESPONSE IF AVAILABLE (instant)
     // =================================================================
-    const cachedResponse = getCachedChatResponse(trimmedQuestion, currentUserId)
 
     if (cachedResponse) {
       console.log(`Advanced cache hit! Returning instant response for user: ${currentUserId}`)
@@ -211,25 +227,8 @@ export async function POST(_request: NextRequest) {
 
     // =================================================================
     // STEP 1.6: CLARIFICATION ANALYSIS - Check if question needs clarification
+    // Note: Conversation history already fetched in parallel batch above
     // =================================================================
-    // First get conversation history for context
-    let recentConversationsForClarification = getCachedConversationHistory(sessionId)
-
-    if (!recentConversationsForClarification) {
-      recentConversationsForClarification = await withSupabaseAdmin(async (supabase) => {
-        const { data, error } = await supabase
-          .from('conversations')
-          .select('question, answer')
-          .eq('session_id', sessionId)
-          .eq('user_id', currentUserId)
-          .order('created_at', { ascending: false })
-          .limit(3) // Get last 3 for clarification context
-
-        return error ? [] : (data || [])
-      })
-    }
-
-    // REMOVED: Clarification system - proceeding directly to search
 
     // =================================================================
     // ONBOARDING TRACKING - Track first chat milestone
@@ -245,40 +244,23 @@ export async function POST(_request: NextRequest) {
     })
 
     // =================================================================
-    // STEP 1: GET CONVERSATION HISTORY FOR CONTEXTUAL SEARCH
+    // STEP 1: USE PRE-FETCHED CONVERSATION HISTORY FOR CONTEXTUAL SEARCH
+    // Already fetched in parallel batch above for optimal performance
     // =================================================================
-    console.log('Fetching conversation history for contextual search...')
-    let recentConversations = getCachedConversationHistory(sessionId)
+    console.log(`Using pre-fetched conversation history (${conversationHistory.length} messages)`)
 
-    if (!recentConversations) {
-      // Cache miss - fetch from database using optimized connection
-      const conversations = await withSupabaseAdmin(async (supabase) => {
-        const { data, error } = await supabase
-          .from('conversations')
-          .select('question, answer')
-          .eq('session_id', sessionId)
-          .eq('user_id', currentUserId)
-          .order('created_at', { ascending: false })
-          .limit(2) // Get last 2 messages only
-
-        if (error) {
-          return []
-        }
-        return data || []
-      })
-
-      recentConversations = conversations
-      cacheConversationHistory(sessionId, conversations)
-      console.log(`Conversation history cached for session ${sessionId}`)
-    } else {
-      console.log(`Using cached conversation history for session ${sessionId}`)
+    // Cache the history for future requests
+    if (conversationHistory.length > 0) {
+      cacheConversationHistory(sessionId, conversationHistory)
     }
 
     // Create contextual search query by combining current question with recent context
     let contextualSearchQuery = trimmedQuestion
-    if (recentConversations && recentConversations.length > 0) {
+    if (conversationHistory && conversationHistory.length > 0) {
       // Extract key topics from recent conversation to add context
-      const recentTopics = recentConversations.map(conv => conv.question).join(' ')
+      const recentTopics = (conversationHistory as Array<{question: string; answer: string}>)
+        .map(conv => conv.question)
+        .join(' ')
       // Only add context if the current question seems like a follow-up (pronouns, incomplete subjects)
       const isFollowUpQuestion = /^(what|how|why|when|where)['']?s\s+(it|this|that|they|their)/i.test(trimmedQuestion) ||
                                  /^(and|but|also|so|then)\s/i.test(trimmedQuestion) ||
@@ -323,7 +305,7 @@ export async function POST(_request: NextRequest) {
       searchResults: relevantChunks,
       searchConfidence: searchResult.confidence,
       searchStrategy: searchResult.searchStrategy,
-      recentConversations: recentConversationsForClarification as Array<{ question: string; answer: string }> || [],
+      recentConversations: conversationHistory as Array<{ question: string; answer: string }> || [],
       // Pass info about whether the search query was enhanced with context
       wasQueryEnhanced: contextualSearchQuery !== trimmedQuestion,
       originalQuery: trimmedQuestion,
@@ -452,11 +434,11 @@ export async function POST(_request: NextRequest) {
     const context = Object.entries(chunksByDocument)
       .map(([title, chunks]) => ({
         title,
-        chunks: chunks.slice(0, 4)
+        chunks: chunks.slice(0, 4) // Keep good quality
       }))
       .sort((a, b) => b.chunks[0].score - a.chunks[0].score)
       .flatMap(group => group.chunks)
-      .slice(0, 8)
+      .slice(0, 8) // Restored to original for quality
       .map(chunk => ({
         content: chunk.content || 'No content available',
         title: chunk.documentTitle,
@@ -573,14 +555,14 @@ export async function POST(_request: NextRequest) {
     // =================================================================
     // STEP 5: FORMAT CONVERSATION HISTORY FOR AI PROMPT
     // =================================================================
-    let conversationHistory = ''
-    if (recentConversations && recentConversations.length > 0) {
-      conversationHistory = '\n\n=== RECENT CONVERSATION HISTORY ===\n'
-      recentConversations.forEach((conv, index) => {
-        conversationHistory += `User: ${conv.question}\nAssistant: ${conv.answer}\n\n`
+    let conversationHistoryText = ''
+    if (conversationHistory && conversationHistory.length > 0) {
+      conversationHistoryText = '\n\n=== RECENT CONVERSATION HISTORY ===\n'
+      ;(conversationHistory as Array<{question: string; answer: string}>).forEach(conv => {
+        conversationHistoryText += `User: ${conv.question}\nAssistant: ${conv.answer}\n\n`
       })
-      conversationHistory += '=== END CONVERSATION HISTORY ===\n'
-      console.log(`Including ${recentConversations.length} previous messages for context`)
+      conversationHistoryText += '=== END CONVERSATION HISTORY ===\n'
+      console.log(`Including ${conversationHistory.length} previous messages for context`)
     }
 
     // =================================================================
@@ -614,7 +596,7 @@ The question's subject is completely absent across all documents,
 
 AND there is no way to combine existing material into a relevant answer.
 
-${conversationHistory}
+${conversationHistoryText}
 
 Available documents:
 ${contextDocuments}`
@@ -633,7 +615,7 @@ ${contextDocuments}`
           { role: 'user', content: trimmedQuestion }
         ],
         temperature: 0.3,
-        max_tokens: 2000,
+        max_tokens: 2000, // Restored to original for quality
         stream: true,
       })
     } catch (openaiError) {

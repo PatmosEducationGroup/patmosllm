@@ -98,48 +98,56 @@ export async function searchChunks(
       })
     }
 
-    // Filter by minimum score and format results
-    const results = await Promise.all(
-      searchResponse.matches
-        .filter(match => (match.score || 0) >= minScore)
-        .map(async match => {
-          let content = match.metadata?.content as string
+    // Filter by minimum score
+    const filteredMatches = searchResponse.matches.filter(match => (match.score || 0) >= minScore)
 
-          // If content was truncated, get full content from database
-          if (content && content.endsWith('...[truncated]')) {
-            try {
-              const fetchResponse = await index.fetch([match.id])
-              if (fetchResponse && fetchResponse.records && fetchResponse.records[match.id]) {
-                // Try to get full content from database
-                const supabase = await import('./supabase')
-                const { data: fullChunk } = await supabase.supabaseAdmin
-                  .from('chunks')
-                  .select('content')
-                  .eq('id', match.id)
-                  .single()
+    // Extract chunk IDs and check which need full content
+    const chunkIds = filteredMatches.map(match => match.id)
+    const truncatedIds = filteredMatches
+      .filter(match => {
+        const content = match.metadata?.content as string
+        return content && content.endsWith('...[truncated]')
+      })
+      .map(match => match.id)
 
-                if (fullChunk?.content) {
-                  content = fullChunk.content
-                }
-              }
-            } catch (error) {
-              console.warn(`Could not retrieve full content for chunk ${match.id}:`, error)
-              // Use truncated content as fallback
-            }
-          }
+    // Batch fetch full content for truncated chunks (if any)
+    let fullContentMap = new Map<string, string>()
+    if (truncatedIds.length > 0) {
+      try {
+        const supabase = await import('./supabase')
+        const { data: fullChunks } = await supabase.supabaseAdmin
+          .from('chunks')
+          .select('id, content')
+          .in('id', truncatedIds)
 
-          return {
-            id: match.id,
-            score: match.score || 0,
-            documentId: match.metadata?.documentId as string,
-            documentTitle: match.metadata?.documentTitle as string,
-            documentAuthor: match.metadata?.documentAuthor as string,
-            chunkIndex: match.metadata?.chunkIndex as number,
-            content,
-            tokenCount: match.metadata?.tokenCount as number
-          }
-        })
-    )
+        if (fullChunks) {
+          fullContentMap = new Map(fullChunks.map(chunk => [chunk.id, chunk.content]))
+        }
+      } catch (error) {
+        console.warn(`Batch fetch failed for ${truncatedIds.length} chunks, using truncated content`)
+      }
+    }
+
+    // Format results with full content where available
+    const results = filteredMatches.map(match => {
+      let content = match.metadata?.content as string
+
+      // Use full content if available from batch fetch
+      if (fullContentMap.has(match.id)) {
+        content = fullContentMap.get(match.id)!
+      }
+
+      return {
+        id: match.id,
+        score: match.score || 0,
+        documentId: match.metadata?.documentId as string,
+        documentTitle: match.metadata?.documentTitle as string,
+        documentAuthor: match.metadata?.documentAuthor as string,
+        chunkIndex: match.metadata?.chunkIndex as number,
+        content,
+        tokenCount: match.metadata?.tokenCount as number
+      }
+    })
 
     console.log(`Found ${results.length} relevant chunks (score >= ${minScore})`)
     

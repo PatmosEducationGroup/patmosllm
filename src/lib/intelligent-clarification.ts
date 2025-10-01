@@ -777,12 +777,10 @@ export class IntelligentClarificationSystem {
     // Apply minimum thresholds for different clarification types
     switch (bestOpportunity.clarificationType) {
       case 'content_diversity':
-        // Only clarify if we have significant theme diversity (3+ themes with good representation)
-        if (documentDiversityAnalysis.contentThemes && documentDiversityAnalysis.contentThemes.length >= 3) {
-          console.log(`✅ CONTENT DIVERSITY CLARIFICATION APPROVED: ${documentDiversityAnalysis.contentThemes.length} themes`)
-          return bestOpportunity
-        }
-        console.log(`❌ Content diversity clarification rejected (insufficient themes)`)
+        // DISABLED: Content diversity should ALWAYS trigger synthesis, not clarification
+        // Multiple themes from different documents = perfect synthesis opportunity!
+        // The system should combine insights from all themes into one comprehensive answer
+        console.log(`❌ Content diversity clarification DISABLED - multiple themes = synthesis opportunity (${documentDiversityAnalysis.contentThemes?.length || 0} themes, ${searchConfidence.toFixed(3)} confidence)`)
         break
 
       case 'topic_clustering':

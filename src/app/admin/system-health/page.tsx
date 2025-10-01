@@ -26,12 +26,6 @@ interface SystemHealth {
     status: string
     responseTime: number
     connected: boolean
-    connectionPool: {
-      utilization: number
-      activeConnections: number
-      totalConnections: number
-      queueLength: number
-    }
     error?: string
   }
   cache: {
@@ -78,9 +72,8 @@ interface SystemHealth {
     recent24h: number
   }
   performance: {
-    databaseUtilization: number
     cacheHitRate: number
-    estimatedConcurrentCapacity: number
+    dbResponseTime: number
     status: string
   }
   system: {
@@ -263,22 +256,22 @@ export default function SystemHealthPage() {
                     </div>
                   </div>
                 </Tooltip>
-                <Tooltip content="Estimated number of users that can use the system simultaneously based on current performance metrics.">
+                <Tooltip content="Total active users in the system">
                   <div className="text-center cursor-help">
-                    <div className="text-2xl font-bold text-green-600">{health.performance.estimatedConcurrentCapacity}</div>
+                    <div className="text-2xl font-bold text-green-600">{health.users.active}</div>
                     <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
-                      Concurrent Capacity
+                      Active Users
                       <HelpCircle className="h-3 w-3 text-gray-400" />
                     </div>
                   </div>
                 </Tooltip>
-                <Tooltip content="Percentage of database connections in use. <70% is good, >85% indicates high load.">
+                <Tooltip content="Database query response time. <100ms is excellent, <500ms is good, >1000ms needs attention.">
                   <div className="text-center cursor-help">
-                    <div className={`text-2xl font-bold ${health.database.connectionPool.utilization < 70 ? 'text-green-600' : 'text-yellow-600'}`}>
-                      {health.database.connectionPool.utilization.toFixed(0)}%
+                    <div className={`text-2xl font-bold ${health.database.responseTime < 100 ? 'text-green-600' : health.database.responseTime < 500 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {health.database.responseTime}ms
                     </div>
                     <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
-                      DB Utilization
+                      DB Response Time
                       <HelpCircle className="h-3 w-3 text-gray-400" />
                     </div>
                   </div>
@@ -308,12 +301,6 @@ export default function SystemHealthPage() {
                     <span className="text-gray-600">Status</span>
                     <span className={`font-medium ${health.database.connected ? 'text-green-600' : 'text-red-600'}`}>
                       {health.database.connected ? 'Connected' : 'Disconnected'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Pool Utilization</span>
-                    <span className={`font-medium ${health.database.connectionPool.utilization < 70 ? 'text-green-600' : 'text-yellow-600'}`}>
-                      {health.database.connectionPool.utilization.toFixed(1)}%
                     </span>
                   </div>
                 </div>
@@ -427,38 +414,6 @@ export default function SystemHealthPage() {
                 </div>
               </div>
 
-              {/* Connection Pool */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <Database className="h-8 w-8 text-indigo-500" />
-                  <div className="ml-4">
-                    <h3 className="text-lg font-medium text-gray-900">Connection Pool</h3>
-                    <p className={`text-sm ${
-                      health.database.connectionPool.utilization < 70 ? 'text-green-600' : 
-                      health.database.connectionPool.utilization < 85 ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
-                      {health.database.connectionPool.utilization.toFixed(1)}% utilized
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Active</span>
-                    <span className="font-medium">{health.database.connectionPool.activeConnections}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Total Pool</span>
-                    <span className="font-medium">{health.database.connectionPool.totalConnections}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Queue Length</span>
-                    <span className={`font-medium ${health.database.connectionPool.queueLength > 5 ? 'text-red-600' : 'text-green-600'}`}>
-                      {health.database.connectionPool.queueLength}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
               {/* Vector Database */}
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex items-center">
@@ -548,13 +503,9 @@ export default function SystemHealthPage() {
                 </div>
                 <div className="mt-4 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Concurrent Capacity</span>
-                    <span className="font-medium text-green-600">{health.performance.estimatedConcurrentCapacity} users</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">DB Utilization</span>
-                    <span className={`font-medium ${health.performance.databaseUtilization < 70 ? 'text-green-600' : 'text-yellow-600'}`}>
-                      {health.performance.databaseUtilization.toFixed(1)}%
+                    <span className="text-gray-600">DB Response Time</span>
+                    <span className={`font-medium ${health.performance.dbResponseTime < 100 ? 'text-green-600' : health.performance.dbResponseTime < 500 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {health.performance.dbResponseTime}ms
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -562,6 +513,10 @@ export default function SystemHealthPage() {
                     <span className={`font-medium ${health.performance.cacheHitRate > 50 ? 'text-green-600' : 'text-yellow-600'}`}>
                       {health.performance.cacheHitRate.toFixed(1)}%
                     </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Overall Status</span>
+                    <span className="font-medium text-green-600">{health.performance.status}</span>
                   </div>
                 </div>
               </div>

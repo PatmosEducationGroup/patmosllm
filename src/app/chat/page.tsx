@@ -509,14 +509,14 @@ function ChatPageContent() {
     setMessages(prev => [...prev, assistantMessage])
 
     // Timeout and cleanup management
-    let updateInterval: NodeJS.Timeout | null = null
+    let animationFrameId: number | null = null
     let timeoutId: NodeJS.Timeout | null = null
     let isStreamComplete = false
 
     const cleanup = () => {
-      if (updateInterval) {
-        clearInterval(updateInterval)
-        updateInterval = null
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
+        animationFrameId = null
       }
       if (timeoutId) {
         clearTimeout(timeoutId)
@@ -587,16 +587,22 @@ function ChatPageContent() {
         if (buffer && !isStreamComplete) {
           streamedContent += buffer
           buffer = ''
-          
-          setMessages(prev => prev.map(msg => 
+
+          setMessages(prev => prev.map(msg =>
             msg.id === assistantMessageId
               ? { ...msg, content: streamedContent }
               : msg
           ))
         }
+
+        // Schedule next update using requestAnimationFrame for smooth 60fps
+        if (!isStreamComplete) {
+          animationFrameId = requestAnimationFrame(batchUpdate)
+        }
       }
 
-      updateInterval = setInterval(batchUpdate, 50)
+      // Start the animation loop
+      animationFrameId = requestAnimationFrame(batchUpdate)
 
       // Stream reading with additional safety checks
       let consecutiveEmptyChunks = 0

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { withSupabaseAdmin, getSupabaseHealth } from '@/lib/supabase'
+import { withSupabaseAdmin } from '@/lib/supabase'
 import { advancedCache } from '@/lib/advanced-cache'
 import { testConnection as testPineconeConnection } from '@/lib/pinecone'
 import { getCurrentUser } from '@/lib/auth'
@@ -21,7 +21,7 @@ export async function GET(_request: NextRequest) {
     const startTime = Date.now()
 
     // Get advanced system metrics including memory system
-    const [dbStats, cacheStats, connectionHealth, pineconeHealth, memoryHealth] = await Promise.all([
+    const [dbStats, cacheStats, pineconeHealth, memoryHealth] = await Promise.all([
       // Database stats with connection pooling
       withSupabaseAdmin(async (supabase) => {
         const [usersResult, documentsResult, conversationsResult, userContextResult, conversationMemoryResult, topicProgressionResult] = await Promise.all([
@@ -36,8 +36,6 @@ export async function GET(_request: NextRequest) {
       }),
       // Cache performance metrics
       advancedCache.getStats(),
-      // Connection pool health
-      getSupabaseHealth(),
       // Vector database health
       testPineconeConnection(),
       // Memory system health check
@@ -78,8 +76,7 @@ export async function GET(_request: NextRequest) {
         database: {
           status: 'healthy',
           responseTime: dbResponseTime,
-          connected: true,
-          connectionPool: connectionHealth
+          connected: true
         },
         cache: {
           ...cacheStats,
@@ -120,23 +117,22 @@ export async function GET(_request: NextRequest) {
           recent24h: recentConversations
         },
         performance: {
-          databaseUtilization: connectionHealth.utilization,
           cacheHitRate: cacheStats.hitRate,
-          estimatedConcurrentCapacity: Math.floor(100 - connectionHealth.utilization) * 5, // Rough estimate
-          status: connectionHealth.utilization < 70 && cacheStats.hitRate > 20 ? 'excellent' : 'good'
+          dbResponseTime: dbResponseTime,
+          status: cacheStats.hitRate > 20 ? 'excellent' : 'good'
         },
         system: {
           uptime: process.uptime(),
           timestamp: new Date().toISOString(),
-          version: '2.0.0-hybrid-search',
+          version: '2.1.0-serverless-optimized',
           nodeVersion: process.version,
           memoryUsage: process.memoryUsage(),
           features: [
-            'Singleton Connection Pool',
+            'Serverless-Optimized Architecture',
             'Advanced Multi-layer Cache',
             'Hybrid Search (Semantic + Keyword)',
             'Intelligent Query Analysis',
-            'Real-time Performance Monitoring',
+            'Optimized Database Indexes',
             'Conversation Memory System',
             'User Context Tracking',
             'Topic Extraction & Learning'

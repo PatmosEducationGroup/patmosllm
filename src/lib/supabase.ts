@@ -1,191 +1,89 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-// Singleton pattern for database connections to handle 500+ concurrent users
-class SupabaseManager {
-  private static instance: SupabaseManager
-  private _supabase: SupabaseClient | null = null
-  private _supabaseAdmin: SupabaseClient | null = null
-  private connectionPool: {
-    maxConnections: number
-    activeConnections: number
-    connectionQueue: Array<() => void>
-    lastCleanup: number
-  }
+// =================================================================
+// SERVERLESS-OPTIMIZED SUPABASE CLIENTS
+// =================================================================
+// Supabase JS client automatically uses connection pooling via PostgREST
+// No need for manual connection pool management in serverless environments
+// Vercel functions are stateless - each request gets a fresh container
 
-  private constructor() {
-    this.connectionPool = {
-      maxConnections: 25, // Increased from 20 for better concurrency
-      activeConnections: 0,
-      connectionQueue: [],
-      lastCleanup: Date.now()
-    }
-
-    // Cleanup idle connections every 3 minutes (was 5)
-    setInterval(() => this.cleanupConnections(), 3 * 60 * 1000)
-  }
-
-  public static getInstance(): SupabaseManager {
-    if (!SupabaseManager.instance) {
-      SupabaseManager.instance = new SupabaseManager()
-    }
-    return SupabaseManager.instance
-  }
-
-  private cleanupConnections(): void {
-    const now = Date.now()
-    if (now - this.connectionPool.lastCleanup > 3 * 60 * 1000) { // Changed from 5 to 3 minutes
-      // More aggressive cleanup for better performance
-      this.connectionPool.activeConnections = Math.max(0, this.connectionPool.activeConnections - 2)
-      this.connectionPool.lastCleanup = now
-
-      // Clear stale queue items (older than 30 seconds)
-      if (this.connectionPool.connectionQueue.length > 10) {
-        this.connectionPool.connectionQueue.splice(0, 5)
-        console.log('🧹 Database: Cleared stale connection queue items')
-      }
+// Shared configuration for optimal serverless performance
+const createSupabaseConfig = (appName: string) => ({
+  db: {
+    schema: 'public' as const,
+  },
+  auth: {
+    persistSession: false, // Serverless doesn't persist sessions
+    autoRefreshToken: false, // Not needed for API-only clients
+    detectSessionInUrl: false, // Server-side only
+  },
+  global: {
+    headers: {
+      'x-application-name': appName,
+    },
+    // Enable HTTP keep-alive for connection reuse within same container
+    fetch: (url: RequestInfo | URL, options: RequestInit = {}) => {
+      return fetch(url, {
+        ...options,
+        keepalive: true,
+      })
     }
   }
+})
 
-  public get supabase(): SupabaseClient {
-    if (!this._supabase) {
-      this._supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          realtime: {
-            params: {
-              eventsPerSecond: 15 // Increased from 10
-            }
-          },
-          db: {
-            schema: 'public',
-          },
-          auth: {
-            persistSession: true,
-            storageKey: 'supabase.auth.token',
-            autoRefreshToken: true,
-            detectSessionInUrl: false // Slight performance improvement
-          },
-          global: {
-            headers: {
-              'x-application-name': 'PatmosLLM',
-              'Connection': 'keep-alive'
-            }
-          }
-        }
-      )
-    }
-    return this._supabase
+// Client-side Supabase client (anon key)
+let _supabase: SupabaseClient | null = null
+function getSupabaseClient(): SupabaseClient {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      createSupabaseConfig('PatmosLLM')
+    )
   }
-
-  public get supabaseAdmin(): SupabaseClient {
-    if (!this._supabaseAdmin) {
-      this._supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          },
-          db: {
-            schema: 'public',
-          },
-          realtime: {
-            params: {
-              eventsPerSecond: 20 // Higher for admin operations
-            }
-          },
-          global: {
-            headers: {
-              'x-application-name': 'PatmosLLM-Admin',
-              'Connection': 'keep-alive',
-              'Cache-Control': 'max-age=60'
-            }
-          }
-        }
-      )
-    }
-    return this._supabaseAdmin
-  }
-
-  // Connection pool management for high-concurrency scenarios
-  public async withConnection<T>(operation: (client: SupabaseClient) => Promise<T>, useAdmin = false): Promise<T> {
-    return new Promise(async (resolve, reject) => {
-      const executeOperation = async () => {
-        try {
-          this.connectionPool.activeConnections++
-          const client = useAdmin ? this.supabaseAdmin : this.supabase
-          const result = await operation(client)
-          resolve(result)
-        } catch (error) {
-          reject(error)
-        } finally {
-          this.connectionPool.activeConnections--
-          
-          // Process queue if connections available
-          if (this.connectionPool.connectionQueue.length > 0 && 
-              this.connectionPool.activeConnections < this.connectionPool.maxConnections) {
-            const nextOperation = this.connectionPool.connectionQueue.shift()
-            if (nextOperation) nextOperation()
-          }
-        }
-      }
-
-      // If under connection limit, execute immediately
-      if (this.connectionPool.activeConnections < this.connectionPool.maxConnections) {
-        executeOperation()
-      } else {
-        // Queue the operation
-        this.connectionPool.connectionQueue.push(executeOperation)
-      }
-    })
-  }
-
-  // Health check for monitoring
-  public getConnectionHealth() {
-    return {
-      activeConnections: this.connectionPool.activeConnections,
-      maxConnections: this.connectionPool.maxConnections,
-      queueLength: this.connectionPool.connectionQueue.length,
-      lastCleanup: this.connectionPool.lastCleanup,
-      utilization: (this.connectionPool.activeConnections / this.connectionPool.maxConnections) * 100
-    }
-  }
-
-  // Optimized query helper with built-in connection management
-  public async executeOptimizedQuery<T>(
-    query: (client: SupabaseClient) => Promise<{ data: T[] | null; error: Error | null }>,
-    useAdmin = false,
-    _cacheKey?: string
-  ): Promise<T[] | null> {
-    return this.withConnection(async (client) => {
-      const { data, error } = await query(client)
-
-      if (error) {
-        return null
-      }
-
-      return data
-    }, useAdmin)
-  }
+  return _supabase
 }
 
-// Export singleton instances
-const supabaseManager = SupabaseManager.getInstance()
+// Admin Supabase client (service role key)
+let _supabaseAdmin: SupabaseClient | null = null
+function getSupabaseAdmin(): SupabaseClient {
+  if (!_supabaseAdmin) {
+    _supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      createSupabaseConfig('PatmosLLM-Admin')
+    )
+  }
+  return _supabaseAdmin
+}
 
-// Legacy exports for backward compatibility
-export const supabase = supabaseManager.supabase
-export const supabaseAdmin = supabaseManager.supabaseAdmin
+// Export clients
+export const supabase = getSupabaseClient()
+export const supabaseAdmin = getSupabaseAdmin()
 
-// New optimized exports
-export const withSupabase = <T>(operation: (client: SupabaseClient) => Promise<T>) => 
-  supabaseManager.withConnection(operation, false)
+// =================================================================
+// CONVENIENCE WRAPPERS FOR CLEANER CODE
+// =================================================================
 
-export const withSupabaseAdmin = <T>(operation: (client: SupabaseClient) => Promise<T>) => 
-  supabaseManager.withConnection(operation, true)
+/**
+ * Execute operation with regular Supabase client
+ * Useful for wrapping queries in try-catch with proper typing
+ */
+export const withSupabase = async <T>(
+  operation: (client: SupabaseClient) => Promise<T>
+): Promise<T> => {
+  return operation(supabase)
+}
 
-export const getSupabaseHealth = () => supabaseManager.getConnectionHealth()
+/**
+ * Execute operation with admin Supabase client
+ * Useful for server-side operations requiring elevated permissions
+ */
+export const withSupabaseAdmin = async <T>(
+  operation: (client: SupabaseClient) => Promise<T>
+): Promise<T> => {
+  return operation(supabaseAdmin)
+}
 
 // =================================================================
 // OPTIMIZED DATABASE QUERIES - High-performance versions of common operations
@@ -193,33 +91,39 @@ export const getSupabaseHealth = () => supabaseManager.getConnectionHealth()
 
 /**
  * Optimized session validation - frequently called in chat API
+ * Uses the new composite index: idx_chat_sessions_id_user
  */
 export async function validateChatSession(sessionId: string, userId: string): Promise<boolean> {
-  return supabaseManager.executeOptimizedQuery<{id: string}>(
-    async (client) => await client
-      .from('chat_sessions')
-      .select('id')
-      .eq('id', sessionId)
-      .eq('user_id', userId)
-      .limit(1),
-    true // Use admin client for speed
-  ).then(data => data !== null && data.length > 0)
+  const { data, error } = await supabaseAdmin
+    .from('chat_sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .limit(1)
+    .single()
+
+  return !error && data !== null
 }
 
 /**
  * Optimized conversation history fetching - with limited fields for performance
+ * Uses the new composite index: idx_conversations_session_user_created
  */
-export async function fetchConversationHistory(sessionId: string, userId: string, limit: number = 10): Promise<Array<{question: string; answer: string}> | null> {
-  return supabaseManager.executeOptimizedQuery<{question: string; answer: string}>(
-    async (client) => await client
-      .from('conversations')
-      .select('question, answer')
-      .eq('session_id', sessionId)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit),
-    true
-  )
+export async function fetchConversationHistory(
+  sessionId: string,
+  userId: string,
+  limit: number = 10
+): Promise<Array<{question: string; answer: string}> | null> {
+  const { data, error } = await supabaseAdmin
+    .from('conversations')
+    .select('question, answer')
+    .eq('session_id', sessionId)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) return null
+  return data
 }
 
 /**
@@ -232,28 +136,24 @@ export async function insertConversation(data: {
   answer: string
   sources: Array<{title: string; author?: string; chunk_id: string}>
 }): Promise<string | null> {
-  const result = await supabaseManager.executeOptimizedQuery<{id: string}>(
-    async (client) => await client
-      .from('conversations')
-      .insert(data)
-      .select('id')
-      .single(),
-    true
-  )
-  return result?.[0]?.id || null
+  const { data: conversation, error } = await supabaseAdmin
+    .from('conversations')
+    .insert(data)
+    .select('id')
+    .single()
+
+  if (error || !conversation) return null
+  return conversation.id
 }
 
 /**
  * Optimized session timestamp update - minimal data transfer
  */
 export async function updateSessionTimestamp(sessionId: string): Promise<boolean> {
-  return supabaseManager.executeOptimizedQuery<{updated_at: string}>(
-    async (client) => await client
-      .from('chat_sessions')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', sessionId),
-    true
-  ).then(data => data !== null)
-}
+  const { error } = await supabaseAdmin
+    .from('chat_sessions')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', sessionId)
 
-export default supabaseManager
+  return !error
+}
