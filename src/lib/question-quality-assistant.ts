@@ -203,7 +203,7 @@ export class QuestionQualityAssistant {
   /**
    * Generate guided question builder steps
    */
-  generateQuestionBuilder(topic?: string): {
+  generateQuestionBuilder(_topic?: string): {
     steps: Array<{
       title: string
       description: string
@@ -488,7 +488,7 @@ Format as JSON:
         return { current: question, improved: [] }
       }
 
-    } catch (error) {
+    } catch (_error) {
       return { current: question, improved: [] }
     }
   }

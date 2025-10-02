@@ -21,7 +21,7 @@ export async function POST(_request: NextRequest) {
       const body = await _request.json()
       milestone = body.milestone
       metadata = body.metadata || {}
-    } catch (error) {
+    } catch (_error) {
       return NextResponse.json(
         { error: 'Invalid JSON body' },
         { status: 400 }
@@ -87,7 +87,7 @@ export async function POST(_request: NextRequest) {
       tracked_at: new Date().toISOString()
     })
 
-  } catch (error) {
+  } catch (_error) {
     
     // Fix 6: Better error logging with context
     console.error('Request details:', {

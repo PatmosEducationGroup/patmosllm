@@ -133,7 +133,7 @@ export async function POST(_request: NextRequest) {
             await new Promise(resolve => setTimeout(resolve, delay))
           }
         }
-      } catch (error) {
+      } catch (_error) {
         downloadError = 'Network error'
 
         if (attempt < 5) {
@@ -255,7 +255,7 @@ export async function POST(_request: NextRequest) {
       }
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 

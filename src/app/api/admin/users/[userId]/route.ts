@@ -86,7 +86,7 @@ if (currentUser.role === 'ADMIN') {
       user: updatedUser
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 

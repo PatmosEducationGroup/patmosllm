@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, clerkClient } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import { sendInvitationEmail, generateInvitationToken } from '@/lib/email'
@@ -113,6 +113,28 @@ export async function POST(_request: NextRequest) {
     })
 
     // =================================================================
+    // CLERK INVITATION - Create Clerk invitation to allow signup in Restricted mode
+    // =================================================================
+    try {
+      const client = await clerkClient()
+      await client.invitations.createInvitation({
+        emailAddress: email.toLowerCase(),
+        redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}`,
+        notify: false, // Don't send Clerk's email - we handle emails ourselves
+        publicMetadata: {
+          invitationToken: invitationToken,
+          role: role,
+          invitedBy: user.email
+        }
+      })
+      console.log(`✅ Clerk invitation created for ${email} (notify: false)`)
+    } catch (clerkError) {
+      console.error('❌ Failed to create Clerk invitation:', clerkError)
+      // Don't fail the whole request - user can still use the custom invitation link
+      // if Clerk is switched to a different mode
+    }
+
+    // =================================================================
     // EMAIL SENDING - Conditionally send invitation email to new user
     // =================================================================
     let emailResult = { success: false }
@@ -152,7 +174,7 @@ export async function POST(_request: NextRequest) {
       }
     })
 
-  } catch (error) {
+  } catch (_error) {
     // =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
@@ -236,7 +258,7 @@ export async function GET(_request: NextRequest) {
       total: users.length
     })
 
-  } catch (error) {
+  } catch (_error) {
     // =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
@@ -337,6 +359,32 @@ export async function DELETE(_request: NextRequest) {
     }
 
     // =================================================================
+    // CLERK INVITATION REVOCATION - Revoke Clerk invitation if pending
+    // =================================================================
+    if (isPendingInvitation) {
+      try {
+        const client = await clerkClient()
+        // List all pending invitations for this email
+        const invitations = await client.invitations.getInvitationList({
+          status: 'pending'
+        })
+
+        // Find the invitation for this email
+        const invitation = invitations.data.find(
+          inv => inv.emailAddress.toLowerCase() === targetUser.email.toLowerCase()
+        )
+
+        if (invitation) {
+          await client.invitations.revokeInvitation(invitation.id)
+          console.log(`✅ Clerk invitation revoked for ${targetUser.email}`)
+        }
+      } catch (clerkError) {
+        console.error('❌ Failed to revoke Clerk invitation:', clerkError)
+        // Don't fail the whole request - user is already deleted from database
+      }
+    }
+
+    // =================================================================
     // LOGGING - Log admin action for audit trail
     // =================================================================
     const actionType = isPendingInvitation ? 'retracted invitation for' : 'deleted user'
@@ -357,7 +405,7 @@ export async function DELETE(_request: NextRequest) {
       }
     })
 
-  } catch (error) {
+  } catch (_error) {
     // =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================

@@ -30,7 +30,7 @@ export default function OnboardingAnalyticsPage() {
         }
         
         setIsAuthorized(true)
-      } catch (error) {
+      } catch (_error) {
         router.push('/')
       }
     }

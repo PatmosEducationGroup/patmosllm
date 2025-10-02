@@ -1,6 +1,6 @@
 'use client'
 
-import { SignIn } from '@clerk/nextjs'
+import { SignUp } from '@clerk/nextjs'
 import { useAuth } from '@clerk/nextjs'
 
 export default function Page() {
@@ -36,7 +36,7 @@ export default function Page() {
           </p>
         </div>
         <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-neutral-200/40">
-          <SignIn
+          <SignUp
             appearance={{
               elements: {
                 rootBox: "mx-auto",
@@ -64,6 +64,7 @@ export default function Page() {
                 spacingUnit: "1rem"
               }
             }}
+            afterSignUpUrl="/chat"
           />
         </div>
       </div>

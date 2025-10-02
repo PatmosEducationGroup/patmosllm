@@ -71,7 +71,7 @@ export async function GET(
       document
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { success: false, error: 'Failed to load document' },
       { status: 500 }
@@ -202,7 +202,7 @@ export async function PUT(
       document: updatedDoc
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { success: false, error: 'Failed to update document' },
       { status: 500 }

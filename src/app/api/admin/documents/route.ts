@@ -98,7 +98,7 @@ export async function GET(_request: NextRequest) {
       userRole: user.role
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 

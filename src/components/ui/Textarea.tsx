@@ -121,8 +121,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({
   useEffect(() => {
     if (autoResize) {
       adjustHeight()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoResize])
 
   const isOverLimit = maxLength ? charCount > maxLength : false
@@ -249,8 +249,8 @@ interface EnhancedTextareaProps extends Omit<TextareaProps, 'autoComplete'> {
 }
 
 export const EnhancedTextarea = ({
-  autoComplete = false,
-  suggestions = [],
+  autoComplete: _autoComplete = false,
+  suggestions: _suggestions = [],
   onSuggestionSelect,
   allowMarkdown = false,
   previewMode = false,
@@ -258,7 +258,7 @@ export const EnhancedTextarea = ({
   ...textareaProps
 }: EnhancedTextareaProps) => {
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
+  const [filteredSuggestions, _setFilteredSuggestions] = useState<string[]>([])
 
   // This is a simplified implementation
   // In a full implementation, you'd add autocomplete logic, markdown preview, etc.

@@ -144,7 +144,7 @@ export async function extractTextFromFile(
       default:
         throw new Error(`Unsupported file type: ${actualMimeType}`)
     }
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`Failed to extract text from ${filename}: ${''}`)
   }
 }
@@ -236,7 +236,7 @@ Technical Details:
       }
     }
 
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`PowerPoint processing failed: ${''}`)
   }
 }
@@ -325,7 +325,7 @@ async function extractFromPDF(buffer: Buffer): Promise<{
           pageCount,
           processorUsed: 'pdf2json'
         })
-      } catch (error) {
+      } catch (_error) {
         reject(new Error(`Error processing PDF data: ${''}`))
       }
     })
@@ -356,7 +356,7 @@ async function extractFromWord(buffer: Buffer): Promise<{
       wordCount,
       processorUsed: 'mammoth'
     }
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`Word document processing failed: ${''}`)
   }
 }
@@ -404,7 +404,7 @@ async function extractFromEPub(buffer: Buffer, filename: string): Promise<{
         }))
       }
     }
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`EPUB processing failed: ${''}`)
   }
 }

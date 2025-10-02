@@ -46,23 +46,23 @@ class BrowserPool {
 
 const browserPool = new BrowserPool()
 
-// Request deduplication
-const pendingRequests = new Map<string, Promise<unknown>>()
-async function deduplicatedFetch<T>(url: string, fetcher: () => Promise<T>): Promise<T> {
-  if (pendingRequests.has(url)) {
-    return pendingRequests.get(url) as Promise<T>
-  }
-
-  const promise = fetcher().finally(() => {
-    pendingRequests.delete(url)
-  })
-
-  pendingRequests.set(url, promise)
-  return promise
-}
+// // Request deduplication
+// const pendingRequests = new Map<string, Promise<unknown>>()
+// async function deduplicatedFetch<T>(url: string, fetcher: () => Promise<T>): Promise<T> {
+//   if (pendingRequests.has(url)) {
+//     return pendingRequests.get(url) as Promise<T>
+//   }
+// 
+//   const promise = fetcher().finally(() => {
+//     pendingRequests.delete(url)
+//   })
+// 
+//   pendingRequests.set(url, promise)
+//   return promise
+// }
 
 // Sitemap caching
-const sitemapCache = new Map<string, { urls: string[], timestamp: number }>()
+const _sitemapCache = new Map<string, { urls: string[], timestamp: number }>()
 const _SITEMAP_CACHE_TTL = 3600000 // 1 hour
 
 // Enhanced helper function to check if URL belongs to same domain
@@ -105,7 +105,7 @@ function isSameDomain(originalUrl: string, linkUrl: string, allowSubdomains = tr
     }
     
     return false
-  } catch (error) {
+  } catch (_error) {
     return false
   }
 }
@@ -165,13 +165,13 @@ function isContentUrl(url: string): boolean {
     // - any other HTML/ASPX/PHP pages
     console.log(`✓ Allowing URL: ${url}`)
     return true
-  } catch (error) {
+  } catch (_error) {
     return false
   }
 }
 
 // Optimized content extraction with single-pass cleanup
-function extractMainContent(html: string, url: string): { content: string; title: string } {
+function _extractMainContent(html: string, url: string): { content: string; title: string } {
   const $ = cheerio.load(html, {
     normalizeWhitespace: true,
     decodeEntities: true
@@ -240,7 +240,7 @@ async function checkRobotsTxt(url: string): Promise<boolean> {
     const robots = robotsParser(robotsUrl, robotsText)
     
     return robots.isAllowed(url, 'Multiply Tools Web Scraper') !== false && robots.isAllowed(url, '*') !== false
-  } catch (error) {
+  } catch (_error) {
     return true // If error checking robots.txt, assume allowed
   }
 }
@@ -269,7 +269,7 @@ async function scrapePage(url: string): Promise<{ success: boolean; content?: st
       title: result.title
     }
 
-  } catch (error) {
+  } catch (_error) {
     return {
       success: false,
       error: 'Scraping failed'
@@ -306,7 +306,7 @@ async function parseSitemapFile(sitemapUrl: string, baseUrl: string): Promise<st
     }
     
     return urls
-  } catch (error) {
+  } catch (_error) {
     return []
   }
 }
@@ -346,7 +346,7 @@ async function parseRobotsForSitemaps(baseUrl: string): Promise<string[]> {
     
     console.log(`Found ${sitemapUrls.length} sitemap references in robots.txt`)
     return sitemapUrls
-  } catch (error) {
+  } catch (_error) {
     return []
   }
 }
@@ -446,7 +446,7 @@ async function scrapePageLightweight(url: string, baseUrl: string): Promise<{ ti
       content: content.substring(0, 50000),
       links: [...new Set(links)] // Remove duplicates
     }
-  } catch (error) {
+  } catch (_error) {
     return null // Lightweight method failed
   }
 }
@@ -473,7 +473,7 @@ async function scrapePageWithFallback(url: string, baseUrl: string): Promise<{ t
       return fastResult
     }
     console.log(`  ✗ FAILED: Puppeteer fast returned null`)
-  } catch (error) {
+  } catch (_error) {
   }
 
   // Strategy 3: Try Puppeteer with networkidle0 (slower but more complete)
@@ -485,7 +485,7 @@ async function scrapePageWithFallback(url: string, baseUrl: string): Promise<{ t
       return completeResult
     }
     console.log(`  ✗ FAILED: Puppeteer complete returned null`)
-  } catch (error) {
+  } catch (_error) {
   }
 
   // Strategy 4: Last resort - return minimal data with more context
@@ -566,7 +566,7 @@ async function scrapePageWithPuppeteer(
           try {
             const absoluteUrl = new URL(href, baseUrl).toString()
             links.push(absoluteUrl)
-          } catch (error) {
+          } catch (_error) {
             // Invalid URL, skip
           }
         }
@@ -580,7 +580,7 @@ async function scrapePageWithPuppeteer(
       .filter(link => {
         try {
           return isSameDomain(baseUrl, link) && isContentUrl(link)
-        } catch (error) {
+        } catch (_error) {
           return false
         }
       })
@@ -661,7 +661,7 @@ async function parseSitemap(baseUrl: string): Promise<string[]> {
                 try {
                   const childUrls = await parseSitemapFile(url, baseUrl)
                   childUrls.forEach(childUrl => allUrls.add(childUrl))
-                } catch (error) {
+                } catch (_error) {
                   // Continue if child sitemap fails
                 }
               } else if (isSameDomain(baseUrl, url, true) && isContentUrl(url)) {
@@ -672,7 +672,7 @@ async function parseSitemap(baseUrl: string): Promise<string[]> {
             console.log(`Found ${urlsFound} URLs in sitemap: ${sitemapUrl}`)
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // Continue to next sitemap URL
         continue
       }
@@ -681,7 +681,7 @@ async function parseSitemap(baseUrl: string): Promise<string[]> {
     const result = Array.from(allUrls)
     console.log(`Total sitemap discovery: ${foundSitemaps} sitemaps processed, ${result.length} unique URLs found`)
     return result
-  } catch (error) {
+  } catch (_error) {
     return []
   }
 }
@@ -697,7 +697,7 @@ async function findLinksOnPage(url: string): Promise<string[]> {
     const domainFilteredLinks = result.links.filter(link => {
       try {
         return isSameDomain(url, link, true)
-      } catch (error) {
+      } catch (_error) {
         return false
       }
     })
@@ -735,7 +735,7 @@ async function findLinksOnPage(url: string): Promise<string[]> {
 
     return filteredLinks
 
-  } catch (error) {
+  } catch (_error) {
     console.warn(`⚠ Failed to discover links on ${url}, continuing crawl:`, '')
     // Return empty array but don't throw - let crawling continue
     return []
@@ -815,7 +815,7 @@ async function discoverAllPages(
       const sitemapUrls = await parseSitemap(baseUrl)
       sitemapUrls.forEach(url => discovered.add(url))
       console.log(`Added ${sitemapUrls.length} URLs from sitemap`)
-    } catch (error) {
+    } catch (_error) {
       console.log('No sitemap found, proceeding with aggressive crawling mode')
     }
 
@@ -877,10 +877,10 @@ async function discoverAllPages(
           console.log(`Crawling: ${item.url} (depth: ${item.depth})`)
           const links = await findLinksOnPage(item.url)
           return { links, depth: item.depth }
-        } catch (error) {
+        } catch (_error) {
 
           // For SSL errors, try to suggest the correct domain
-          if (error instanceof Error && error.message.includes('ERR_CERT_COMMON_NAME_INVALID')) {
+          if (_error instanceof Error && _error.message.includes('ERR_CERT_COMMON_NAME_INVALID')) {
             console.log(`SSL certificate issue detected for ${item.url}. This might indicate the wrong domain.`)
           }
 
@@ -973,7 +973,7 @@ export async function POST(_request: NextRequest) {
       // Validate URL format
       try {
         new URL(normalizedUrl)
-      } catch (error) {
+      } catch (_error) {
         return NextResponse.json({ error: 'Invalid URL format. Please use a valid domain like example.com or https://example.com' }, { status: 400 })
       }
       
@@ -1024,7 +1024,7 @@ export async function POST(_request: NextRequest) {
       for (const targetUrl of urls) {
         try {
           new URL(targetUrl)
-        } catch (error) {
+        } catch (_error) {
           return NextResponse.json({ error: `Invalid URL format: ${targetUrl}` }, { status: 400 })
         }
       }
@@ -1051,7 +1051,7 @@ export async function POST(_request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action. Must be "discover" or "scrape"' }, { status: 400 })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { error: 'Internal server error', details: '' },
       { status: 500 }

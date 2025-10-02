@@ -128,7 +128,7 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       expiresIn: 900 // 15 minutes in seconds
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 

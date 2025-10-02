@@ -123,7 +123,7 @@ export async function POST(_request: NextRequest) {
         success: false,
         error: `File "${file.name}" has already been uploaded. Please rename the file or delete the existing one before uploading.`
       }, { status: 409 }) // 409 Conflict
-    } catch (error) {
+    } catch (_error) {
       // File doesn't exist (head() throws if not found), continue with upload
       console.log(`File ${file.name} does not exist in blob storage, proceeding with upload`)
     }
@@ -188,7 +188,7 @@ export async function POST(_request: NextRequest) {
             await new Promise(resolve => setTimeout(resolve, delay))
           }
         }
-      } catch (error) {
+      } catch (_error) {
         downloadError = 'Network error'
 
         if (attempt < 5) {
@@ -313,7 +313,7 @@ export async function POST(_request: NextRequest) {
       }
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 

@@ -42,7 +42,7 @@ export default function InvitePage() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to validate invitation')
     } finally {
       setLoading(false)

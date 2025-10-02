@@ -95,7 +95,7 @@ function AdminPageContent() {
   }[]>([])
   const [isProcessingQueue, setIsProcessingQueue] = useState(false)
   const [useSharedMetadata, setUseSharedMetadata] = useState(true)
-  const [showMetadataEditor, setShowMetadataEditor] = useState(false)
+  const [_showMetadataEditor, setShowMetadataEditor] = useState(false)
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadAuthor, setUploadAuthor] = useState('')
   const [uploadAmazonUrl, setUploadAmazonUrl] = useState('')
@@ -122,7 +122,7 @@ function AdminPageContent() {
 
   // Pagination states (for discovery pages)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pagesPerPage, _setPagesPerPage] = useState(20)
+  const [pagesPerPage] = useState(20)
   const [showAllPages, setShowAllPages] = useState(false)
 
   // New states for document and scraped page management
@@ -253,7 +253,7 @@ function AdminPageContent() {
       loadDocuments()
       loadIngestJobs()
       
-    } catch (error) {
+    } catch (_error) {
       setAccessDenied(true)
       setError('Access denied: Unable to verify your permissions.')
       setLoading(false)
@@ -278,7 +278,7 @@ function AdminPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to load documents')
     } finally {
       setLoading(false)
@@ -293,16 +293,16 @@ function AdminPageContent() {
       if (data.success) {
         setIngestJobs(data.jobs)
       }
-    } catch (error) {
+    } catch (_error) {
       // Failed to load ingest jobs
     }
   }
 
   // Metadata editing functions
-  const _handleEdit = (doc: Document) => {
-    setEditingDoc({...doc})
-    setError(null)
-  }
+//   const _handleEdit = (doc: Document) => {
+//     setEditingDoc({...doc})
+//     setError(null)
+//   }
 
   const handleSave = async () => {
     if (!editingDoc) return
@@ -338,7 +338,7 @@ function AdminPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to save document changes')
     } finally {
       setSaving(false)
@@ -383,7 +383,7 @@ function AdminPageContent() {
           message: `Failed to reingest "${documentTitle}": ${data.error || ''}`
         })
       }
-    } catch (error) {
+    } catch (_error) {
       addToast({
         type: 'error',
         message: `Failed to reingest "${documentTitle}"`
@@ -449,7 +449,7 @@ function AdminPageContent() {
         setScrapingMessageType('error')
         setIsDiscovering(false)
       }
-    } catch (error) {
+    } catch (_error) {
       setScrapingMessage('Failed to discover website pages')
       setScrapingMessageType('error')
       setIsDiscovering(false)
@@ -501,7 +501,7 @@ function AdminPageContent() {
         setScrapingMessage(data.error || 'Failed to scrape pages')
         setScrapingMessageType('error')
       }
-    } catch (error) {
+    } catch (_error) {
       setScrapingMessage('Failed to scrape website pages')
       setScrapingMessageType('error')
     } finally {
@@ -574,7 +574,7 @@ function AdminPageContent() {
         throw new Error(data.error || 'Batch processing failed')
       }
         
-    } catch (error) {
+    } catch (_error) {
       setScrapingMessage('Failed to save scraped content')
       setScrapingMessageType('error')
     } finally {
@@ -799,7 +799,7 @@ function AdminPageContent() {
           continue
         }
         return response
-      } catch (error) {
+      } catch (_error) {
         if (attempt === maxRetries) throw error
         // Wait before retry
         const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
@@ -838,7 +838,7 @@ function AdminPageContent() {
           message: `"${queueItem.metadata.title}" uploaded successfully`,
           duration: 3000
         })
-      } catch (error) {
+      } catch (_error) {
         // Mark as error
         setUploadQueue(prev => prev.map((item, index) =>
           index === i ? {
@@ -1086,7 +1086,7 @@ function AdminPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to delete document')
     }
   }

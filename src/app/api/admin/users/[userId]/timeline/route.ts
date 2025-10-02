@@ -162,7 +162,7 @@ export async function GET(
      }
    })
 
- } catch (error) {
+ } catch (_error) {
    return NextResponse.json(
      { success: false, error: 'Failed to fetch user timeline' },
      { status: 500 }

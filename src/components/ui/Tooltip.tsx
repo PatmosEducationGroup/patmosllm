@@ -159,8 +159,8 @@ export const Tooltip = ({
 
       document.addEventListener('keydown', handleEscape)
       return () => document.removeEventListener('keydown', handleEscape)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trigger, isVisible])
 
   // Cleanup timeouts on unmount

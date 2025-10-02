@@ -56,7 +56,7 @@ export async function POST(_request: NextRequest) {
           templates
         })
 
-      } catch (error) {
+      } catch (_error) {
         return NextResponse.json(
           { error: 'Failed to analyze question' },
           { status: 500 }
@@ -77,7 +77,7 @@ export async function POST(_request: NextRequest) {
           templates
         })
 
-      } catch (error) {
+      } catch (_error) {
         return NextResponse.json(
           { error: 'Failed to get templates' },
           { status: 500 }
@@ -96,7 +96,7 @@ export async function POST(_request: NextRequest) {
           builder
         })
 
-      } catch (error) {
+      } catch (_error) {
         return NextResponse.json(
           { error: 'Failed to get question builder' },
           { status: 500 }
@@ -106,7 +106,7 @@ export async function POST(_request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { error: 'Question assistant request failed' },
       { status: 500 }
@@ -141,7 +141,7 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { error: 'Failed to process request' },
       { status: 500 }

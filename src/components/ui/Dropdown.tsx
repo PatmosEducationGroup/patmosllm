@@ -79,7 +79,7 @@ export const Dropdown = ({
         case 'ArrowDown':
           event.preventDefault()
           setFocusedIndex(prev => {
-            const _enabledOptions = options.filter(opt => !opt.disabled)
+            // const _enabledOptions = options.filter(opt => !opt.disabled)
             const enabledIndexes = options
               .map((opt, idx) => opt.disabled ? -1 : idx)
               .filter(idx => idx !== -1)
@@ -95,7 +95,7 @@ export const Dropdown = ({
         case 'ArrowUp':
           event.preventDefault()
           setFocusedIndex(prev => {
-            const _enabledOptions = options.filter(opt => !opt.disabled)
+            // const _enabledOptions = options.filter(opt => !opt.disabled)
             const enabledIndexes = options
               .map((opt, idx) => opt.disabled ? -1 : idx)
               .filter(idx => idx !== -1)

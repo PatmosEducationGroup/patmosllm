@@ -145,7 +145,7 @@ async function keywordSearch(
 
     return scoredResults
 
-  } catch (error) {
+  } catch (_error) {
     return []
   }
 }
@@ -303,7 +303,7 @@ export async function hybridSearch(
 
     return diversifiedResults
 
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`Hybrid search failed: ${''}`)
   }
 }

@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react'
-import { ChevronDown, Check } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SelectOption {
@@ -194,16 +194,16 @@ export const CustomSelect = ({
   required = false,
   error,
   className,
-  searchable = false,
-  clearable = false,
-  multiSelect = false,
-  maxSelections,
-  onClear,
+  searchable: _searchable = false,
+  clearable: _clearable = false,
+  multiSelect: _multiSelect = false,
+  maxSelections: _maxSelections,
+  onClear: _onClear,
   ...props
 }: CustomSelectProps) => {
   // This would integrate with the Dropdown component for enhanced UX
   // For now, fallback to native select
-  const nativeOptions = options.map(({ icon, ...rest }) => rest)
+  const nativeOptions = options.map(({ icon: _icon, ...rest }) => rest)
 
   return (
     <Select
@@ -254,7 +254,7 @@ export const MultiSelect = ({
   error,
   className,
   maxSelections,
-  searchable = false
+  searchable: _searchable = false
 }: MultiSelectProps) => {
   const handleToggle = (optionValue: string) => {
     if (value.includes(optionValue)) {

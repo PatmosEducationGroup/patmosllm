@@ -23,8 +23,8 @@ async function ensureFFmpegLoaded() {
       ffmpegConfigured = true
 
       return { ffmpegPath, ffprobePath }
-    } catch (error) {
-      console.warn('FFmpeg not available:', error)
+    } catch (_error) {
+      console.warn('FFmpeg not available:', _error)
       ffmpegConfigured = true // Mark as attempted
       return null
     }
@@ -126,7 +126,7 @@ export async function extractFromImage(buffer: Buffer, filename: string): Promis
         ocrConfidence: confidence
       }
     }
-  } catch (error) {
+  } catch (_error) {
 
     // Fallback: provide basic metadata without OCR
     try {
@@ -139,7 +139,7 @@ export async function extractFromImage(buffer: Buffer, filename: string): Promis
         processorUsed: 'sharp (metadata only)',
         metadata: metadata as unknown as Record<string, unknown>
       }
-    } catch (error) {
+    } catch (_error) {
       throw new Error(`Image processing completely failed: ${''}`)
     }
   }
@@ -192,7 +192,7 @@ export async function extractFromAudio(buffer: Buffer, filename: string): Promis
         duration: metadata.format?.duration || 0
       }
     }
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`Audio processing failed: ${''}`)
   } finally {
     // Clean up temp file
@@ -309,7 +309,7 @@ export async function extractFromVideo(buffer: Buffer, filename: string): Promis
       return await extractVideoMetadataFallback(buffer, filename)
     }
 
-  } catch (error) {
+  } catch (_error) {
     // Try fallback
     try {
       return await extractVideoMetadataFallback(buffer, filename)
@@ -364,7 +364,7 @@ async function extractVideoMetadataFallback(buffer: Buffer, filename: string): P
         processingMethod: 'basic'
       }
     }
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`Video fallback processing failed: ${''}`)
   }
 }

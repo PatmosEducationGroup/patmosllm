@@ -57,7 +57,7 @@ const supabase = supabaseAdmin
     console.log(`Milestone tracked: ${milestone} for user ${clerkUserId}`)
     return true
 
-  } catch (error) {
+  } catch (_error) {
     return false
   }
 }
@@ -79,7 +79,7 @@ export async function trackMilestoneAPI(milestone: MilestoneType, metadata?: Rec
     })
 
     return response.ok
-  } catch (error) {
+  } catch (_error) {
     return false
   }
 }
@@ -113,7 +113,7 @@ export async function getUserOnboardingStatus(clerkUserId: string) {
     }
 
     return status
-  } catch (error) {
+  } catch (_error) {
     return null
   }
 }
@@ -131,7 +131,7 @@ export async function hasCompletedMilestone(
 
     const milestoneField = `${milestone}_at` as keyof typeof status
     return !!status[milestoneField]
-  } catch (error) {
+  } catch (_error) {
     return false
   }
 }

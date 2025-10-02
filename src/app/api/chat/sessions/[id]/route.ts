@@ -5,7 +5,6 @@ import { getCurrentUser } from '@/lib/auth'
 import {
   advancedCache,
   CACHE_NAMESPACES,
-  CACHE_TTL,
   getCachedConversationHistory,
   cacheConversationHistory
 } from '@/lib/advanced-cache'
@@ -94,7 +93,7 @@ export async function GET(
       conversations: conversationList
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 
@@ -169,7 +168,7 @@ export async function PUT(
       }
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 
@@ -229,7 +228,7 @@ export async function DELETE(
       message: 'Session deleted successfully'
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 

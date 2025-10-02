@@ -82,9 +82,9 @@ export async function createEmbedding(text: string): Promise<number[]> {
     }
 
     return response.data[0].embedding
-  } catch (error) {
+  } catch (_error) {
 
-    const errorType = classifyError(error)
+    const errorType = classifyError(_error)
 
     // Report error metrics
     if (metricsCallback) {
@@ -218,9 +218,9 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
     }
 
     return result
-  } catch (error) {
+  } catch (_error) {
 
-    const errorType = classifyError(error)
+    const errorType = classifyError(_error)
     const batchTokens = estimateBatchTokenCount(texts)
 
     // Handle different error types with configurable strategies
@@ -369,7 +369,7 @@ ${contextString}`;
         total_tokens: response.usage?.total_tokens || 0
       }
     }
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`Failed to generate response: ${''}`)
   }
 }

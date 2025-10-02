@@ -248,9 +248,9 @@ export class IntelligentClarificationSystem {
       `${aspect.name} (from ${aspect.resultCount} sources)`
     )
 
-    const _aspectDescriptions = topAspects
-      .map(aspect => `• **${aspect.name}**: ${aspect.description}`)
-      .join('\n')
+//     const _aspectDescriptions = topAspects
+//       .map(aspect => `• **${aspect.name}**: ${aspect.description}`)
+//       .join('\n')
 
     return {
       needsClarification: true,
@@ -396,7 +396,7 @@ export class IntelligentClarificationSystem {
    */
   private analyzeLowConfidenceBreadth(results: SearchResult[], confidence: number): ClarificationAnalysis {
     // Check for quality of results - distinguish broad but valid vs mostly irrelevant
-    const _scores = results.map(r => r.score)
+//     const _scores = results.map(r => r.score)
     const goodResults = results.filter(r => r.score >= 0.5) // Reasonably relevant results
     const decentResults = results.filter(r => r.score >= 0.4) // Marginally relevant results
 
@@ -434,7 +434,7 @@ export class IntelligentClarificationSystem {
   /**
    * Analyze if results suggest different scopes/levels of detail
    */
-  private analyzeScopeAmbiguity(results: SearchResult[], query: string): ClarificationAnalysis {
+  private analyzeScopeAmbiguity(results: SearchResult[], _query: string): ClarificationAnalysis {
     // Check if results span from basic/overview to detailed/specific content
     const hasOverviewContent = results.some(r =>
       r.documentTitle.toLowerCase().includes('introduction') ||

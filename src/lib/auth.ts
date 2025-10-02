@@ -22,7 +22,7 @@ export async function getCurrentUser(): Promise<User | null> {
     }
 
     return user
-  } catch (error) {
+  } catch (_error) {
     return null
   }
 }
@@ -126,7 +126,7 @@ export async function syncUserWithDatabase(clerkUser: {
       console.log(`Rejected non-invited user: ${email}`)
       return null
     }
-  } catch (error) {
+  } catch (_error) {
     return null
   }
 }

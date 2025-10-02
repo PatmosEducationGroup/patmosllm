@@ -24,7 +24,7 @@ import {
   Shield
 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
-import { ToastProvider, useToast, useToastActions } from '@/components/ui/Toast'
+import { ToastProvider, useToastActions } from '@/components/ui/Toast'
 
 const ensureHttps = (url: string): string => {
   if (!url) return url
@@ -145,7 +145,7 @@ function ChatPageContent() {
     message: ''
   })
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
-  const [feedbackSubmitStatus, setFeedbackSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [_feedbackSubmitStatus, _setFeedbackSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
   // =================================================================
   // SOURCES EXPANSION STATE - Track which messages have expanded sources
@@ -167,7 +167,7 @@ function ChatPageContent() {
   // =================================================================
   // DOCUMENT DOWNLOAD HANDLER - Fetch secure signed URL and download
   // =================================================================
-  const handleDocumentDownload = async (documentId: string, title: string) => {
+  const handleDocumentDownload = async (documentId: string, _title: string) => {
     try {
       // Call API to get secure signed URL
       const response = await fetch(`/api/documents/download/${documentId}`)
@@ -180,8 +180,8 @@ function ChatPageContent() {
 
       // Open the signed URL in a new tab to trigger download
       window.open(data.url, '_blank')
-    } catch (error) {
-      console.error('Download failed:', error)
+    } catch (_error) {
+      console.error('Download failed:', _error)
       alert('Failed to download document. Please try again.')
     }
   }
@@ -239,7 +239,7 @@ function ChatPageContent() {
       if (startX > 20 || sidebarOpen || isHandlingSwipe) return
 
       isHandlingSwipe = true
-      let moved = false
+      let _moved = false
 
       const handleTouchMove = (moveEvent: TouchEvent) => {
         const currentX = moveEvent.touches[0].clientX
@@ -253,7 +253,7 @@ function ChatPageContent() {
           return
         }
 
-        moved = true
+        _moved = true
 
         // Open sidebar if swiped right by more than 80px
         if (diffX > 80 && !sidebarOpen) {
@@ -311,7 +311,7 @@ function ChatPageContent() {
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmittingFeedback(true)
-    setFeedbackSubmitStatus('idle')
+    _setFeedbackSubmitStatus('idle')
 
     try {
       const response = await fetch('/api/contact', {
@@ -334,14 +334,14 @@ function ChatPageContent() {
         showSuccessToast('Thank you for your feedback! This helps us improve the system.')
         setFeedbackForm({ name: '', email: '', message: '' })
         setShowFeedbackModal(false)
-        setFeedbackSubmitStatus('idle')
+        _setFeedbackSubmitStatus('idle')
       } else {
         showErrorToast('There was an error sending your feedback. Please try again.')
-        setFeedbackSubmitStatus('error')
+        _setFeedbackSubmitStatus('error')
       }
-    } catch (error) {
+    } catch (_error) {
       showErrorToast('There was an error sending your feedback. Please try again.')
-      setFeedbackSubmitStatus('error')
+      _setFeedbackSubmitStatus('error')
     } finally {
       setIsSubmittingFeedback(false)
     }
@@ -381,7 +381,7 @@ function ChatPageContent() {
       } else {
         showErrorToast(data.error || 'Failed to send message')
       }
-    } catch (error) {
+    } catch (_error) {
       showErrorToast('Failed to send contact message')
     } finally {
       setSendingContact(false)
@@ -407,7 +407,7 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to load chat sessions')
     } finally {
       setLoadingSessions(false)
@@ -446,7 +446,7 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to load conversation')
     }
   }
@@ -473,7 +473,7 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to create new chat')
     }
   }
@@ -492,7 +492,7 @@ function ChatPageContent() {
         setCurrentSessionTitle(newTitle)
         loadSessions()
       }
-    } catch (error) {
+    } catch (_error) {
       // Silent error handling for session title updates
     }
   }
@@ -520,7 +520,7 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to delete conversation')
     }
   }
@@ -719,12 +719,12 @@ function ChatPageContent() {
                   isStreamComplete = true
                   throw new Error(data.error || 'Stream error occurred')
                 }
-              } catch (parseError) {
+              } catch (_parseError) {
                 // Continue processing other lines instead of failing completely
               }
             }
           }
-        } catch (readError) {
+        } catch (_readError) {
           break
         }
       }

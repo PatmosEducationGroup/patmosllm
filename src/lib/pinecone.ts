@@ -56,7 +56,7 @@ export async function storeChunks(chunks: Array<{
     }
 
     console.log(`Successfully stored ${vectors.length} chunks in Pinecone`)
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`Failed to store chunks: ${''}`)
   }
 }
@@ -102,7 +102,7 @@ export async function searchChunks(
     const filteredMatches = searchResponse.matches.filter(match => (match.score || 0) >= minScore)
 
     // Extract chunk IDs and check which need full content
-    const chunkIds = filteredMatches.map(match => match.id)
+    const _chunkIds = filteredMatches.map(match => match.id)
     const truncatedIds = filteredMatches
       .filter(match => {
         const content = match.metadata?.content as string
@@ -123,7 +123,7 @@ export async function searchChunks(
         if (fullChunks) {
           fullContentMap = new Map(fullChunks.map(chunk => [chunk.id, chunk.content]))
         }
-      } catch (error) {
+      } catch (_error) {
         console.warn(`Batch fetch failed for ${truncatedIds.length} chunks, using truncated content`)
       }
     }
@@ -152,7 +152,7 @@ export async function searchChunks(
     console.log(`Found ${results.length} relevant chunks (score >= ${minScore})`)
     
     return results
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`Failed to search chunks: ${''}`)
   }
 }
@@ -181,7 +181,7 @@ export async function deleteDocumentChunks(documentId: string): Promise<void> {
       
       console.log(`Deleted ${chunkIds.length} chunks for document ${documentId}`)
     }
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`Failed to delete chunks: ${''}`)
   }
 }
@@ -201,7 +201,7 @@ export async function getIndexStats(): Promise<{
       dimension: stats.dimension || 1024,
       namespace
     }
-  } catch (error) {
+  } catch (_error) {
     throw new Error(`Failed to get index stats: ${''}`)
   }
 }
@@ -211,7 +211,7 @@ export async function testConnection(): Promise<boolean> {
   try {
     await getIndexStats()
     return true
-  } catch (error) {
+  } catch (_error) {
     return false
   }
 }

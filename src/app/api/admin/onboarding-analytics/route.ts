@@ -163,7 +163,7 @@ export async function GET(_request: NextRequest) {
       }))
     })
 
-  } catch (error) {
+  } catch (_error) {
     // =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================

@@ -99,7 +99,6 @@ export default function SystemHealthPage() {
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string>('')
   const [showDetailsModal, setShowDetailsModal] = useState(false)
-  const [_selectedMetric, _setSelectedMetric] = useState<string | null>(null)
 
   const fetchHealth = async () => {
     try {
@@ -122,7 +121,7 @@ export default function SystemHealthPage() {
       } else {
         setError(data.error || 'Failed to fetch system health')
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to load system health')
     } finally {
       setLoading(false)
@@ -145,15 +144,15 @@ export default function SystemHealthPage() {
     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
   }
 
-  const _formatUptime = (seconds: number) => {
-    const days = Math.floor(seconds / 86400)
-    const hours = Math.floor((seconds % 86400) / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    
-    if (days > 0) return `${days}d ${hours}h ${minutes}m`
-    if (hours > 0) return `${hours}h ${minutes}m`
-    return `${minutes}m`
-  }
+//   const _formatUptime = (seconds: number) => {
+//     const days = Math.floor(seconds / 86400)
+//     const hours = Math.floor((seconds % 86400) / 3600)
+//     const minutes = Math.floor((seconds % 3600) / 60)
+//     
+//     if (days > 0) return `${days}d ${hours}h ${minutes}m`
+//     if (hours > 0) return `${hours}h ${minutes}m`
+//     return `${minutes}m`
+//   }
 
   if (loading && !health) {
     return (

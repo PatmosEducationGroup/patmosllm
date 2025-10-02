@@ -25,7 +25,7 @@ export function QuestionAssistant({ question, onQuestionChange, onClose, classNa
   const [templates, setTemplates] = useState<QuestionTemplate[]>([])
   const [loading, setLoading] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
-  const [_showBuilder, _setShowBuilder] = useState(false)
+//   const [_showBuilder, _setShowBuilder] = useState(false)
   const [isExpanded, setIsExpanded] = useState(true)
 
   // Debounced analysis
@@ -57,7 +57,7 @@ export function QuestionAssistant({ question, onQuestionChange, onClose, classNa
         setAnalysis(data.analysis)
         setTemplates(data.templates || [])
       }
-    } catch (error) {
+    } catch (_error) {
     }
     setLoading(false)
   }

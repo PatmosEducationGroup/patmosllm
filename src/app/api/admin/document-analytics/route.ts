@@ -110,7 +110,7 @@ export async function GET(_request: NextRequest) {
       }
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ success: false, error: 'Failed to fetch analytics' }, { status: 500 })
   }
 }

@@ -87,7 +87,7 @@ export async function GET(_request: NextRequest) {
       total: formattedDocs.length
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 
@@ -201,7 +201,7 @@ export async function DELETE(_request: NextRequest) {
       message: `Document "${document.title}" deleted successfully`
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 

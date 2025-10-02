@@ -32,15 +32,15 @@ export default clerkMiddleware(async (auth, req) => {
   response.headers.set('X-XSS-Protection', '1; mode=block')
   response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
   
-  // Content Security Policy - Updated for Cloudflare Turnstile
+  // Content Security Policy - Updated for Cloudflare Turnstile & Vercel Analytics
   const cspDirectives = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.multiplytools.app https://challenges.cloudflare.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.multiplytools.app https://challenges.cloudflare.com https://va.vercel-scripts.com",
     "worker-src 'self' blob: https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.multiplytools.app",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.pinecone.io https://api.voyageai.com https://*.voyageai.com https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.multiplytools.app https://accounts.multiplytools.app https://challenges.cloudflare.com https://clerk-telemetry.com",
+    "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.pinecone.io https://api.voyageai.com https://*.voyageai.com https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.multiplytools.app https://accounts.multiplytools.app https://challenges.cloudflare.com https://clerk-telemetry.com https://va.vercel-scripts.com https://vitals.vercel-insights.com",
     "frame-src 'self' https://challenges.cloudflare.com",
     "object-src 'none'",
     "base-uri 'self'"

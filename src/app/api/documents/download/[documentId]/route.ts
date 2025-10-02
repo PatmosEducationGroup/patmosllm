@@ -78,8 +78,8 @@ export async function GET(
       expiresIn: 60 // seconds
     })
 
-  } catch (error) {
-    console.error('Download API error:', error)
+  } catch (_error) {
+    console.error('Download API error:', _error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

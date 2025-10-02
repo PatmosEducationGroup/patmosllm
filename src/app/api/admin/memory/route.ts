@@ -96,7 +96,7 @@ export async function GET(_request: NextRequest) {
       })
     }
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({
       success: false,
       error: 'Memory API failed'
@@ -154,7 +154,7 @@ export async function POST(_request: NextRequest) {
       error: 'Invalid test action'
     }, { status: 400 })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({
       success: false,
       error: 'Memory test failed'

@@ -4,7 +4,7 @@ import { chunkText } from '@/lib/fileProcessors'
 import { createEmbeddings } from '@/lib/openai'
 import { storeChunks } from '@/lib/pinecone'
 
-export async function processDocumentVectors(documentId: string, userId: string) {
+export async function processDocumentVectors(documentId: string, _userId: string) {
   // Get document from database
   const { data: document, error: docError } = await supabaseAdmin
     .from('documents')
@@ -60,8 +60,8 @@ export async function processDocumentVectors(documentId: string, userId: string)
       if (embeddings.length !== chunks.length) {
         throw new Error(`Embedding count mismatch: expected ${chunks.length}, got ${embeddings.length}`)
       }
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('429')) {
+    } catch (_error) {
+      if (_error instanceof Error && _error.message.includes('429')) {
         console.log('Rate limit hit, waiting 30 seconds before retry...')
         await new Promise(resolve => setTimeout(resolve, 30000))
 
@@ -73,7 +73,7 @@ export async function processDocumentVectors(documentId: string, userId: string)
           throw new Error(`Embedding count mismatch on retry: expected ${chunks.length}, got ${embeddings.length}`)
         }
       } else {
-        throw error
+        throw _error
       }
     }
 

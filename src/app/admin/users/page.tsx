@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth, useUser } from '@clerk/nextjs'
+import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
 import {
@@ -30,6 +30,7 @@ interface User {
   createdAt: string
   isActive: boolean
   invitedBy: string
+  invitation_token?: string
 }
 
 interface UserData {
@@ -68,7 +69,6 @@ interface UserTimeline {
 
 export default function AdminUsersPage() {
   const { isLoaded, userId, getToken } = useAuth()
-  const { user: _clerkUser } = useUser()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [currentUser, setCurrentUser] = useState<UserData | null>(null)
@@ -88,6 +88,7 @@ export default function AdminUsersPage() {
   const [generatedInviteUrl, setGeneratedInviteUrl] = useState<string | null>(null)
   const [resending, setResending] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [copiedUserId, setCopiedUserId] = useState<string | null>(null)
 
   // Timeline modal state
   const [timelineUser, setTimelineUser] = useState<User | null>(null)
@@ -143,7 +144,7 @@ export default function AdminUsersPage() {
       
       loadUsers()
       
-    } catch (error) {
+    } catch (_error) {
       setAccessDenied(true)
       setError('Access denied: Unable to verify your permissions.')
       setLoading(false)
@@ -160,7 +161,7 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to load users')
     } finally {
       setLoading(false)
@@ -189,7 +190,7 @@ export default function AdminUsersPage() {
       } else {
         setError('Failed to fetch user timeline')
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to load user timeline')
     } finally {
       setLoadingTimeline(false)
@@ -240,7 +241,7 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to update user role')
     } finally {
       setUpdatingRole(null)
@@ -275,7 +276,7 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to delete user')
     } finally {
       setDeleting(null)
@@ -327,7 +328,7 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to invite user')
     } finally {
       setInviting(false)
@@ -339,6 +340,15 @@ export default function AdminUsersPage() {
       navigator.clipboard.writeText(generatedInviteUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const copyExistingInviteUrl = (user: User) => {
+    if (user.invitation_token) {
+      const inviteUrl = `${window.location.origin}/invite/${user.invitation_token}`
+      navigator.clipboard.writeText(inviteUrl)
+      setCopiedUserId(user.id)
+      setTimeout(() => setCopiedUserId(null), 2000)
     }
   }
 
@@ -372,7 +382,7 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to resend invitation')
     } finally {
       setResending(null)
@@ -781,28 +791,61 @@ export default function AdminUsersPage() {
                           </button>
 
                           {!user.isActive && (
-                            <button
-                              onClick={() => handleResendInvitation(user.id, user.email)}
-                              disabled={resending === user.id}
-                              style={{
-                                padding: '0.25rem 0.75rem',
-                                fontSize: '0.75rem',
-                                fontWeight: '500',
-                                color: resending === user.id ? '#9ca3af' : '#2563eb',
-                                backgroundColor: 'transparent',
-                                border: '1px solid',
-                                borderColor: resending === user.id ? '#d1d5db' : '#2563eb',
-                                borderRadius: '0.375rem',
-                                cursor: resending === user.id ? 'not-allowed' : 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.25rem'
-                              }}
-                              title="Resend Invitation Email"
-                            >
-                              <Send size={14} />
-                              {resending === user.id ? 'Resending...' : 'Resend'}
-                            </button>
+                            <>
+                              <button
+                                onClick={() => copyExistingInviteUrl(user)}
+                                style={{
+                                  padding: '0.25rem 0.75rem',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '500',
+                                  color: copiedUserId === user.id ? '#16a34a' : '#7c3aed',
+                                  backgroundColor: 'transparent',
+                                  border: '1px solid',
+                                  borderColor: copiedUserId === user.id ? '#16a34a' : '#7c3aed',
+                                  borderRadius: '0.375rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}
+                                title="Copy Invitation Link"
+                              >
+                                {copiedUserId === user.id ? (
+                                  <>
+                                    <Check size={14} />
+                                    Copied
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={14} />
+                                    Copy Link
+                                  </>
+                                )}
+                              </button>
+
+                              <button
+                                onClick={() => handleResendInvitation(user.id, user.email)}
+                                disabled={resending === user.id}
+                                style={{
+                                  padding: '0.25rem 0.75rem',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '500',
+                                  color: resending === user.id ? '#9ca3af' : '#2563eb',
+                                  backgroundColor: 'transparent',
+                                  border: '1px solid',
+                                  borderColor: resending === user.id ? '#d1d5db' : '#2563eb',
+                                  borderRadius: '0.375rem',
+                                  cursor: resending === user.id ? 'not-allowed' : 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}
+                                title="Resend Invitation Email"
+                              >
+                                <Send size={14} />
+                                {resending === user.id ? 'Resending...' : 'Resend'}
+                              </button>
+                            </>
                           )}
 
                           {currentUser && user.id !== currentUser.id && (

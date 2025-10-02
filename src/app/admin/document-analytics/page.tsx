@@ -78,7 +78,7 @@ export default function DocumentAnalyticsPage() {
       } else {
         setError('Failed to fetch document analytics')
       }
-    } catch (error) {
+    } catch (_error) {
       setError('Failed to load analytics')
     } finally {
       setLoading(false)

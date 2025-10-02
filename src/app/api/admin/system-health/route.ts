@@ -141,7 +141,7 @@ export async function GET(_request: NextRequest) {
       }
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({
       success: false,
       error: 'System health check failed',
@@ -186,7 +186,7 @@ async function testMemorySystemHealth() {
       responseTime: Date.now() - startTime,
       connected: true
     }
-  } catch (error) {
+  } catch (_error) {
     return {
       status: 'error',
       responseTime: Date.now() - startTime,
@@ -208,7 +208,7 @@ function calculateMemoryMetrics(contexts: Array<{
   user_satisfaction: number | null;
   extracted_topics: string[];
   question_intent: string;
-}>, progressions: Array<{
+}>, _progressions: Array<{
   expertise_level: number;
   total_interactions: number;
 }>) {

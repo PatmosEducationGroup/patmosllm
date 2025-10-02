@@ -86,7 +86,7 @@ export async function GET(_request: NextRequest) {
       sessions: formattedSessions
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 
@@ -149,7 +149,7 @@ export async function POST(_request: NextRequest) {
       }
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 

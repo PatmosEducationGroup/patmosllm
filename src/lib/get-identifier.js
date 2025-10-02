@@ -8,7 +8,7 @@ export function getIdentifier(request) {
     if (userId) {
       return `user_${userId}`;
     }
-  } catch (error) {
+  } catch (_error) {
     // If auth fails, fall back to IP
   }
 

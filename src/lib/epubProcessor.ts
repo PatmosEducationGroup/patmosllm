@@ -128,7 +128,7 @@ export class EPubProcessor {
           order: i,
           wordCount: this.calculateWordCount(content)
         })
-      } catch (error) {
+      } catch (_error) {
         // Continue with other chapters
       }
     }

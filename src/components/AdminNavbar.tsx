@@ -2,24 +2,57 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { UserButton } from '@clerk/nextjs'
+import { UserButton, useAuth } from '@clerk/nextjs'
+import { useState, useEffect } from 'react'
 import {
   MessageCircle,
   BookOpen,
   Users,
   Activity,
   TrendingUp,
-  Rocket,
-  Bell,
-  Settings
+  Rocket
 } from 'lucide-react'
 
 interface AdminNavbarProps {
   userRole?: string
 }
 
-export default function AdminNavbar({ userRole = 'USER' }: AdminNavbarProps) {
+export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps) {
   const pathname = usePathname()
+  const { getToken } = useAuth()
+  const [userRole, setUserRole] = useState<string>(propUserRole || 'USER')
+
+  useEffect(() => {
+    // If userRole prop is provided, use it
+    if (propUserRole) {
+      setUserRole(propUserRole)
+      return
+    }
+
+    // Otherwise, fetch user role from API
+    const fetchUserRole = async () => {
+      try {
+        const token = await getToken()
+        const response = await fetch('/api/auth', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.user?.role) {
+            setUserRole(data.user.role)
+          }
+        }
+      } catch (error) {
+        // Silently fail and keep default USER role
+        console.error('Failed to fetch user role:', error)
+      }
+    }
+
+    fetchUserRole()
+  }, [propUserRole, getToken])
 
   const allNavItems = [
     { href: '/chat', label: 'Chat', icon: MessageCircle, roles: ['USER', 'CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'] },
@@ -154,83 +187,8 @@ export default function AdminNavbar({ userRole = 'USER' }: AdminNavbarProps) {
           </div>
         </div>
 
-        {/* Right side - Actions and User menu */}
+        {/* Right side - User menu */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {/* Action Buttons */}
-          <button
-            style={{
-              position: 'relative',
-              padding: '10px',
-              minWidth: '44px',
-              minHeight: '44px',
-              color: '#64748b',
-              backgroundColor: 'transparent',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.6)'
-              e.currentTarget.style.color = '#1e293b'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-              e.currentTarget.style.color = '#64748b'
-            }}
-          >
-            <Bell size={20} />
-            <div
-              style={{
-                position: 'absolute',
-                top: '6px',
-                right: '6px',
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: 'rgb(158, 205, 85)',
-                border: '2px solid white'
-              }}
-            />
-          </button>
-
-          <button
-            style={{
-              padding: '10px',
-              minWidth: '44px',
-              minHeight: '44px',
-              color: '#64748b',
-              backgroundColor: 'transparent',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.6)'
-              e.currentTarget.style.color = '#1e293b'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-              e.currentTarget.style.color = '#64748b'
-            }}
-          >
-            <Settings size={20} />
-          </button>
-
-          {/* Divider */}
-          <div style={{
-            width: '1px',
-            height: '32px',
-            backgroundColor: 'rgba(226, 232, 240, 0.6)'
-          }} />
-
           {/* User Info and Avatar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ textAlign: 'right' }}>

@@ -221,7 +221,7 @@ class UserContextManager {
       const cacheKey = `user_context_${userId}`
       advancedCache.set(CACHE_NAMESPACES.USER_SESSIONS, cacheKey, context, CACHE_TTL.SHORT)
 
-    } catch (error) {
+    } catch (_error) {
       // Don't throw - memory updates shouldn't break the main chat flow
     }
   }
@@ -268,12 +268,12 @@ Example: ["prayer", "spiritual warfare", "missions"]`
       try {
         const topics = JSON.parse(content)
         return Array.isArray(topics) ? topics.slice(0, 3) : ['general']
-      } catch (error) {
+      } catch (_error) {
         // Fallback: extract keywords if JSON parsing fails
         return this.extractKeywords(question, response).slice(0, 3)
       }
 
-    } catch (error) {
+    } catch (_error) {
       return this.fallbackTopicExtraction(question, response)
     }
   }
@@ -470,7 +470,7 @@ Example: ["prayer", "spiritual warfare", "missions"]`
         if (error) {
         }
       })
-    } catch (error) {
+    } catch (_error) {
       // Don't throw - memory logging shouldn't break chat
     }
   }
@@ -529,7 +529,7 @@ Example: ["prayer", "spiritual warfare", "missions"]`
   async generateContextConfirmation(
     question: string,
     suggestedContext: string[],
-    userId: string
+    _userId: string
   ): Promise<string[]> {
     if (suggestedContext.length === 0) return []
 

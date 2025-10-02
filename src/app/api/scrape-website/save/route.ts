@@ -140,7 +140,7 @@ export async function POST(_request: NextRequest) {
 
         // Start vector processing (don't wait for completion)
         try {
-          processDocumentVectors(document.id, user.id).catch(error => {
+          processDocumentVectors(document.id, user.id).catch(_error => {
           })
         } catch (ingestError) {
           console.error(`Error starting vector processing for ${document.id}:`, ingestError)
@@ -197,7 +197,7 @@ export async function POST(_request: NextRequest) {
       result
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 

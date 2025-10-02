@@ -405,7 +405,7 @@ export async function POST(_request: NextRequest) {
           [],
           1 // Low satisfaction score for no results
         )
-      } catch (memoryError) {
+      } catch (_memoryError) {
       }
 
       return new Response(
@@ -650,9 +650,9 @@ ${contextDocuments}`
         })}\n\n`))
 
         try {
-          let chunkCount = 0
+          let _chunkCount = 0
           for await (const chunk of stream) {
-            chunkCount++
+            _chunkCount++
             const content = chunk.choices[0]?.delta?.content || ''
 
             if (content) {
@@ -679,7 +679,7 @@ ${contextDocuments}`
             fullResponse: fullResponse
           })}\n\n`))
 
-        } catch (error) {
+        } catch (_error) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({
             type: 'error',
             error: 'Failed to generate response'
@@ -750,7 +750,7 @@ ${contextDocuments}`
                 )
 
                 console.log(`✅ MEMORY: Updated user context and logged conversation for user ${currentUserId}`)
-              } catch (memoryError) {
+              } catch (_memoryError) {
                 // Don't throw - memory errors shouldn't break the chat experience
               }
 
@@ -772,7 +772,7 @@ ${contextDocuments}`
 
               console.log(`Successfully saved streaming conversation for user ${currentUserId}`)
               
-            } catch (cacheError) {
+            } catch (_cacheError) {
             }
           }
         }
@@ -787,7 +787,7 @@ ${contextDocuments}`
       }
     })
 
-  } catch (error) {
+  } catch (_error) {
     return new Response(
       JSON.stringify({
         success: false,

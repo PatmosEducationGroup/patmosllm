@@ -57,7 +57,7 @@ export async function GET(
     // Redirect to main app
     return NextResponse.redirect(new URL('/', request.url))
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 }

@@ -104,7 +104,7 @@ export async function POST(_request: NextRequest) {
       message: 'Message sent successfully'
     })
 
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json(
       { 
         success: false, 
