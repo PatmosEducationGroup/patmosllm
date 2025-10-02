@@ -131,13 +131,13 @@ export async function POST(_request: NextRequest) {
       })
 
       // Extract the Clerk ticket from the invitation URL
-      // Clerk returns a URL like: https://your-app.com/sign-up?__clerk_ticket=...
+      // Clerk returns a URL like: https://clerk.dev/v1/tickets/accept?ticket=JWT_TOKEN
       console.log('🔍 Clerk invitation response:', JSON.stringify(clerkInvitation, null, 2))
 
       if (clerkInvitation.url) {
         console.log('📍 Clerk invitation URL:', clerkInvitation.url)
         const clerkUrl = new URL(clerkInvitation.url)
-        clerkTicket = clerkUrl.searchParams.get('__clerk_ticket')
+        clerkTicket = clerkUrl.searchParams.get('ticket') // Changed from __clerk_ticket to ticket
         console.log('🎫 Extracted ticket:', clerkTicket)
       } else {
         console.log('⚠️  No URL in Clerk invitation response')
