@@ -131,9 +131,15 @@ export async function POST(_request: NextRequest) {
 
       // Extract the Clerk ticket from the invitation URL
       // Clerk returns a URL like: https://your-app.com/sign-up?__clerk_ticket=...
+      console.log('🔍 Clerk invitation response:', JSON.stringify(clerkInvitation, null, 2))
+
       if (clerkInvitation.url) {
+        console.log('📍 Clerk invitation URL:', clerkInvitation.url)
         const clerkUrl = new URL(clerkInvitation.url)
         clerkTicket = clerkUrl.searchParams.get('__clerk_ticket')
+        console.log('🎫 Extracted ticket:', clerkTicket)
+      } else {
+        console.log('⚠️  No URL in Clerk invitation response')
       }
 
       if (clerkTicket) {
@@ -142,9 +148,12 @@ export async function POST(_request: NextRequest) {
           .from('users')
           .update({ clerk_ticket: clerkTicket })
           .eq('id', invitedUser.id)
+        console.log(`✅ Clerk ticket stored in database for ${email}`)
+      } else {
+        console.log(`⚠️  No Clerk ticket to store for ${email}`)
       }
 
-      console.log(`✅ Clerk invitation created for ${email} with ticket: ${clerkTicket?.substring(0, 16)}...`)
+      console.log(`✅ Clerk invitation created for ${email}${clerkTicket ? ` with ticket: ${clerkTicket.substring(0, 16)}...` : ' (no ticket)'}`)
     } catch (clerkError) {
       console.error('❌ Failed to create Clerk invitation:', clerkError)
       // Don't fail the whole request - user can still use the custom invitation link
