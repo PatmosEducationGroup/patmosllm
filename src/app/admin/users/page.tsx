@@ -31,6 +31,7 @@ interface User {
   isActive: boolean
   invitedBy: string
   invitation_token?: string
+  clerk_ticket?: string
 }
 
 interface UserData {
@@ -345,7 +346,13 @@ export default function AdminUsersPage() {
 
   const copyExistingInviteUrl = (user: User) => {
     if (user.invitation_token) {
-      const inviteUrl = `${window.location.origin}/invite/${user.invitation_token}`
+      let inviteUrl = `${window.location.origin}/invite/${user.invitation_token}`
+
+      // Add Clerk ticket if available (required for Restricted mode)
+      if (user.clerk_ticket) {
+        inviteUrl += `?__clerk_ticket=${user.clerk_ticket}`
+      }
+
       navigator.clipboard.writeText(inviteUrl)
       setCopiedUserId(user.id)
       setTimeout(() => setCopiedUserId(null), 2000)

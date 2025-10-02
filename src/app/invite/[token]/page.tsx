@@ -20,13 +20,21 @@ export default function InvitePage() {
   const params = useParams()
   const router = useRouter()
   const token = params.token as string
-  
+
   const [invitation, setInvitation] = useState<InvitationData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [clerkTicket, setClerkTicket] = useState<string | null>(null)
 
   useEffect(() => {
     if (token) {
+      // Extract Clerk ticket from URL query params if present
+      const urlParams = new URLSearchParams(window.location.search)
+      const ticket = urlParams.get('__clerk_ticket')
+      if (ticket) {
+        setClerkTicket(ticket)
+      }
+
       validateInvitation()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,6 +143,7 @@ export default function InvitePage() {
             <SignUp
               forceRedirectUrl={`/api/invite/${token}/complete`}
               signInUrl="/sign-in"
+              routing="virtual"
               initialValues={{
                 emailAddress: invitation.email
               }}

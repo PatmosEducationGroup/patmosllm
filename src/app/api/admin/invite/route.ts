@@ -115,9 +115,10 @@ export async function POST(_request: NextRequest) {
     // =================================================================
     // CLERK INVITATION - Create Clerk invitation to allow signup in Restricted mode
     // =================================================================
+    let clerkTicket: string | null = null
     try {
       const client = await clerkClient()
-      await client.invitations.createInvitation({
+      const clerkInvitation = await client.invitations.createInvitation({
         emailAddress: email.toLowerCase(),
         redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}`,
         notify: false, // Don't send Clerk's email - we handle emails ourselves
@@ -127,7 +128,23 @@ export async function POST(_request: NextRequest) {
           invitedBy: user.email
         }
       })
-      console.log(`✅ Clerk invitation created for ${email} (notify: false)`)
+
+      // Extract the Clerk ticket from the invitation URL
+      // Clerk returns a URL like: https://your-app.com/sign-up?__clerk_ticket=...
+      if (clerkInvitation.url) {
+        const clerkUrl = new URL(clerkInvitation.url)
+        clerkTicket = clerkUrl.searchParams.get('__clerk_ticket')
+      }
+
+      if (clerkTicket) {
+        // Store the Clerk ticket in the database
+        await supabaseAdmin
+          .from('users')
+          .update({ clerk_ticket: clerkTicket })
+          .eq('id', invitedUser.id)
+      }
+
+      console.log(`✅ Clerk invitation created for ${email} with ticket: ${clerkTicket?.substring(0, 16)}...`)
     } catch (clerkError) {
       console.error('❌ Failed to create Clerk invitation:', clerkError)
       // Don't fail the whole request - user can still use the custom invitation link
@@ -228,6 +245,8 @@ export async function GET(_request: NextRequest) {
         created_at,
         clerk_id,
         invited_by,
+        invitation_token,
+        clerk_ticket,
         inviter:invited_by(email, name)
       `)
       .order('created_at', { ascending: false })
@@ -249,7 +268,9 @@ export async function GET(_request: NextRequest) {
       role: user.role,
       createdAt: user.created_at,
       isActive: !user.clerk_id.startsWith('invited_'), // Check if user has completed signup
-      invitedBy: (user.inviter as { email?: string })?.email || 'System'
+      invitedBy: (user.inviter as { email?: string })?.email || 'System',
+      invitation_token: user.invitation_token,
+      clerk_ticket: user.clerk_ticket
     }))
 
     return NextResponse.json({

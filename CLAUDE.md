@@ -8,6 +8,12 @@ npm run dev                               # Start development server
 npm run build                             # Production build
 npm run lint                              # Run linter
 
+# Testing & Quality (To Be Implemented)
+npm run test                              # Run unit tests
+npm run test:e2e                          # Run E2E tests
+npm run test:coverage                     # Generate coverage report
+npm audit                                 # Security vulnerability scan
+
 # Performance & Monitoring
 npm run test:performance                  # Load test (50 concurrent users)
 npm run health                            # System health check
@@ -18,12 +24,13 @@ node scripts/backup-pinecone.js           # Backup vectors (≤10K)
 node scripts/backup-pinecone-large.js     # Backup large vectors
 node scripts/backup-supabase.js           # Database backup
 
-# Document Cleanup (See: DOCUMENT-CLEANUP-AND-DOWNLOAD-PLAN.md)
+# Document Cleanup
 node scripts/cleanup-titles.js --dry-run  # Preview title cleanup
 node scripts/cleanup-titles.js --verify   # Verify database integrity
 node scripts/cleanup-titles.js            # Execute title cleanup
-node scripts/prepare-github-files.js      # Download & rename files (reference only)
 ```
+
+---
 
 ## System Architecture
 
@@ -42,30 +49,21 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 - `chunks` - Vector search segments
 - `conversations` - Chat history
 - `chat_sessions` - Session management
-- `user_context` - Memory system: topic familiarity & user preferences
-- `conversation_memory` - Memory system: conversation analysis & satisfaction
-- `topic_progression` - Memory system: learning progression tracking
-- `question_patterns` - Memory system: query pattern analysis
+- `user_context` - Memory: topic familiarity & preferences
+- `conversation_memory` - Memory: conversation analysis & satisfaction
+- `topic_progression` - Memory: learning progression tracking
+- `question_patterns` - Memory: query pattern analysis
 
 ### Core Data Flow
 1. **Upload**: File → Process → Chunk → Embed → Pinecone
 2. **Query**: User → Embed → Hybrid Search → Context → LLM → Stream
 3. **Auth**: Clerk → Middleware → Role validation
 
-### Performance Features
-- **500+ concurrent users** via optimized connection pooling (25 max, 4% utilization)
-- **67x faster cache hits** - instant responses for repeated questions (201ms → 3ms)
-- **75% faster database** - optimized queries and aggressive connection management
-- **40% better search** with semantic + keyword hybrid
-- **Conversation memory** - intelligent context tracking and topic familiarity
-- **Real-time monitoring** dashboards with memory system health metrics
-
-### API Routes
+### Key API Routes
 - `/api/chat/*` - Streaming chat with session management
 - `/api/upload/*` - Document processing pipeline
 - `/api/admin/*` - System administration
-- `/api/auth` - User synchronization
-- `/api/documents/download/[documentId]` - Secure document downloads with signed URLs
+- `/api/documents/download/[documentId]` - Secure document downloads
 
 ### Environment Variables
 ```bash
@@ -90,345 +88,220 @@ RESEND_API_KEY
 
 ---
 
-## ✅ COMPLETED FEATURES
+## Current Status
 
-### Memory System & Cache Optimization (September 2024)
-- ✅ **Conversation Memory System** - Complete user context tracking with topic familiarity
-- ✅ **Advanced Cache Fixed** - 67x performance improvement, instant response caching
-- ✅ **Database Performance** - 75% faster queries with optimized connection pooling
-- ✅ **Memory Health Monitoring** - Real-time memory system metrics in admin dashboard
+**Overall Assessment: 7.5/10** - Production-ready application with identified improvements
 
-### Performance & Scalability (October 2024)
-- ✅ **500+ concurrent users** - Singleton connection pooling
-- ✅ **Advanced caching** - Multi-layer TTL/LRU system
-- ✅ **Hybrid search** - 40% better accuracy (semantic + keyword)
-- ✅ **Load testing** - Artillery tools, comprehensive monitoring
+### Strengths ✅
+- **Performance (9/10)**: 500+ concurrent users, 67x cache improvement, hybrid search
+- **Code Quality (7/10)**: TypeScript usage, clean structure, ESLint compliance
+- **Maintainability (7/10)**: Clear architecture, documented patterns
+- **Features**: Memory system, secure downloads, mobile-first UI, 25+ file formats
 
-### AI & Search Optimization (September 2024)
-- ✅ **Voyage-3-large embeddings** - Complete migration from OpenAI
-- ✅ **System prompt optimization** - Document synthesis enhancement
-- ✅ **Context-aware search** - Follow-up question handling
-- ✅ **Hybrid search weights** - Factual query optimization
+### Key Metrics
+- **500+ concurrent users** via optimized connection pooling
+- **67x faster cache hits** (201ms → 3ms for repeated questions)
+- **75% faster database** queries with connection management
+- **40% better search** accuracy with semantic + keyword hybrid
+- **100% document ingestion** success rate (462/462 documents, 7,956+ chunks)
 
-### Multimedia Processing (September 2024)
-- ✅ **25+ file formats** - Images, audio, video support
-- ✅ **OCR extraction** - Tesseract.js text recognition
-- ✅ **FFmpeg integration** - Video/audio metadata
-- ✅ **150MB upload limit** - Vercel Blob storage
+### Recent Completions
+- ✅ Code quality: Fixed all ESLint warnings & TypeScript compilation errors (Oct 2024)
+- ✅ Domain migration: Zero-downtime switch to multiplytools.app (Oct 2024)
+- ✅ Document system: Title cleanup, secure downloads, admin sorting (Oct 2024)
+- ✅ Memory system: Conversation context tracking with 4 database tables (Sep 2024)
+- ✅ Performance: Cache optimization, connection pooling, hybrid search (Sep 2024)
+- ✅ UI/UX: Mobile-first design, component library, WCAG 2.1 AA compliance (Sep 2024)
+
+---
+
+## Priority Roadmap
+
+### 🔥 Critical (Week 1-2)
+
+#### Security & Stability
+- [ ] Remove hardcoded user IDs from rate limiter → environment variables (`src/lib/rate-limiter.js:69-76`)
+- [ ] Fix async auth() bug in `get-identifier.js` (add await)
+- [ ] Convert 5 JavaScript files to TypeScript (`rate-limiter.js`, `input-sanitizer.js`, `get-identifier.js`, `file-security.js`, `env-validator.js`)
+- [ ] Add environment variable validation using Zod
+- [ ] Set up Sentry for error tracking
+- [ ] Implement structured logging (winston/pino) to replace 300+ console.log statements
+
+**Estimated Time**: 10-14 hours | **Impact**: Prevent security breaches, enable production debugging
+
+#### Testing Foundation
+- [ ] Install Vitest + @testing-library/react
+- [ ] Write unit tests for critical functions (auth, sanitization, search, embeddings)
+- [ ] Write integration tests for API routes (`/api/chat`, `/api/auth`, `/api/upload/*`)
+- [ ] Set up GitHub Actions CI/CD pipeline
+- [ ] Add pre-commit hooks with Husky
+- [ ] Configure test coverage reporting (target: 70% utilities, 50% routes)
+
+**Estimated Time**: 16-20 hours | **Impact**: Catch bugs before production, enable safe refactoring
+
+### ⚡ High Priority (Week 3-4)
+
+#### Performance & Scalability
+- [ ] Set up Upstash Redis or Vercel KV
+- [ ] Replace in-memory rate limiting with distributed cache
+- [ ] Implement database transactions for multi-step operations
+- [ ] Add bundle size monitoring (`@next/bundle-analyzer`)
+- [ ] Optimize cache key generation (replace `JSON.stringify`)
+- [ ] Add performance monitoring middleware
+
+**Estimated Time**: 12-16 hours | **Impact**: Better scalability, faster responses
+
+#### Code Quality & Maintainability
+- [ ] Refactor chat route into service layer (`ChatService.ts`, `ConversationRepository.ts`, `StreamingService.ts`)
+- [ ] Standardize API response format (envelope pattern)
+- [ ] Add JSDoc documentation to public functions
+- [ ] Implement React Error Boundaries
+- [ ] Add Suspense boundaries for async components
+- [ ] Remove commented debug code (100+ instances)
+
+**Estimated Time**: 16-20 hours | **Impact**: Easier maintenance, faster onboarding
+
+### 📋 Medium Priority (Month 2)
+
+#### User Growth & Monetization
+- [ ] Gmail-style invitation system with user quotas (3-5 invites per user)
+- [ ] Public waitlist with position tracking and referral system
+- [ ] Real-time usage/cost tracking (token consumption monitoring)
+- [ ] Cost transparency dashboard ("$3.47 this month")
+- [ ] Donation integration (Stripe/PayPal) with Wikipedia-style requests
+
+#### Enhanced User Experience
+- [ ] Progressive Web App (PWA) with offline capabilities
+- [ ] Adaptive similarity thresholds for dynamic scoring
+- [ ] Source confidence rating and quality scoring
+- [ ] User feedback system to learn from ratings
+- [ ] Advanced analytics and usage insights
+
+#### Advanced Features
+- [ ] Event-driven document processing (Inngest/QStash)
+- [ ] Feature flags system (Vercel Feature Flags)
+- [ ] Query rewriting with LLM for better search
+- [ ] Vector database metadata filtering
+- [ ] E2E tests with Playwright
+- [ ] Document relationships and intelligent content linking
+- [ ] GDPR compliance framework
+
+---
+
+## Technical Debt
+
+### Security Issues 🚨
+1. **Hardcoded credentials** (`src/lib/rate-limiter.js:69-76`) - User IDs hardcoded, security risk if repo goes public
+2. **Auth race condition** (`src/lib/get-identifier.js:6`) - `auth()` not awaited, rate limiting broken
+3. **Rate limiting broken** - In-memory `Map()` doesn't work in serverless (each instance has separate memory)
+4. **No request size limits** - Potential DoS vector on POST requests
+
+### Code Quality Issues ⚠️
+1. **Swallowed errors** - 300+ `catch (_error)` blocks with no logging (production debugging impossible)
+2. **5 JavaScript files** in critical paths (no type safety)
+3. **Large files** - `src/app/api/chat/route.ts` (799 lines), violates single responsibility
+4. **No error tracking** - Zero visibility into production errors
+5. **Unstructured logging** - 300+ console.log statements need structured logging
+
+### Database Issues ⚠️
+1. **No transactions** - Multi-step operations can fail partially (conversation save + session update + memory)
+2. **No query timeout** - Long-running queries could hang
+3. **No query monitoring** - Can't identify slow queries
+4. **No migration strategy** - Schema changes are risky
+
+### Frontend Issues ⚠️
+1. **No Error Boundaries** - Errors crash entire app
+2. **No Suspense boundaries** - Can't show proper loading states
+3. **No form validation library** - Reinventing validation logic
+4. **No optimistic updates** - Poor perceived performance
+
+### Testing & DevOps Issues 🚨
+1. **Zero test coverage** - High regression risk, fear of refactoring
+2. **No CI/CD pipeline** - Manual testing required
+3. **No monitoring** - No APM, error tracking, or observability
+4. **No dependency scanning** - Security vulnerabilities not tracked
+
+### Architecture Issues ⚠️
+1. **No service layer** - Business logic mixed with API routes
+2. **No repository pattern** - Database queries scattered across codebase
+3. **No background job system** - Document processing blocks requests
+4. **Cache instability** - Using `JSON.stringify()` creates cache misses
+5. **Memory leak potential** - Advanced cache has no enforced memory limit
+
+---
+
+## Recent Implementation History
+
+### Code Quality & Build Fixes (October 2024)
+- Fixed all 197 ESLint warnings and TypeScript compilation errors
+- Updated eslint.config.mjs with custom rules for unused variables
+- Achieved zero-warning production builds ready for Vercel deployment
+- **Commit**: 53eb33e
+
+### Domain Migration (October 2024)
+- Zero-downtime migration from heaven.earth to multiplytools.app
+- Configured Cloudflare DNS and Clerk authentication for new domain
+- Updated all environment variables and CSP headers
+- Implemented 301 redirects for legacy domain
+
+### Document System Enhancements (October 2024)
+- **Title Cleanup**: Automated cleanup of 91/579 documents with atomic Supabase + Pinecone updates
+- **Secure Downloads**: Implemented signed URLs with 60-second expiration and Clerk authentication
+- **Admin Improvements**: Added sortable columns, chunk count display, download controls
+- **Auto-Cleaning**: Automatic title standardization on upload (removes prefixes, underscores)
+
+### Memory System & Performance (September 2024)
+- Implemented conversation memory system with 4 database tables
+- Fixed cache system achieving 67x performance improvement (14.6s → 201ms)
+- Optimized database connection pooling (25 max connections, 3min cleanup)
+- Added memory system health monitoring to admin dashboard
+
+### Search & AI Optimization (September 2024)
+- Migrated to Voyage-3-large embeddings with intelligent token batching
+- Optimized hybrid search weights (0.7 semantic / 0.3 keyword)
+- Enhanced system prompt for better document synthesis
+- Fixed contextual follow-up question detection
+- Achieved 100% document ingestion success (462/462 documents, 7,956+ chunks)
 
 ### UI/UX & Mobile (September 2024)
-- ✅ **Professional landing page** - Public route with auth flow
-- ✅ **Mobile-first design** - WCAG 2.1 AA compliance
-- ✅ **Edge swipe gestures** - Native mobile navigation
-- ✅ **Component library** - 15+ reusable UI components
-- ✅ **Authentication polish** - Clerk integration enhancement
+- Created professional landing page with authentication flow
+- Implemented mobile-first design with WCAG 2.1 AA compliance
+- Built component library with 15+ reusable UI components
+- Added edge swipe gestures and native mobile navigation
+- Enhanced sources display with expandable sections
+- Upgraded streaming to 60fps with requestAnimationFrame
 
-### Document Management & Security (October 2024)
-- ✅ **Title cleanup system** - Automated professional title standardization
-- ✅ **Secure downloads** - Supabase signed URLs with 60-second expiration
-- ✅ **Authentication-required access** - Clerk integration for download security
-- ✅ **Database backups** - old_title column for audit trail and rollback
-- ✅ **Admin table sorting** - Sortable columns for title, author, size, words, date, uploader
-- ✅ **Download controls** - Admin ability to suppress downloads per document
-- ✅ **Auto-title cleaning** - Automatic removal of prefixes/underscores on upload
+### Multimedia Processing (September 2024)
+- Added support for 25+ file formats (images, audio, video)
+- Implemented OCR extraction with Tesseract.js
+- Integrated FFmpeg for video/audio metadata
+- Set 150MB upload limit with Vercel Blob storage
 
 ---
 
-## 🚀 PRIORITY ROADMAP
+## Metrics to Track
 
-### Priority 1: User Growth & Monetization
+### Performance
+- Response time P50, P95, P99
+- Cache hit rate (baseline: 67x improvement)
+- Database query time
+- Core Web Vitals (LCP, FID, CLS)
 
-#### Gmail-Style Invite System
-- **Invitation quotas** - User-level invite limits (3-5 per user)
-- **Public waitlist** - Position tracking with referral system
-- **Scarcity marketing** - Limited access with growth metrics
-- **Social integration** - "Just got invited!" sharing features
+### Reliability
+- Error rate by endpoint
+- Uptime percentage
+- Rate limit violations
+- Document ingestion success rate
 
-#### Cost Tracking & Donations
-- **Real-time usage** - Token consumption monitoring
-- **Cost transparency** - Monthly usage display ("$3.47 this month")
-- **Smart donation triggers** - Wikipedia-style requests
-- **Payment integration** - Stripe/PayPal processing
+### Code Quality
+- Test coverage (target: 70% utilities, 50% routes)
+- TypeScript strict mode compliance
+- Bundle size (budget: 300kb JS, 100kb CSS)
+- Lighthouse scores
 
-### Priority 2: Enhanced User Experience
-
-#### Search & Intelligence
-- **Adaptive thresholds** - Dynamic scoring by query type
-- **Source confidence** - Quality rating and relevance scoring
-- **Progressive loading** - Confidence indicators during streaming
-- **User feedback** - Learn from ratings to improve responses
-
-#### Mobile & PWA
-- **Offline capability** - Basic chat history access
-- **Install prompts** - Native app-like experience
-- **Push notifications** - Optional update alerts
-- **Enhanced gestures** - Pull-to-refresh, advanced swipe actions
-
-### Priority 3: Advanced Features
-
-#### Analytics & Insights
-- **Usage metrics** - Comprehensive user behavior tracking
-- **Document relationships** - Intelligent content linking ([Full Roadmap](./DOCUMENT-RELATIONSHIP-ROADMAP.md))
-- **Topic clustering** - Automatic categorization
-- **Performance insights** - System optimization recommendations
-
-#### Compliance & Security
-- **GDPR compliance** - Privacy policy and data handling
-- **Enhanced security** - Advanced rate limiting and validation
-- **Audit logging** - Comprehensive activity tracking
-
----
-
-## 📚 IMPLEMENTATION HISTORY
-
-### Code Quality & Production Build Fixes (October 2nd)
-- Fixed all 197 ESLint warnings and TypeScript compilation errors for clean production builds
-- **ESLint Configuration**:
-  - Updated eslint.config.mjs with custom rules for unused variables
-  - Added argsIgnorePattern, varsIgnorePattern, caughtErrorsIgnorePattern to ignore underscore-prefixed variables
-  - Achieved zero ESLint warnings across entire codebase
-- **TypeScript Fixes**:
-  - Resolved all compilation errors where catch blocks used `_error` but code still referenced `error`
-  - Fixed unused variable warnings by prefixing with underscore convention
-  - Updated 62 files across admin pages, API routes, lib files, and components
-- **Build Verification**:
-  - Successfully compiled production build with zero errors and warnings
-  - Verified lint passes with ✔ No ESLint warnings or errors
-  - Only remaining warning is third-party epub2 dependency (doesn't prevent build)
-- **Impact**: Clean codebase ready for production deployment with proper TypeScript type safety and ESLint compliance
-- **Commit**: 53eb33e - Fix all ESLint warnings and TypeScript compilation errors
-
-### Domain Migration to multiplytools.app (October 1st)
-- Completed zero-downtime domain switch from heaven.earth to multiplytools.app
-- **DNS Configuration**:
-  - Added Cloudflare CNAME records for Clerk authentication (clerk.multiplytools.app, accounts.multiplytools.app)
-  - Configured DNS-only proxy mode for Clerk subdomains (gray cloud)
-- **Code Updates**:
-  - Updated middleware.ts Content Security Policy headers with new Clerk domains
-  - Created vercel.json with 301 redirect rules (heaven.earth → multiplytools.app)
-  - Fixed vercel.json syntax per Vercel docs (removed redundant statusCode field)
-- **Infrastructure Changes**:
-  - Updated Vercel environment variable: NEXT_PUBLIC_APP_URL → https://multiplytools.app
-  - Switched Clerk domain configuration from heaven.earth to multiplytools.app
-  - Updated Clerk publishable key in Vercel after domain switch
-  - Configured Vercel domain-level redirect for heaven.earth
-- **Testing & Verification**:
-  - Verified all functionality on new domain: load, sign in, upload, chat
-  - Confirmed heaven.earth redirects properly to multiplytools.app
-  - Zero downtime during migration process
-- **Commits**: 7dd680b, 11238d2, 2f60e75
-
-### Admin Table Sorting & Download Controls (October 1st)
-- Implemented comprehensive table sorting functionality for admin documents interface
-- Added sortable columns: Title, Author, File Size, Word Count, Date, and Uploader
-- Created sort handler with toggle logic (ascending/descending) and visual indicators (↑ ↓)
-- Implemented sortDocuments helper function with proper type handling for strings, numbers, and dates
-- Added Uploader column visibility for both ADMIN and SUPER_ADMIN roles (moved to front of table)
-- Enhanced admin interface with role-specific badges ("ADMIN - Viewing all documents" / "SUPER ADMIN - Viewing all documents")
-- Applied sorting to both uploaded documents and scraped pages tables
-- Implemented download suppression controls per document with `download_enabled` flag
-- Added "Buy Online" field for purchase links (renamed from Amazon URL)
-- Removed deprecated `resource_url` field from forms (kept in database for backwards compatibility)
-- Created automatic title cleaning on upload via `cleanTitle()` utility function
-- Added file size display to download buttons: "Download (2.4 MB)"
-- Ensured download suppression only affects download button visibility, not RAG functionality
-- Changed status badge from "Private" to "Download Disabled" for clarity
-
-### Secure Document Download System Implementation (October 1st)
-- **Completed** comprehensive document cleanup and secure download system
-- **Phase 1 - Title Cleanup** (8.1 minutes):
-  - Added `old_title` column to documents table for permanent database-level backup
-  - Executed cleanup-titles.js on 91/579 documents requiring cleanup
-  - Achieved 100% success rate with atomic Supabase + Pinecone updates
-  - Implemented 2-second Pinecone consistency wait + automatic retry logic
-  - Professional title standardization: removed prefixes (5a, 12b), underscores, whitespace
-  - Created backup JSON: `title-cleanup-2025-10-01T18-48-49-421Z.json`
-- **Phase 2a - File Preparation** (5.0 minutes):
-  - Downloaded and renamed 548/579 files from Supabase Storage
-  - Generated filesystem-safe filenames matching cleaned database titles
-  - Created file-mapping.json for reference
-  - Identified 17 failed documents (scraped web pages without files, expected)
-- **Phase 2b - Secure Downloads** (pivoted from GitHub to Supabase signed URLs):
-  - Created `/api/documents/download/[documentId]/route.ts` - secure download API
-  - Generates temporary 60-second signed URLs with Clerk authentication
-  - Updated chat API route to include `document_id` and `has_file` metadata
-  - Modified chat UI with `handleDocumentDownload` function for secure URL generation
-  - Changed download buttons from anchor tags to authenticated API calls
-- **Security Features**:
-  - Authentication required via Clerk (no public access)
-  - Temporary signed URLs expire after 60 seconds
-  - Uses existing Supabase Storage infrastructure
-  - No external repository or public file exposure needed
-- **Testing**: User confirmed "Nice. Worked perfectly" - downloads functional
-- **Documentation**: [DOCUMENT-CLEANUP-AND-DOWNLOAD-PLAN.md](./DOCUMENT-CLEANUP-AND-DOWNLOAD-PLAN.md)
-
-### Document Cleanup & Download System Planning (October 1st)
-- Created comprehensive implementation plan for cleaning 450+ document titles and adding secure downloads
-- Designed bulletproof two-phase system: (1) Clean titles in database, (2) Secure download implementation
-- Analyzed safety of title updates - verified core functionality (search, chat) uses UUID relationships and cannot break
-- Identified critical metadata matching by title in chat API - designed atomic updates to minimize mismatch window
-- Planned automatic backup, verification, retry logic, and three operating modes (--dry-run, --verify, execute)
-- **Documentation**: [DOCUMENT-CLEANUP-AND-DOWNLOAD-PLAN.md](./DOCUMENT-CLEANUP-AND-DOWNLOAD-PLAN.md)
-- **Timeline**: Phase 1 (20-25 min) + Phase 2 (30-35 min) = ~55-60 minutes total (actual: 13.1 min + implementation)
-
-### Sources Display Enhancement & Streaming Optimization (October 1st)
-- Enhanced sources display to show top 3 sources with expandable "Show more" button
-- Implemented per-message expansion state tracking using Set<string>
-- Added smooth expand/collapse animation with chevron icons
-- Displays remaining source count (e.g., "Show 5 more sources")
-
-### Content Diversity Clarification Fix & Streaming UI Optimization (October 1st)
-- Fixed clarification system treating content diversity as a trigger for clarifying questions
-- Disabled content_diversity clarification - multiple themes now trigger document synthesis instead
-- System now synthesizes insights from 5-6 different themes (practical, biblical, theological, etc.) into comprehensive answers
-- Upgraded streaming display from 50ms intervals (20fps) to requestAnimationFrame (60fps) for smoother text rendering
-- Fixed TypeScript errors with conversation history type assertions
-- Removed unused @ts-expect-error directive in Supabase configuration
-- Added 'as const' type assertion for schema to fix Supabase client type inference
-- Achievement: Questions like "How can I start a CPM?" now synthesize multiple document perspectives instead of asking for clarification
-
-### Document Audit & Ingestion Verification (September 30th)
-- Conducted comprehensive audit of 462 uploaded documents to verify ingestion status
-- Identified 4 failed documents (Hindi, Chinese, Bengali, Arabic) with extracted content but no chunks
-- Created re-ingestion script (`scripts/reingest-failed-docs-simple.js`) with proper Pinecone index configuration
-- Successfully re-ingested all 4 documents, adding 2,157 new chunks (Hindi: 516, Chinese: 249, Bengali: 736, Arabic: 656)
-- Achieved 100% document ingestion success rate (462/462 documents, 7,956+ total chunks)
-- Fixed Pinecone dimension mismatch by using correct `patmosllm-voyage` index (1024-dim Voyage-3-large)
-
-### Admin Dashboard Chunk Count Display (September 30th)
-- Enhanced admin interface to display chunk counts for each document
-- Modified `/api/admin/documents` route to include `chunks(count)` in Supabase aggregation query
-- Added `chunkCount` field to Document interface with proper TypeScript typing
-- Implemented chunk count display beneath "Completed" status badges for both uploaded and scraped documents
-- Fixed TypeScript compilation errors related to Supabase response typing
-- Provides instant visibility into document processing quality and completeness
-
-### Puppeteer & Production Build Fixes (September 29th)
-- Fixed puppeteer TypeScript errors for production build compatibility
-- Resolved unused import warnings preventing clean builds
-- Fixed scrape-website route TypeScript errors for deployment readiness
-- Achieved zero-warning production builds for Vercel deployment
-
-### Admin UI & Access Control Improvements (September 29th)
-- Fixed admin table layout to prevent horizontal scrolling on mobile
-- Enhanced CONTRIBUTOR user upload access with comprehensive file type support
-- Improved admin interface responsiveness and user experience
-- Verified role-based access control for upload functionality
-
-### Voyage-3-large Token Limit Fix (September 26th)
-- Fixed token limit errors with intelligent batching system (35% more accurate token counting)
-- Updated estimation from 4 chars/token to 3.2 chars/token + 15% safety margin
-- Implemented dynamic token-aware batching with automatic splitting at 110K token limit
-- Enhanced createEmbeddings function with pre-validation and recursive batch processing
-- Added progressive retry logic with 3-tier system (110K → 90K → 70K → 50K tokens)
-- Improved ingest pipeline with intelligent token-based batching replacing fixed 50-chunk batching
-- Prevents 205K+ token batches that caused deployment errors
-- Maintains performance - only splits when necessary, backward compatible
-
-### Contextual Follow-up Question Detection Enhancement (September 25th)
-- Fixed conversational flow issue where follow-up questions triggered clarification instead of direct answers
-- Added regex pattern detection for pronoun-based follow-ups like "is it a person?" after "Holy Spirit"
-- Enhanced isClarificationFollowUp function to detect contextual references using pronouns (it, this, that, they, etc.)
-- Implemented generic solution that works for any topic, improving overall conversational experience
-- System now properly bypasses clarification for obvious contextual follow-ups
-- Tested and verified: "Holy Spirit" → "is it a person?" now flows naturally without interruption
-
-### TypeScript Production Build & Memory System Completion (September 25th)
-- Fixed all TypeScript compilation errors preventing production deployment
-- Resolved memory system type safety issues in metrics calculation functions
-- Fixed Supabase query function signatures with proper async/await patterns
-- Completed admin memory route with test endpoints for topic extraction and context updates
-- Eliminated all @typescript-eslint/no-explicit-any errors for strict type safety
-- Achieved clean production build ready for deployment with zero TypeScript errors
-
-### Memory System & Performance Optimization (September 24th)
-- Implemented complete conversation memory system with 4 database tables
-- Fixed cache system 0% hit rate issue - now showing proper cache performance
-- Resolved memory system context errors preventing user context updates
-- Optimized database connection pooling (20→25 max connections, 5→3min cleanup)
-- Enhanced Supabase client configuration for 75% faster database queries
-- Added optimized query functions for high-frequency operations
-- Integrated memory system health monitoring into admin dashboard
-- Achieved 67x performance improvement on cached responses (14.6s → 201ms)
-
-### Search System Fixes (September 17th)
-- Fixed migration script for proper Pinecone vector sync
-- Optimized hybrid search weights (0.7 semantic / 0.3 keyword)
-- Refined system prompt for document synthesis
-- Lowered search thresholds for better content recall
-
-### AI System Prompt Optimization (September 17th)
-- Redesigned restrictive prompts for better document utilization
-- Enabled cross-document synthesis for comprehensive responses
-- Implemented warm, conversational tone while maintaining document focus
-- Enhanced query understanding for complex, multi-topic questions
-
-### Enhanced Content Processing (September 17th)
-- Implemented OCR extraction with Tesseract.js for image processing
-- Added FFmpeg integration for video/audio metadata extraction
-- Enhanced upload system with intelligent retry logic and duplicate prevention
-- Improved contextual chat intelligence with conversation history
-- Added support for 25+ file formats with 150MB upload limit
-
-### Professional Landing Page System (September 24th)
-- Created public landing page with professional authentication flow
-- Implemented three themed question buttons with gradient styling
-- Added seamless Clerk integration with custom visual styling
-- Developed mobile-optimized layout with glassmorphism effects
-
-### Production Deployment Fixes (September 24th)
-- Fixed ESLint & React standards compliance with proper quote escaping
-- Resolved Next.js 15 SSR compatibility issues with Suspense boundaries
-- Achieved 100% TypeScript and build success for Vercel deployment
-
-### Admin Page JSX Syntax Fixes (September 24th)
-- Fixed critical JSX structure and component nesting issues
-- Resolved compilation errors preventing admin page access
-- Restored Fast Refresh functionality and development stability
-
-### Mobile & Authentication Polish (September 24th)
-- Enhanced mobile sidebar with advanced gesture support and hardware-accelerated animations
-- Implemented WCAG 2.1 AA compliance with 48px minimum touch targets
-- Added global edge swipe navigation system with smart gesture recognition
-- Created comprehensive UI component library with mobile-first design
-- Achieved native mobile feel with 60fps animations and proper accessibility
-
-### Comprehensive UI Component Implementation (September 24th)
-- Created professional modal system with reusable components
-- Implemented comprehensive form components (Select, Input, Checkbox, Textarea)
-- Added toast notification system with smart completion scenarios
-- Enhanced admin interface with interactive help and confirmation modals
-- Achieved 60% code reduction through component reusability
-
-
-
-### Design System Unification (September 2024)
-- Created comprehensive component library with 15+ reusable UI components
-- Implemented unified design tokens and Tailwind v4 configuration
-- Achieved 90%+ visual consistency across admin and chat interfaces
-- Reduced code duplication by 60% through component reusability
-
-### Performance Achievements (October 2024)
-- **500+ concurrent users** supported via singleton connection pooling
-- **40% better search accuracy** with hybrid semantic + keyword search
-- **Sub-second response times** with P95 under 1 second, 91+ req/sec throughput
-- **Zero crashes** under concurrent load testing with comprehensive monitoring
-
----
-
-## 🔮 FUTURE ROADMAP
-
-### User Growth & Monetization
-- Gmail-style invitation system with quota tracking
-- Real-time cost tracking and donation integration
-- Public waitlist with referral system
-
-### Enhanced User Experience
-- Progressive Web App with offline capabilities
-- Advanced analytics and usage insights
-- GDPR compliance and privacy framework
-
-### Intelligence & Search
-- Adaptive similarity thresholds for dynamic scoring
-- Source confidence rating and quality scoring
-- Interactive source exploration with expandable previews
+### Business
+- Active users
+- Questions per user
+- Document upload rate
+- Search quality/user satisfaction
+- Session duration
