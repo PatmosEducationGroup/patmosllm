@@ -22,7 +22,7 @@ export default function AdminNavbar({ userRole = 'USER' }: AdminNavbarProps) {
   const pathname = usePathname()
 
   const allNavItems = [
-    { href: '/', label: 'Chat', icon: MessageCircle, roles: ['USER', 'CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'] },
+    { href: '/chat', label: 'Chat', icon: MessageCircle, roles: ['USER', 'CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'] },
     { href: '/admin', label: 'Documents', icon: BookOpen, roles: ['CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'] },
     { href: '/admin/users', label: 'Users', icon: Users, roles: ['ADMIN', 'SUPER_ADMIN'] },
     { href: '/admin/system-health', label: 'System Health', icon: Activity, roles: ['ADMIN', 'SUPER_ADMIN'] },
@@ -62,30 +62,32 @@ export default function AdminNavbar({ userRole = 'USER' }: AdminNavbarProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {/* Brand */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, rgb(130, 179, 219) 0%, #5a9bd4 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontWeight: 'bold',
-                fontSize: '16px',
-                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
-                cursor: 'pointer',
-                transition: 'transform 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            >
-              MT
-            </div>
+            <Link href="/chat">
+              <div
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, rgb(130, 179, 219) 0%, #5a9bd4 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  fontSize: '16px',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                MT
+              </div>
+            </Link>
             <div>
               <Link
-                href="/"
+                href="/chat"
                 style={{
                   fontSize: '18px',
                   fontWeight: '700',

@@ -11,12 +11,16 @@ import {
   Clock,
   FileText,
   MessageSquare,
-  Activity
+  Activity,
+  Copy,
+  Check,
+  Send
 } from 'lucide-react'
 import { Select } from '@/components/ui/Select'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { Checkbox } from '@/components/ui/Checkbox'
 
 interface User {
   id: string
@@ -80,6 +84,10 @@ export default function AdminUsersPage() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [inviteRole, setInviteRole] = useState('USER')
+  const [sendEmail, setSendEmail] = useState(true)
+  const [generatedInviteUrl, setGeneratedInviteUrl] = useState<string | null>(null)
+  const [resending, setResending] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   // Timeline modal state
   const [timelineUser, setTimelineUser] = useState<User | null>(null)
@@ -282,6 +290,7 @@ export default function AdminUsersPage() {
 
     setInviting(true)
     setError(null)
+    setGeneratedInviteUrl(null)
 
     try {
       const response = await fetch('/api/admin/invite', {
@@ -292,17 +301,28 @@ export default function AdminUsersPage() {
         body: JSON.stringify({
           email: inviteEmail.trim(),
           name: inviteName.trim() || undefined,
-          role: inviteRole
+          role: inviteRole,
+          sendEmail: sendEmail
         })
       })
 
       const data = await response.json()
 
       if (data.success) {
-        setInviteEmail('')
-        setInviteName('')
-        setInviteRole('USER')
-        setShowInviteForm(false)
+        // Show the generated invitation URL
+        if (data.invitationUrl) {
+          setGeneratedInviteUrl(data.invitationUrl)
+        }
+
+        // Only reset form if email was sent, otherwise keep it open to show the URL
+        if (sendEmail) {
+          setInviteEmail('')
+          setInviteName('')
+          setInviteRole('USER')
+          setSendEmail(true)
+          setShowInviteForm(false)
+        }
+
         await loadUsers()
       } else {
         setError(data.error)
@@ -311,6 +331,51 @@ export default function AdminUsersPage() {
       setError('Failed to invite user')
     } finally {
       setInviting(false)
+    }
+  }
+
+  const copyInviteUrl = () => {
+    if (generatedInviteUrl) {
+      navigator.clipboard.writeText(generatedInviteUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const closeInviteForm = () => {
+    setShowInviteForm(false)
+    setInviteEmail('')
+    setInviteName('')
+    setInviteRole('USER')
+    setSendEmail(true)
+    setGeneratedInviteUrl(null)
+  }
+
+  const handleResendInvitation = async (userId: string, userEmail: string) => {
+    setResending(userId)
+    setError(null)
+
+    try {
+      const response = await fetch('/api/admin/invite/resend', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // TODO: Add success toast
+        console.log(`Invitation resent to ${userEmail}`)
+      } else {
+        setError(data.error)
+      }
+    } catch (error) {
+      setError('Failed to resend invitation')
+    } finally {
+      setResending(null)
     }
   }
 
@@ -474,6 +539,82 @@ export default function AdminUsersPage() {
               </div>
 
               <div>
+                <Checkbox
+                  id="send-email"
+                  label="Send invitation email automatically"
+                  checked={sendEmail}
+                  onCheckedChange={(checked) => setSendEmail(checked as boolean)}
+                />
+                <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', marginLeft: '1.5rem' }}>
+                  {sendEmail ? 'User will receive an email with the invitation link' : 'You\'ll need to copy and share the invitation link manually'}
+                </p>
+              </div>
+
+              {generatedInviteUrl && !sendEmail && (
+                <div style={{
+                  backgroundColor: '#f0fdf4',
+                  border: '1px solid #86efac',
+                  borderRadius: '0.5rem',
+                  padding: '1rem',
+                  marginTop: '0.5rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <label style={{ fontSize: '0.875rem', fontWeight: '600', color: '#166534' }}>
+                      Invitation Link Generated
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={generatedInviteUrl}
+                      style={{
+                        flex: 1,
+                        padding: '0.5rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '0.375rem',
+                        fontSize: '0.875rem',
+                        backgroundColor: 'white'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={copyInviteUrl}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.5rem 1rem',
+                        backgroundColor: copied ? '#16a34a' : '#2563eb',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '0.375rem',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        transition: 'background-color 0.2s'
+                      }}
+                    >
+                      {copied ? (
+                        <>
+                          <Check size={16} />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={16} />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: '#166534', marginTop: '0.5rem' }}>
+                    Share this link with the user. It expires in 7 days.
+                  </p>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button
                   type="submit"
                   disabled={inviting || !inviteEmail.trim()}
@@ -488,8 +629,26 @@ export default function AdminUsersPage() {
                     fontWeight: '500'
                   }}
                 >
-                  {inviting ? 'Sending Invitation...' : 'Invite User'}
+                  {inviting ? 'Creating Invitation...' : (sendEmail ? 'Send Invitation' : 'Generate Link')}
                 </button>
+                {generatedInviteUrl && !sendEmail && (
+                  <button
+                    type="button"
+                    onClick={closeInviteForm}
+                    style={{
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      padding: '0.75rem 1.5rem',
+                      border: 'none',
+                      borderRadius: '0.375rem',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Done
+                  </button>
+                )}
               </div>
             </form>
           )}
@@ -599,7 +758,7 @@ export default function AdminUsersPage() {
                         {formatDate(user.createdAt)}
                       </td>
                       <td style={{ padding: '1rem 1.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                           <button
                             onClick={() => openTimeline(user)}
                             style={{
@@ -621,6 +780,31 @@ export default function AdminUsersPage() {
                             Timeline
                           </button>
 
+                          {!user.isActive && (
+                            <button
+                              onClick={() => handleResendInvitation(user.id, user.email)}
+                              disabled={resending === user.id}
+                              style={{
+                                padding: '0.25rem 0.75rem',
+                                fontSize: '0.75rem',
+                                fontWeight: '500',
+                                color: resending === user.id ? '#9ca3af' : '#2563eb',
+                                backgroundColor: 'transparent',
+                                border: '1px solid',
+                                borderColor: resending === user.id ? '#d1d5db' : '#2563eb',
+                                borderRadius: '0.375rem',
+                                cursor: resending === user.id ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}
+                              title="Resend Invitation Email"
+                            >
+                              <Send size={14} />
+                              {resending === user.id ? 'Resending...' : 'Resend'}
+                            </button>
+                          )}
+
                           {currentUser && user.id !== currentUser.id && (
                             <button
                               onClick={() => openDeleteModal(user.id, user.email, user.isActive)}
@@ -637,10 +821,10 @@ export default function AdminUsersPage() {
                                 cursor: deleting === user.id ? 'not-allowed' : 'pointer'
                               }}
                             >
-                              {deleting === user.id 
-                                ? 'Deleting...' 
-                                : user.isActive 
-                                  ? 'Delete' 
+                              {deleting === user.id
+                                ? 'Deleting...'
+                                : user.isActive
+                                  ? 'Delete'
                                   : 'Retract'
                               }
                             </button>

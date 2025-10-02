@@ -32,7 +32,7 @@ export default function Page() {
             Welcome to Multiply Tools
           </h1>
           <p className="text-neutral-600">
-            Your AI-powered knowledge assistant
+            Your AI-powered knowledge library
           </p>
         </div>
         <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-neutral-200/40">

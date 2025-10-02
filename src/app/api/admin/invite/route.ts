@@ -35,7 +35,7 @@ export async function POST(_request: NextRequest) {
     // =================================================================
     // INPUT VALIDATION - Get and validate invitation details
     // =================================================================
-    const { email, name, role = 'USER' } = await _request.json()
+    const { email, name, role = 'USER', sendEmail = true } = await _request.json()
 
     if (!email || !email.includes('@')) {
       return NextResponse.json(
@@ -113,30 +113,36 @@ export async function POST(_request: NextRequest) {
     })
 
     // =================================================================
-    // EMAIL SENDING - Send invitation email to new user
+    // EMAIL SENDING - Conditionally send invitation email to new user
     // =================================================================
-    const emailResult = await sendInvitationEmail(
-      email.toLowerCase(),
-      name || '',
-      role,
-      user.name || user.email,
-      invitationToken
-    )
-
-    if (!emailResult.success) {
+    let emailResult = { success: false }
+    if (sendEmail) {
+      emailResult = await sendInvitationEmail(
+        email.toLowerCase(),
+        name || '',
+        role,
+        user.name || user.email,
+        invitationToken
+      )
     }
 
-    console.log(`Admin ${user.email} invited ${email} as ${role} with token ${invitationToken}`)
+    const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}`
+
+    console.log(`Admin ${user.email} invited ${email} as ${role} with token ${invitationToken} (email: ${sendEmail})`)
 
     // =================================================================
     // SUCCESS RESPONSE - Return invitation success details
     // =================================================================
     return NextResponse.json({
       success: true,
-      message: emailResult.success 
-        ? `Invitation sent to ${email}. They will receive an email with a secure setup link.`
-        : `User ${email} has been pre-approved but email delivery failed.`,
+      message: sendEmail
+        ? (emailResult.success
+            ? `Invitation sent to ${email}. They will receive an email with a secure setup link.`
+            : `User ${email} has been created but email delivery failed.`)
+        : `Invitation created for ${email}. Copy the link below to share manually.`,
       emailSent: emailResult.success,
+      invitationToken: invitationToken,
+      invitationUrl: invitationUrl,
       user: {
         id: invitedUser.id,
         email: invitedUser.email,

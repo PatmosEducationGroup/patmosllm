@@ -969,7 +969,7 @@ function ChatPageContent() {
                   </div>
                   <div>
                     <div className="text-sm font-medium text-neutral-900">Multiply Tools</div>
-                    <div className="text-xs text-neutral-600">Knowledge Assistant</div>
+                    <div className="text-xs text-neutral-600">Knowledge Library</div>
                   </div>
                 </div>
                 <UserButton afterSignOutUrl="/" />
