@@ -175,7 +175,11 @@ export async function POST(_request: NextRequest) {
       )
     }
 
-    const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}`
+    // Build invitation URL with Clerk ticket if available
+    let invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}`
+    if (clerkTicket) {
+      invitationUrl += `?__clerk_ticket=${clerkTicket}`
+    }
 
     console.log(`Admin ${user.email} invited ${email} as ${role} with token ${invitationToken} (email: ${sendEmail})`)
 
