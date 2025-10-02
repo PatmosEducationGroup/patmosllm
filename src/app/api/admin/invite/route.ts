@@ -7,6 +7,7 @@ import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 
 // =================================================================
 // POST - Create new user invitation
+// Updated: 2025-10-02 - Force rebuild to clear serverless cache
 // =================================================================
 export async function POST(_request: NextRequest) {
   try {
