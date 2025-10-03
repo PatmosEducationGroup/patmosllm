@@ -212,6 +212,23 @@ export default function LandingPage() {
         </div>
       </header>
 
+      {/* Beta Banner */}
+      <div className="relative bg-gradient-to-r from-primary-500 to-primary-600 text-white text-sm py-3 px-4 overflow-hidden">
+        <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
+        <div className="relative flex items-center justify-center gap-3 flex-wrap">
+          <span className="bg-secondary-400 text-neutral-800 px-3 py-1 rounded-full text-xs font-bold tracking-wider">
+            BETA
+          </span>
+          <span className="text-center">This system is in beta testing - Your feedback helps us improve</span>
+          <a
+            href="mailto:feedback@multiplytools.app"
+            className="bg-gradient-to-r from-white/20 to-white/10 hover:from-white/30 hover:to-white/20 px-4 py-2 rounded-lg font-semibold border border-white/30 text-white cursor-pointer transition-all duration-200 min-h-[36px]"
+          >
+            Share Feedback
+          </a>
+        </div>
+      </div>
+
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12">
         {/* Enhanced Mobile-First Hero Section */}
         <div className="mb-12 md:mb-16"></div>

@@ -43,7 +43,7 @@ export async function GET(_request: NextRequest) {
       })
     }
 
-    // Get user's chat sessions with message count from database
+    // Get user's chat sessions with message count from database (exclude soft-deleted)
     const { data: sessions, error } = await supabaseAdmin
       .from('chat_sessions')
       .select(`
@@ -54,6 +54,7 @@ export async function GET(_request: NextRequest) {
         conversations(count)
       `)
       .eq('user_id', user.id)
+      .is('deleted_at', null)
       .order('updated_at', { ascending: false })
 
     if (error) {

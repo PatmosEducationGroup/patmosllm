@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import AdminNavbar from '@/components/AdminNavbar'
 import {
@@ -308,8 +308,8 @@ export default function QuestionQualityPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {questions.map((q) => (
-                    <>
-                      <tr key={q.id} className="hover:bg-gray-50 transition-colors">
+                    <Fragment key={q.id}>
+                      <tr className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
                           {new Date(q.created_at).toLocaleString('en-US', {
                             month: 'short',
@@ -362,7 +362,7 @@ export default function QuestionQualityPage() {
                         </td>
                       </tr>
                       {expandedRows.has(q.id) && (
-                        <tr key={`${q.id}-details`} className="bg-gray-50">
+                        <tr className="bg-gray-50">
                           <td colSpan={7} className="px-4 py-4">
                             <div className="space-y-3 text-sm">
                               <div>
@@ -402,7 +402,7 @@ export default function QuestionQualityPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

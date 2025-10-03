@@ -156,6 +156,7 @@ export async function POST(_request: NextRequest) {
           .select('id')
           .eq('id', sessionId)
           .eq('user_id', currentUserId)
+          .is('deleted_at', null)
           .single()
         return !!data
       }).catch(() => false),
@@ -171,6 +172,7 @@ export async function POST(_request: NextRequest) {
             .select('question, answer')
             .eq('session_id', sessionId)
             .eq('user_id', currentUserId)
+            .is('deleted_at', null)
             .order('created_at', { ascending: false })
             .limit(3) // Keep for context quality
           return data || []

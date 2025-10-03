@@ -33,12 +33,13 @@ export async function GET(
 
     const { id: sessionId } = await params
 
-    // Verify session belongs to user
+    // Verify session belongs to user and is not deleted
     const { data: session, error: sessionError } = await supabaseAdmin
       .from('chat_sessions')
       .select('id, title')
       .eq('id', sessionId)
       .eq('user_id', user.id)
+      .is('deleted_at', null)
       .single()
 
     if (sessionError || !session) {
@@ -63,11 +64,12 @@ export async function GET(
       })
     }
 
-    // Get conversation history from database
+    // Get conversation history from database (exclude soft-deleted)
     const { data: conversations, error: conversationsError } = await supabaseAdmin
       .from('conversations')
       .select('*')
       .eq('session_id', sessionId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true })
 
     if (conversationsError) {
@@ -144,6 +146,7 @@ export async function PUT(
       })
       .eq('id', sessionId)
       .eq('user_id', user.id)
+      .is('deleted_at', null)
       .select()
       .single()
 
@@ -203,18 +206,31 @@ export async function DELETE(
 
     const { id: sessionId } = await params
 
-    // Delete session (will cascade delete conversations)
-    const { error } = await supabaseAdmin
+    // Soft delete session by setting deleted_at timestamp
+    const deletedAt = new Date().toISOString()
+
+    const { error: sessionError } = await supabaseAdmin
       .from('chat_sessions')
-      .delete()
+      .update({ deleted_at: deletedAt })
       .eq('id', sessionId)
       .eq('user_id', user.id)
 
-    if (error) {
+    if (sessionError) {
       return NextResponse.json(
         { success: false, error: 'Failed to delete session' },
         { status: 500 }
       )
+    }
+
+    // Also soft delete all conversations in this session
+    const { error: conversationsError } = await supabaseAdmin
+      .from('conversations')
+      .update({ deleted_at: deletedAt })
+      .eq('session_id', sessionId)
+
+    if (conversationsError) {
+      console.error('Error soft deleting conversations:', conversationsError)
+      // Don't fail the request if conversation deletion fails
     }
 
     // Invalidate both session list and conversation history cache
