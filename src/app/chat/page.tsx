@@ -167,7 +167,7 @@ function ChatPageContent() {
   // =================================================================
   // DOCUMENT DOWNLOAD HANDLER - Fetch secure signed URL and download
   // =================================================================
-  const handleDocumentDownload = async (documentId: string, _title: string) => {
+  const handleDocumentDownload = async (documentId: string, title: string) => {
     try {
       // Call API to get secure signed URL
       const response = await fetch(`/api/documents/download/${documentId}`)
@@ -178,8 +178,16 @@ function ChatPageContent() {
 
       const data = await response.json()
 
-      // Open the signed URL in a new tab to trigger download
-      window.open(data.url, '_blank')
+      // Create a temporary anchor element to trigger download
+      // This works on Safari/iOS unlike window.open() after async operations
+      const link = document.createElement('a')
+      link.href = data.url
+      link.download = data.filename || title
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     } catch (_error) {
       console.error('Download failed:', _error)
       alert('Failed to download document. Please try again.')
