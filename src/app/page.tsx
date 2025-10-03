@@ -172,7 +172,7 @@ export default function LandingPage() {
               </div>
               <div>
                 <h1 className="text-lg md:text-xl font-bold text-neutral-800">Multiply Tools</h1>
-                <p className="text-xs text-neutral-600 hidden sm:block">AI Knowledge Library</p>
+                <p className="text-xs text-neutral-600 hidden sm:block">Interact. Learn. Multiply.</p>
               </div>
             </div>
 

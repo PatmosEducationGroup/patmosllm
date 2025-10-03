@@ -27,7 +27,7 @@ export async function sendInvitationEmail(
           <!-- Header -->
           <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center;">
             <h1 style="margin: 0; color: white; font-size: 24px; font-weight: bold;">Multiply Tools</h1>
-            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">AI Knowledge Library</p>
+            <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Interact. Learn. Multiply.</p>
           </div>
 
           <!-- Main Content -->
