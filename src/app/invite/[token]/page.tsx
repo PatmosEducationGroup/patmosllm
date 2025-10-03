@@ -24,7 +24,7 @@ export default function InvitePage() {
   const [invitation, setInvitation] = useState<InvitationData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [clerkTicket, setClerkTicket] = useState<string | null>(null)
+  const [_clerkTicket, setClerkTicket] = useState<string | null>(null)
 
   useEffect(() => {
     if (token) {

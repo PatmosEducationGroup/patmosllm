@@ -261,10 +261,16 @@ export async function POST(_request: NextRequest) {
       const recentTopics = (conversationHistory as Array<{question: string; answer: string}>)
         .map(conv => conv.question)
         .join(' ')
-      // Only add context if the current question seems like a follow-up (pronouns, incomplete subjects)
-      const isFollowUpQuestion = /^(what|how|why|when|where)['']?s\s+(it|this|that|they|their)/i.test(trimmedQuestion) ||
-                                 /^(and|but|also|so|then)\s/i.test(trimmedQuestion) ||
-                                 trimmedQuestion.length < 30 // Short questions likely need context
+      // Only add context if the current question is actually a follow-up
+      const isFollowUpQuestion =
+        // Pronouns referring to previous context
+        /^(what|how|why|when|where|who)['']?s?\s+(it|this|that|they|their|them|these|those)/i.test(trimmedQuestion) ||
+        // Conjunctions starting sentences
+        /^(and|but|also|so|then)\s/i.test(trimmedQuestion) ||
+        // Follow-up phrases
+        /(tell me more|what about|how about|what else|anything else|can you|could you explain)/i.test(trimmedQuestion) ||
+        // Ultra-short contextual questions (likely need context)
+        (trimmedQuestion.length < 10 && /^(why|how|when|where|what|who)\??$/i.test(trimmedQuestion))
 
       if (isFollowUpQuestion) {
         contextualSearchQuery = `${recentTopics} ${trimmedQuestion}`
@@ -287,7 +293,7 @@ export async function POST(_request: NextRequest) {
       questionEmbedding,
       {
         maxResults: 20,
-        minSemanticScore: 0.2, // Lowered from 0.3 for better recall
+        minSemanticScore: 0.5, // Raised to 0.5 to filter weak false positives
         minKeywordScore: 0.05, // Lowered from 0.1 for better recall
         userId: currentUserId,
         enableCache: true
@@ -403,7 +409,8 @@ export async function POST(_request: NextRequest) {
           trimmedQuestion,
           noResultsMessage,
           [],
-          1 // Low satisfaction score for no results
+          1, // Low satisfaction score for no results
+          false // No search results found
         )
       } catch (_memoryError) {
       }
@@ -459,9 +466,47 @@ export async function POST(_request: NextRequest) {
     // Check if it indicates very low confidence (nonsense/gibberish)
     if (clarificationAnalysis.confidence <= 0.1) {
       console.log(`🚫 NONSENSE/GIBBERISH DETECTED by intelligent system: "${trimmedQuestion}" (confidence: ${clarificationAnalysis.confidence}) - early exit`)
+
+      const nonsenseMessage = "I don't have information about that. Please ask about topics related to the available documents."
+
+      // Save conversation with no sources using connection pool
+      let nonsenseConversationId: string | null = null
+      await withSupabaseAdmin(async (supabase) => {
+        const { data: conversation, error } = await supabase
+          .from('conversations')
+          .insert({
+            user_id: currentUserId,
+            session_id: sessionId,
+            question: trimmedQuestion,
+            answer: nonsenseMessage,
+            sources: []
+          })
+          .select('id')
+          .single()
+
+        if (!error && conversation) {
+          nonsenseConversationId = conversation.id
+        }
+      })
+
+      // Log to memory system
+      try {
+        await userContextManager.logConversation(
+          currentUserId,
+          sessionId,
+          nonsenseConversationId,
+          trimmedQuestion,
+          nonsenseMessage,
+          [],
+          1, // Low satisfaction score
+          false // No search results found
+        )
+      } catch (_memoryError) {
+      }
+
       return new Response(
         JSON.stringify({
-          answer: "I don't have information about that. Please ask about topics related to the available documents.",
+          answer: nonsenseMessage,
           sources: [],
           session_id: sessionId,
           cached: false
@@ -476,11 +521,56 @@ export async function POST(_request: NextRequest) {
     // =================================================================
     // SECURITY CHECK: REFUSE IF NO RELEVANT DOCUMENTS FOUND OR LOW CONFIDENCE
     // =================================================================
-    if (context.length === 0 || searchResult.confidence <= 0.1) {
-      console.log(`🚫 NONSENSE QUERY - Early exit triggered - context: ${context.length} chunks, confidence: ${searchResult.confidence}% - providing brief response`)
+    const topChunkScore = relevantChunks[0]?.score || 0
+    const isLowQuality =
+      context.length === 0 ||
+      searchResult.confidence <= 0.1 ||
+      // Dual-threshold: If moderate confidence AND weak top score → reject
+      (searchResult.confidence < 0.7 && topChunkScore < 0.55)
+
+    if (isLowQuality) {
+      console.log(`🚫 LOW QUALITY RESULTS - Early exit triggered - context: ${context.length} chunks, confidence: ${(searchResult.confidence * 100).toFixed(1)}%, top score: ${topChunkScore.toFixed(3)} - providing brief response`)
+
+      const lowConfidenceMessage = "I don't have information about that. Please ask about topics related to the available documents."
+
+      // Save conversation with no sources using connection pool
+      let lowConfidenceConversationId: string | null = null
+      await withSupabaseAdmin(async (supabase) => {
+        const { data: conversation, error } = await supabase
+          .from('conversations')
+          .insert({
+            user_id: currentUserId,
+            session_id: sessionId,
+            question: trimmedQuestion,
+            answer: lowConfidenceMessage,
+            sources: []
+          })
+          .select('id')
+          .single()
+
+        if (!error && conversation) {
+          lowConfidenceConversationId = conversation.id
+        }
+      })
+
+      // Log to memory system
+      try {
+        await userContextManager.logConversation(
+          currentUserId,
+          sessionId,
+          lowConfidenceConversationId,
+          trimmedQuestion,
+          lowConfidenceMessage,
+          [],
+          1, // Low satisfaction score
+          false // No search results found
+        )
+      } catch (_memoryError) {
+      }
+
       return new Response(
         JSON.stringify({
-          answer: "I don't have information about that. Please ask about topics related to the available documents.",
+          answer: lowConfidenceMessage,
           sources: [],
           session_id: sessionId,
           cached: false
@@ -746,7 +836,9 @@ ${contextDocuments}`
                   conversationId,
                   trimmedQuestion,
                   fullResponse,
-                  sources
+                  sources,
+                  undefined, // satisfaction will be user-provided later
+                  true // Had search results
                 )
 
                 console.log(`✅ MEMORY: Updated user context and logged conversation for user ${currentUserId}`)

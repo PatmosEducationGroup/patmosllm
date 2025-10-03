@@ -1053,12 +1053,26 @@ function ChatPageContent() {
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl font-bold mb-6 mx-auto animate-pulse shadow-2xl">
                   MT
                 </div>
-                <h3 className="text-xl font-semibold text-neutral-800 mb-2">
-                  Welcome to Multiply Tools
+                <h3 className="text-xl font-semibold text-neutral-800 mb-4">
+                  👋 Welcome to Multiply Tools (Beta)!
                 </h3>
-                <p className="text-neutral-600 text-lg">
-                  Ask any question about our knowledge base to get started
-                </p>
+                <div className="text-neutral-600 text-base max-w-2xl mx-auto space-y-3">
+                  <p>You&apos;re using an early version of our AI-powered library for church, prayer, and missions.</p>
+
+                  <div>
+                    <p className="font-semibold text-neutral-700 mb-2">Coming Soon:</p>
+                    <ul className="space-y-1 text-left inline-block">
+                      <li>📜 Privacy Policy & clear data guidelines</li>
+                      <li>🤝 Mentor contact info for most documents</li>
+                      <li>✉️ Invite-a-friend feature for early access users</li>
+                      <li>📂 More resources added weekly</li>
+                      <li>📱 Better mobile experience & offline access</li>
+                      <li>⚙️ Ability to edit your account</li>
+                    </ul>
+                  </div>
+
+                  <p className="text-sm">Since we&apos;re still in beta, you may notice a few bugs or missing features. Please share your feedback — it&apos;s what helps us make Multiply Tools the best possible library for missions and prayer.</p>
+                </div>
               </div>
             )}
 

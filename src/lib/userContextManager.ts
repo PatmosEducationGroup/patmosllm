@@ -439,7 +439,8 @@ Example: ["prayer", "spiritual warfare", "missions"]`
     question: string,
     response: string,
     sources: Array<{title: string; author?: string; chunk_id: string}>,
-    satisfaction?: number
+    satisfaction?: number,
+    hadSearchResults?: boolean
   ): Promise<void> {
     try {
       const topics = await this.extractTopics(question, response, sources)
@@ -464,7 +465,8 @@ Example: ["prayer", "spiritual warfare", "missions"]`
             is_follow_up: false,
             related_conversation_ids: [],
             personalized_threshold: null,
-            recommended_complexity: null
+            recommended_complexity: null,
+            had_search_results: hadSearchResults !== undefined ? hadSearchResults : true
           })
 
         if (error) {
