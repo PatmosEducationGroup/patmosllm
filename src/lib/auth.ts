@@ -15,6 +15,7 @@ export async function getCurrentUser(): Promise<User | null> {
       .from('users')
       .select('*')
       .eq('clerk_id', userId)
+      .is('deleted_at', null)
       .single()
 
     if (error || !user) {

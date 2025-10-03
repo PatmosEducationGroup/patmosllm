@@ -247,7 +247,7 @@ export async function GET(_request: NextRequest) {
     }
 
     // =================================================================
-    // DATA RETRIEVAL - Get all users with invitation details
+    // DATA RETRIEVAL - Get all users with invitation details (exclude deleted)
     // =================================================================
     const { data: users, error } = await supabaseAdmin
       .from('users')
@@ -263,6 +263,7 @@ export async function GET(_request: NextRequest) {
         clerk_ticket,
         inviter:invited_by(email, name)
       `)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -378,11 +379,15 @@ export async function DELETE(_request: NextRequest) {
     const isPendingInvitation = targetUser.clerk_id.startsWith('invited_')
 
     // =================================================================
-    // DATABASE DELETION - Remove user from database (cascades to related data)
+    // SOFT DELETE - Mark user as deleted (preserves data for audit trail)
     // =================================================================
     const { error: deleteError } = await supabaseAdmin
       .from('users')
-      .delete()
+      .update({
+        deleted_at: new Date().toISOString(),
+        // Anonymize email for privacy while keeping record
+        email: `deleted_${targetUserId}@deleted.local`
+      })
       .eq('id', targetUserId)
 
     if (deleteError) {
