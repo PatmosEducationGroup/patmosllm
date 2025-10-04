@@ -58,6 +58,14 @@ interface Source {
   contact_email?: string
 }
 
+interface DocumentDownload {
+  format: 'pdf' | 'pptx' | 'xlsx'
+  filename: string
+  downloadUrl: string
+  size: number
+  expiresAt: string
+}
+
 interface Message {
   id: string
   type: 'user' | 'assistant'
@@ -65,6 +73,7 @@ interface Message {
   sources?: Source[]
   timestamp: Date
   isStreaming?: boolean
+  document?: DocumentDownload
 }
 
 interface ChatSession {
@@ -637,6 +646,7 @@ function ChatPageContent() {
 
       let streamedContent = ''
       let sources: Source[] = []
+      let documentDownload: DocumentDownload | undefined
       let buffer = ''
       const streamStartTime = Date.now()
 
@@ -708,20 +718,35 @@ function ChatPageContent() {
                   buffer += data.content
                 } else if (data.type === 'sources' && data.sources) {
                   sources = data.sources
+                } else if (data.type === 'document') {
+                  // Document generated - store metadata
+                  console.log(`📥 FRONTEND RECEIVED DOCUMENT DATA:`, data)
+                  documentDownload = {
+                    format: data.format,
+                    filename: data.filename,
+                    downloadUrl: data.downloadUrl,
+                    size: data.size,
+                    expiresAt: data.expiresAt
+                  }
+                  console.log(`📄 Document ready: ${data.filename} (${data.format})`)
+                  console.log(`📋 documentDownload variable set:`, documentDownload)
                 } else if (data.type === 'complete') {
                   isStreamComplete = true
                   batchUpdate() // Final update
 
+                  console.log(`🏁 Stream complete, updating message with document:`, documentDownload)
                   setMessages(prev => prev.map(msg =>
                     msg.id === assistantMessageId
                       ? {
                           ...msg,
                           content: streamedContent + buffer || data.fullResponse || 'No content received',
                           sources: sources,
+                          document: documentDownload,
                           isStreaming: false
                         }
                       : msg
                   ))
+                  console.log(`✅ Message updated in state`)
                   break
                 } else if (data.type === 'error') {
                   isStreamComplete = true
@@ -1127,6 +1152,35 @@ function ChatPageContent() {
                           <span className="inline-block w-0.5 h-5 ml-1 bg-primary-400 animate-pulse" />
                         )}
 
+                        {/* Document Download */}
+                        {message.document && !message.isStreaming && (
+                          <div className="mt-4 p-4 bg-gradient-to-r from-primary-50 to-primary-100 border border-primary-200 rounded-xl">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="p-3 bg-white rounded-lg shadow-sm">
+                                  <Download className="w-5 h-5 text-primary-600" />
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-neutral-800 text-sm">
+                                    {message.document.format.toUpperCase()} Document Ready
+                                  </div>
+                                  <div className="text-xs text-neutral-600 mt-0.5">
+                                    {formatFileSize(message.document.size)} • Expires in 5 minutes
+                                  </div>
+                                </div>
+                              </div>
+                              <a
+                                href={message.document.downloadUrl}
+                                download
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors no-underline"
+                              >
+                                <Download className="w-4 h-4" />
+                                Download
+                              </a>
+                            </div>
+                          </div>
+                        )}
+
                       </div>
                     ) : (
                       <div className="whitespace-pre-wrap text-white/95">
@@ -1134,8 +1188,8 @@ function ChatPageContent() {
                       </div>
                     )}
 
-                    {/* Enhanced Source Citations */}
-                    {message.sources && message.sources.length > 0 && !message.isStreaming && (
+                    {/* Enhanced Source Citations - Hide when document is generated */}
+                    {message.sources && message.sources.length > 0 && !message.isStreaming && !message.document && (
                       <div className="mt-6 pt-4 border-t border-neutral-200/30">
                         <div className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
                           <Globe className="w-4 h-4" />

@@ -73,6 +73,64 @@ function setCachedChatResponse(
   )
 }
 
+// =================================================================
+// INTENT CLASSIFICATION - Determine query type for context routing
+// =================================================================
+type QueryIntent = 'retrieve_from_docs' | 'synthesize_from_docs' | 'transform_prior_artifact' | 'generate_document'
+type DocumentFormat = 'pdf' | 'pptx' | 'xlsx' | null
+
+interface IntentResult {
+  intent: QueryIntent
+  documentFormat?: DocumentFormat
+}
+
+function classifyIntent(question: string, hasHistory: boolean, lastAnswerLength: number): IntentResult {
+  const q = question.toLowerCase()
+
+  // Document generation detection: user wants downloadable file
+  const docFormats = {
+    pdf: /\b(pdf|portable document)\b/i,
+    pptx: /\b(powerpoint|ppt|pptx|presentation|slides?|slideshow)\b/i,
+    xlsx: /\b(excel|xlsx?|spreadsheet|workbook|table)\b/i
+  }
+
+  const docVerbs = /\b(create|make|generate|give me|export|download|save|produce|write|turn.*into|convert.*to)\b/i
+
+  // Check for document generation intent
+  // This must be checked FIRST before transform detection
+  for (const [format, regex] of Object.entries(docFormats)) {
+    if (regex.test(q) && docVerbs.test(q)) {
+      return {
+        intent: 'generate_document',
+        documentFormat: format as DocumentFormat
+      }
+    }
+  }
+
+  // Transform detection: user wants to modify/expand the last AI response
+  const transformVerbs = /\b(add|create|develop|write|make|generate|expand|elaborate|revise|divide|integrate|turn|convert|include|incorporate|design|construct|build)\b/i
+  const refsPrior = /\b(that|this|the outline|the plan|those|these|it|them)\b/i
+
+  // Short imperative commands after substantial response = likely transformation
+  const isShortImperative = q.split(' ').length <= 6 && transformVerbs.test(q)
+
+  if (hasHistory && lastAnswerLength > 400) {
+    // Explicit reference to prior content OR short imperative after long response
+    if (refsPrior.test(q) || isShortImperative) {
+      return { intent: 'transform_prior_artifact' }
+    }
+  }
+
+  // Synthesis detection: user wants structured organization from docs
+  const synthKeywords = /\b(outline|scope|sequence|syllabus|curriculum|framework|weekly|modules?|lesson plan|teaching plan|course design)\b/i
+  if (synthKeywords.test(q)) {
+    return { intent: 'synthesize_from_docs' }
+  }
+
+  // Default: normal retrieval
+  return { intent: 'retrieve_from_docs' }
+}
+
 export async function POST(_request: NextRequest) {
   try {
     // =================================================================
@@ -256,6 +314,43 @@ export async function POST(_request: NextRequest) {
       cacheConversationHistory(sessionId, conversationHistory)
     }
 
+    // =================================================================
+    // INTENT CLASSIFICATION - Determine query type for optimal handling
+    // =================================================================
+    const lastAnswerLength = conversationHistory.length > 0
+      ? (conversationHistory[0] as {answer: string}).answer?.length || 0
+      : 0
+
+    // Get last artifact - for document generation, skip short confirmation messages (< 200 chars)
+    // and find the most recent substantial content
+    let lastArtifact = ''
+    for (const conv of conversationHistory) {
+      const answer = (conv as {answer: string}).answer || ''
+      if (answer.length >= 200) {
+        lastArtifact = answer
+        break
+      }
+    }
+
+    // Fallback to most recent if all are short
+    if (!lastArtifact && conversationHistory.length > 0) {
+      lastArtifact = (conversationHistory[0] as {answer: string}).answer || ''
+    }
+
+    const intentResult = classifyIntent(trimmedQuestion, conversationHistory.length > 0, lastAnswerLength)
+    const queryIntent = intentResult.intent
+    const documentFormat = intentResult.documentFormat
+
+    console.log(`🎯 Query Intent: ${queryIntent}${documentFormat ? ` (format: ${documentFormat})` : ''}`)
+
+    if (queryIntent === 'transform_prior_artifact') {
+      console.log(`📋 Transform mode: Using last artifact (${lastArtifact.length} chars) as primary context`)
+    }
+
+    if (queryIntent === 'generate_document') {
+      console.log(`📄 Document generation mode: Creating ${documentFormat} from ${lastArtifact ? 'last artifact' : 'search results'}`)
+    }
+
     // Create contextual search query by combining current question with recent context
     let contextualSearchQuery = trimmedQuestion
     if (conversationHistory && conversationHistory.length > 0) {
@@ -378,9 +473,16 @@ export async function POST(_request: NextRequest) {
     // HANDLE NO RESULTS - Return helpful message if no relevant content
     // =================================================================
     if (relevantChunks.length === 0) {
-      const noResultsMessage = searchResult.suggestions && searchResult.suggestions.length > 0
-        ? `I couldn't find any relevant information in the uploaded documents to answer your question. ${searchResult.suggestions.join(' ')} You might also want to check if relevant documents have been uploaded.`
-        : "I couldn't find any relevant information in the uploaded documents to answer your question. You might want to try rephrasing your question or check if relevant documents have been uploaded."
+      // Transform override: If we're transforming a prior artifact, skip the no-results message
+      const allowTransformBypass = queryIntent === 'transform_prior_artifact' && lastArtifact.trim()
+
+      if (allowTransformBypass) {
+        console.log(`✅ TRANSFORM BYPASS: Zero search results but continuing with artifact (${lastArtifact.length} chars) for transformation`)
+        // Don't return early - continue to generation with artifact as context
+      } else {
+        const noResultsMessage = searchResult.suggestions && searchResult.suggestions.length > 0
+          ? `I couldn't find any relevant information in the uploaded documents to answer your question. ${searchResult.suggestions.join(' ')} You might also want to check if relevant documents have been uploaded.`
+          : "I couldn't find any relevant information in the uploaded documents to answer your question. You might want to try rephrasing your question or check if relevant documents have been uploaded."
       
       // Save conversation with no sources using connection pool
       let noResultsConversationId: string | null = null
@@ -428,6 +530,7 @@ export async function POST(_request: NextRequest) {
         }),
         { headers: { 'Content-Type': 'application/json' } }
       )
+      }
     }
 
     // =================================================================
@@ -522,15 +625,43 @@ export async function POST(_request: NextRequest) {
 
     // =================================================================
     // SECURITY CHECK: REFUSE IF NO RELEVANT DOCUMENTS FOUND OR LOW CONFIDENCE
+    // Exceptions:
+    // - transform_prior_artifact: allow low confidence when we have a last artifact
+    // - synthesize_from_docs: use relaxed thresholds for multi-document synthesis
     // =================================================================
     const topChunkScore = relevantChunks[0]?.score || 0
+
+    // Different thresholds based on query intent
+    let confidenceThreshold = 0.7
+    let scoreThreshold = 0.55
+
+    if (queryIntent === 'synthesize_from_docs') {
+      // Synthesis queries naturally have lower scores (weaving multiple docs)
+      confidenceThreshold = 0.35
+      scoreThreshold = 0.40
+      console.log(`📊 Using relaxed thresholds for synthesis query (confidence: ${confidenceThreshold}, score: ${scoreThreshold})`)
+    }
+
+    // Special intent overrides: Transform or document generation bypass quality checks
+    const allowTransformOverride = queryIntent === 'transform_prior_artifact' && lastArtifact.trim()
+    const allowDocumentOverride = queryIntent === 'generate_document' && (lastArtifact.trim() || context.length > 0)
+    const allowOverride = allowTransformOverride || allowDocumentOverride
+
     const isLowQuality =
-      context.length === 0 ||
-      searchResult.confidence <= 0.1 ||
-      // Dual-threshold: If moderate confidence AND weak top score → reject
-      (searchResult.confidence < 0.7 && topChunkScore < 0.55)
+      (context.length === 0 && !allowOverride) ||
+      (searchResult.confidence <= 0.1 && !allowOverride) ||
+      // Intent-aware dual-threshold
+      (!allowOverride && searchResult.confidence < confidenceThreshold && topChunkScore < scoreThreshold)
 
     if (isLowQuality) {
+      // Check if we should allow this anyway due to special intent override
+      if (allowTransformOverride) {
+        console.log(`✅ TRANSFORM OVERRIDE: Allowing request despite low search confidence (${(searchResult.confidence * 100).toFixed(1)}%) - using last artifact (${lastArtifact.length} chars) + ${context.length} supporting chunks`)
+        // Continue to generation (don't return early)
+      } else if (allowDocumentOverride) {
+        console.log(`✅ DOCUMENT OVERRIDE: Allowing document generation despite low search confidence (${(searchResult.confidence * 100).toFixed(1)}%) - using ${lastArtifact ? 'last artifact (' + lastArtifact.length + ' chars)' : 'search results (' + context.length + ' chunks)'}`)
+        // Continue to generation (don't return early)
+      } else {
       console.log(`🚫 LOW QUALITY RESULTS - Early exit triggered - context: ${context.length} chunks, confidence: ${(searchResult.confidence * 100).toFixed(1)}%, top score: ${topChunkScore.toFixed(3)} - providing brief response`)
 
       const lowConfidenceMessage = "I don't have information about that. Please ask about topics related to the available documents."
@@ -583,14 +714,15 @@ export async function POST(_request: NextRequest) {
         }
       )
     }
+    }
 
     // =================================================================
     // STEP 4: PREPARE SOURCES FOR FRONTEND WITH METADATA
     // =================================================================
     
     // Get unique document titles from chunks
-    const uniqueDocumentTitles = [...new Set(relevantChunks.map(chunk => chunk.documentTitle))]
-    
+    const uniqueDocumentTitles = [...new Set(relevantChunks.map(chunk => chunk.documentTitle))];
+
     // Fetch document metadata from database with connection pooling
     const documentsWithMetadata = await withSupabaseAdmin(async (supabase) => {
       const { data, error} = await supabase
@@ -655,6 +787,7 @@ export async function POST(_request: NextRequest) {
 
     // =================================================================
     // STEP 5: FORMAT CONVERSATION HISTORY FOR AI PROMPT
+    // For transform_prior_artifact, include the last artifact as primary context
     // =================================================================
     let conversationHistoryText = ''
     if (conversationHistory && conversationHistory.length > 0) {
@@ -668,14 +801,13 @@ export async function POST(_request: NextRequest) {
 
     // =================================================================
     // STEP 6: BUILD CONTEXT AND SYSTEM PROMPT WITH HISTORY
+    // Include last artifact for transformation requests
     // =================================================================
     const contextDocuments = context
       .map((item) =>
         `=== ${item.title}${item.author ? ` by ${item.author}` : ''} ===\n${item.content}`
       )
       .join('\n\n')
-
-      
 
     const systemPrompt = `Golden Rule: Every answer must be built only from the documents provided. You may never bring in outside knowledge.
 
@@ -697,6 +829,25 @@ The question's subject is completely absent across all documents,
 
 AND there is no way to combine existing material into a relevant answer.
 
+Transformation Rule: When asked to restructure, expand, reformat, or schedule content (such as "add homework to that outline" or "create weekly topics"), you may only work with:
+1. The previous assistant response provided below (if present)
+2. The available documents provided below
+
+You may NOT introduce new claims, facts, or content that aren't in these sources.
+
+Missing Content Handling: When asked to add specific content (scripture, readings, assignments, etc.):
+- If that content exists in the provided documents, integrate it naturally
+- If that content is NOT in the documents, create the requested structure using only available material, and note briefly which sections could be enhanced with additional resources
+
+Do NOT ask users to upload or select documents - they cannot do this.
+
+Document Generation: When users request a PDF, PowerPoint, or Excel file (e.g., "Create a PDF of that outline", "Make me a PowerPoint presentation"), provide a brief confirmation message. The system will automatically generate the requested file and provide a download link.
+
+Example responses:
+- "I've created a PDF version of the outline. You can download it below."
+- "I've generated a PowerPoint presentation with the curriculum content. Your download link is ready."
+- "I've prepared an Excel spreadsheet with the structured data. Click below to download."
+
 ${conversationHistoryText}
 
 Available documents:
@@ -707,13 +858,20 @@ ${contextDocuments}`
     // STEP 7: STREAMING AI RESPONSE
     // =================================================================
 
+    // Build user message - include artifact context for transformations
+    let userMessage = trimmedQuestion
+    if (queryIntent === 'transform_prior_artifact' && lastArtifact.trim()) {
+      userMessage = `Previous assistant response to build upon:\n---\n${lastArtifact}\n---\n\nUser request: ${trimmedQuestion}`
+      console.log(`📝 Including previous artifact (${lastArtifact.length} chars) in user message for transformation`)
+    }
+
     let stream
     try {
       stream = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: trimmedQuestion }
+          { role: 'user', content: userMessage }
         ],
         temperature: 0.3,
         max_tokens: 2000, // Restored to original for quality
@@ -765,7 +923,111 @@ ${contextDocuments}`
             }
           }
 
-          // Send completion signal
+          // =================================================================
+          // DOCUMENT GENERATION: Generate downloadable file if requested
+          // IMPORTANT: Must happen BEFORE complete signal so frontend receives it
+          // =================================================================
+          if (queryIntent === 'generate_document' && documentFormat && fullResponse.trim()) {
+            try {
+              console.log(`📄 Generating ${documentFormat.toUpperCase()} document...`)
+
+              const { generatePDF, generatePPTX, generateXLSX } = await import('@/lib/document-generator')
+              const { storeTempFile, getDownloadUrl } = await import('@/lib/temp-file-storage')
+
+              // Generate intelligent title from content
+              const generateSmartTitle = (content: string): string => {
+                // Extract first heading if exists
+                const headingMatch = content.match(/^#+ (.+)$/m)
+                if (headingMatch) {
+                  return headingMatch[1].trim()
+                }
+
+                // Otherwise use first sentence (up to 60 chars)
+                const firstSentence = content.split(/[.!?]\s/)[0].trim()
+                if (firstSentence.length > 0 && firstSentence.length <= 60) {
+                  return firstSentence
+                }
+
+                // Fallback to first 50 chars
+                return content.substring(0, 50).trim() + (content.length > 50 ? '...' : '')
+              }
+
+              // Prepare metadata for document generation
+              const contentToExport = lastArtifact && lastArtifact.trim() ? lastArtifact : fullResponse
+              console.log(`📋 Content source: ${lastArtifact && lastArtifact.trim() ? 'lastArtifact' : 'fullResponse'} (${contentToExport.length} chars)`)
+              const smartTitle = generateSmartTitle(contentToExport)
+              console.log(`📝 Generated title: "${smartTitle}"`)
+
+              const documentMetadata = {
+                title: smartTitle,
+                content: contentToExport,
+                sources: sources,
+                timestamp: new Date()
+              }
+
+              // Create clean filename from title
+              const createFilename = (title: string, _ext: string): string => {
+                const clean = title
+                  .toLowerCase()
+                  .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
+                  .replace(/\s+/g, '-')          // Spaces to hyphens
+                  .replace(/-+/g, '-')           // Multiple hyphens to one
+                  .substring(0, 50)              // Max 50 chars
+                  .replace(/^-+|-+$/g, '')       // Trim hyphens
+
+                return clean || 'document'
+              }
+
+              // Generate document based on format
+              let buffer: Buffer
+              let filename: string
+
+              switch (documentFormat) {
+                case 'pdf':
+                  buffer = await generatePDF(documentMetadata)
+                  filename = createFilename(smartTitle, 'pdf')
+                  break
+                case 'pptx':
+                  buffer = await generatePPTX(documentMetadata)
+                  filename = createFilename(smartTitle, 'pptx')
+                  break
+                case 'xlsx':
+                  buffer = await generateXLSX(documentMetadata)
+                  filename = createFilename(smartTitle, 'xlsx')
+                  break
+                default:
+                  throw new Error(`Unsupported format: ${documentFormat}`)
+              }
+
+              // Store file temporarily (storeTempFile will add timestamp and random ID)
+              const fileId = await storeTempFile(buffer, documentFormat, filename)
+              const downloadUrl = getDownloadUrl(fileId)
+
+              console.log(`✅ Document generated: ${fileId} (${buffer.length} bytes)`)
+
+              // Send document metadata to frontend
+              const documentMetadataPayload = {
+                type: 'document',
+                format: documentFormat,
+                filename: fileId,
+                downloadUrl: downloadUrl,
+                size: buffer.length,
+                expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString()
+              }
+              console.log(`📤 STREAMING DOCUMENT METADATA TO FRONTEND:`, JSON.stringify(documentMetadataPayload))
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(documentMetadataPayload)}\n\n`))
+
+            } catch (docError) {
+              console.error(`❌ Document generation failed:`, docError)
+              // Send error to frontend but don't fail the entire request
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                type: 'document_error',
+                error: 'Failed to generate document. Please try again.'
+              })}\n\n`))
+            }
+          }
+
+          // Send completion signal AFTER document generation
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({
             type: 'complete',
             fullResponse: fullResponse
@@ -880,7 +1142,6 @@ ${contextDocuments}`
         'Connection': 'keep-alive'
       }
     })
-
   } catch (_error) {
     return new Response(
       JSON.stringify({
