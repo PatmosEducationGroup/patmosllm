@@ -4,7 +4,8 @@
  * Uses Puppeteer for PDF, PptxGenJS for PowerPoint, ExcelJS for spreadsheets
  */
 
-import puppeteer from 'puppeteer'
+import puppeteer from 'puppeteer-core'
+import chromium from '@sparticuz/chromium'
 import pptxgen from 'pptxgenjs'
 import ExcelJS from 'exceljs'
 
@@ -143,10 +144,12 @@ export async function generatePDF(metadata: DocumentMetadata): Promise<Buffer> {
 </html>
   `
 
-  // Launch Puppeteer and generate PDF
+  // Launch Puppeteer with serverless-compatible Chromium
   const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: chromium.args,
+    defaultViewport: { width: 1280, height: 720 },
+    executablePath: await chromium.executablePath(),
+    headless: true
   })
 
   try {

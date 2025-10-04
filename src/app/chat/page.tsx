@@ -219,7 +219,6 @@ function ChatPageContent() {
     if (userId) {
       loadSessions()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
   // =================================================================
@@ -415,12 +414,7 @@ function ChatPageContent() {
 
       if (data.success) {
         setSessions(data.sessions)
-
-        if (!currentSessionId && data.sessions.length > 0) {
-          loadSession(data.sessions[0].id)
-        } else if (!currentSessionId && data.sessions.length === 0) {
-          createNewSession()
-        }
+        // Don't auto-load any session - always start fresh
       } else {
         setError(data.error)
       }
@@ -547,7 +541,33 @@ function ChatPageContent() {
   // =================================================================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || loading || !currentSessionId) return
+    if (!input.trim() || loading || isStreaming) return
+
+    // Auto-create session if none exists
+    let sessionId = currentSessionId
+    if (!sessionId) {
+      try {
+        const response = await fetch('/api/chat/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'New Chat' })
+        })
+        const data = await response.json()
+        if (data.success) {
+          sessionId = data.session.id
+          setCurrentSessionId(sessionId)
+          setCurrentSessionTitle(data.session.title)
+          setMessages([])
+          await loadSessions()
+        } else {
+          setError('Failed to create chat session. Please try again.')
+          return
+        }
+      } catch (_error) {
+        setError('Failed to create chat session. Please try again.')
+        return
+      }
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -604,9 +624,9 @@ function ChatPageContent() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           question: questionText,
-          sessionId: currentSessionId 
+          sessionId: sessionId
         }),
         signal: abortController.signal
       })
@@ -776,13 +796,13 @@ function ChatPageContent() {
         ))
       }
 
-      if (messages.length === 0 && currentSessionTitle === 'New Chat') {
-        const newTitle = questionText.length > 50 
+      if (messages.length === 0 && currentSessionTitle === 'New Chat' && sessionId) {
+        const newTitle = questionText.length > 50
           ? questionText.substring(0, 47) + '...'
           : questionText
-        updateSessionTitle(currentSessionId, newTitle)
+        updateSessionTitle(sessionId, newTitle)
       }
-      
+
       loadSessions()
 
     } catch (err) {
@@ -1366,7 +1386,7 @@ function ChatPageContent() {
                     }
                   }}
                   placeholder="Ask a question about the documents..."
-                  disabled={loading || !currentSessionId || isStreaming}
+                  disabled={loading || isStreaming}
                   rows={1}
                   className="w-full p-4 md:p-6 bg-neutral-50 border border-neutral-300 rounded-2xl resize-none outline-none text-sm md:text-base text-neutral-900 min-h-12 md:min-h-14 max-h-50 transition-all duration-200 focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400"
                   style={{ overflow: 'hidden' }}
