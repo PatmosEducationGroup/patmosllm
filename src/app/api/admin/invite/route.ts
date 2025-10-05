@@ -171,7 +171,8 @@ export async function POST(_request: NextRequest) {
         name || '',
         role,
         user.name || user.email,
-        invitationToken
+        invitationToken,
+        clerkTicket
       )
     }
 

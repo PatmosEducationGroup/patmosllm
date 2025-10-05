@@ -46,7 +46,7 @@ export async function POST(_request: NextRequest) {
     console.log('Fetching target user from database...')
     const { data: targetUser, error: fetchError } = await supabaseAdmin
       .from('users')
-      .select('id, email, name, role, clerk_id, invitation_token, invitation_expires_at')
+      .select('id, email, name, role, clerk_id, invitation_token, invitation_expires_at, clerk_ticket')
       .eq('id', targetUserId)
       .single()
 
@@ -104,14 +104,15 @@ export async function POST(_request: NextRequest) {
     }
     console.log('✅ Expiry updated successfully')
 
-    // Resend invitation email with the existing token
+    // Resend invitation email with the existing token and clerk ticket
     console.log('Sending invitation email...')
     const emailResult = await sendInvitationEmail(
       targetUser.email,
       targetUser.name || '',
       targetUser.role,
       user.name || user.email,
-      existingToken
+      existingToken,
+      targetUser.clerk_ticket
     )
     console.log('Email result:', emailResult)
 
@@ -121,7 +122,10 @@ export async function POST(_request: NextRequest) {
       console.log('✅ Email sent successfully')
     }
 
-    const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${existingToken}`
+    let invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${existingToken}`
+    if (targetUser.clerk_ticket) {
+      invitationUrl += `?__clerk_ticket=${targetUser.clerk_ticket}`
+    }
 
     console.log(`Admin ${user.email} resent invitation to ${targetUser.email} (extended expiry by 7 days, email: ${emailResult.success})`)
 

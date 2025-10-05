@@ -60,10 +60,11 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 3. **Auth**: Clerk → Middleware → Role validation
 
 ### Key API Routes
-- `/api/chat/*` - Streaming chat with session management
+- `/api/chat/*` - Streaming chat with session management and AI document generation
 - `/api/upload/*` - Document processing pipeline
 - `/api/admin/*` - System administration
 - `/api/documents/download/[documentId]` - Secure document downloads
+- `/api/download/[fileId]` - Generated document downloads (PDF/PPTX/XLSX)
 
 ### Environment Variables
 ```bash
@@ -96,7 +97,7 @@ RESEND_API_KEY
 - **Performance (9/10)**: 500+ concurrent users, 67x cache improvement, hybrid search
 - **Code Quality (7/10)**: TypeScript usage, clean structure, ESLint compliance
 - **Maintainability (7/10)**: Clear architecture, documented patterns
-- **Features**: Memory system, secure downloads, mobile-first UI, 25+ file formats
+- **Features**: AI document generation, memory system, secure downloads, mobile-first UI, 25+ file formats
 
 ### Key Metrics
 - **500+ concurrent users** via optimized connection pooling
@@ -106,6 +107,8 @@ RESEND_API_KEY
 - **100% document ingestion** success rate (462/462 documents, 7,956+ chunks)
 
 ### Recent Completions
+- ✅ Chat UX: Auto-create sessions, default to new chat on load (Oct 2024)
+- ✅ Document generation: AI-triggered PDF/PPTX/XLSX with serverless Chromium (Oct 2024)
 - ✅ Code quality: Fixed all ESLint warnings & TypeScript compilation errors (Oct 2024)
 - ✅ Domain migration: Zero-downtime switch to multiplytools.app (Oct 2024)
 - ✅ Document system: Title cleanup, secure downloads, admin sorting (Oct 2024)
@@ -231,6 +234,21 @@ RESEND_API_KEY
 ---
 
 ## Recent Implementation History
+
+### Chat UX Improvements (October 2024)
+- **Auto-create sessions**: Users can type without selecting a conversation - new session created automatically on submit
+- **Default to new chat**: Page loads with empty "New Chat" state instead of auto-loading last conversation
+- **Improved first-time UX**: Seamless onboarding flow for new users
+- **Commit**: f8d9060
+
+### AI Document Generation (October 2024)
+- **Intent-based generation**: "Create a PDF of that" triggers document export from conversation
+- **Multi-format support**: PDF (Puppeteer + serverless Chromium), PPTX (PptxGenJS), XLSX (ExcelJS)
+- **Smart content parsing**: Extracts titles from headings, handles markdown, lists, paragraphs
+- **Serverless compatibility**: Integrated @sparticuz/chromium for Vercel PDF generation
+- **Temporary storage**: 5-minute expiring downloads with auto-cleanup
+- **Quality gate bypass**: Document generation requests skip low-confidence thresholds
+- **Commits**: 5b30d3f, f8d9060
 
 ### Code Quality & Build Fixes (October 2024)
 - Fixed all 197 ESLint warnings and TypeScript compilation errors
