@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logError } from '@/lib/logger'
 import { auth } from '@clerk/nextjs/server'
 import { getCurrentUser } from '@/lib/auth'
 import { userContextManager } from '@/lib/userContextManager'
@@ -96,8 +97,14 @@ export async function GET(_request: NextRequest) {
       })
     }
 
-  } catch (_error) {
-    return NextResponse.json({
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/memory',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json({
       success: false,
       error: 'Memory API failed'
     }, { status: 500 })
@@ -154,8 +161,14 @@ export async function POST(_request: NextRequest) {
       error: 'Invalid test action'
     }, { status: 400 })
 
-  } catch (_error) {
-    return NextResponse.json({
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/memory',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json({
       success: false,
       error: 'Memory test failed'
     }, { status: 500 })

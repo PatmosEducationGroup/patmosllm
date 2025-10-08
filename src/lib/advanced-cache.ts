@@ -1,5 +1,6 @@
 // Advanced multi-layered caching system for PatmosLLM
 // Implements in-memory + Redis-like caching patterns for optimal performance
+import { loggers } from './logger'
 
 interface CacheEntry<T> {
   data: T
@@ -50,10 +51,18 @@ class AdvancedCache {
     return AdvancedCache.instance
   }
 
-  // Intelligent cache key generation
+  // Intelligent cache key generation with stable hashing
   private generateKey(namespace: string, key: string, params?: Record<string, unknown>): string {
-    const paramHash = params ? JSON.stringify(params).replace(/[{}",\s]/g, '') : ''
-    return `${namespace}:${key}:${paramHash}`
+    if (!params) return `${namespace}:${key}`;
+
+    // FIXED: Sort keys for stable cache key generation
+    // Previously used JSON.stringify which has unstable key ordering
+    const sortedKeys = Object.keys(params).sort();
+    const stableString = sortedKeys
+      .map(k => `${k}=${JSON.stringify(params[k])}`)
+      .join('&');
+
+    return `${namespace}:${key}:${stableString}`;
   }
 
   // Set cache entry with automatic TTL and LRU eviction
@@ -175,7 +184,7 @@ class AdvancedCache {
 
     if (cleaned > 0) {
       this.updateStats()
-      console.log(`Cache cleanup: removed ${cleaned} expired entries`)
+      loggers.cache({ cleaned, remaining: this.cache.size, timestamp: Date.now() }, 'Cache cleanup: removed expired entries')
     }
   }
 

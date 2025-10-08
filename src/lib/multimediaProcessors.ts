@@ -5,6 +5,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { writeFileSync, unlinkSync } from 'fs'
 import { randomUUID } from 'crypto'
+import { logError, logger, loggers } from './logger'
 
 // Dynamically import ffmpeg modules to handle potential installation issues
 let ffmpegConfigured = false
@@ -19,12 +20,25 @@ async function ensureFFmpegLoaded() {
       const ffmpegPath = ffmpegInstaller.default.path || ffmpegInstaller.path
       const ffprobePath = ffprobeInstaller.default.path || ffprobeInstaller.path
 
-      console.log('FFmpeg binaries configured:', { ffmpegPath, ffprobePath })
+      logger.info({
+        ffmpegPath,
+        ffprobePath,
+        operation: 'ffmpeg_init'
+      }, 'FFmpeg binaries configured')
       ffmpegConfigured = true
 
       return { ffmpegPath, ffprobePath }
-    } catch (_error) {
-      console.warn('FFmpeg not available:', _error)
+    } catch (error) {
+      logError(error instanceof Error ? error : new Error('FFmpeg initialization failed'), {
+        operation: 'ensureFFmpegLoaded',
+        phase: 'initialization',
+        severity: 'medium',
+        errorContext: 'FFmpeg binaries not available - video processing will use fallback mode'
+      })
+      logger.warn({
+        error: error instanceof Error ? error.message : 'Unknown error',
+        operation: 'ffmpeg_init_failed'
+      }, 'FFmpeg not available, using fallback mode')
       ffmpegConfigured = true // Mark as attempted
       return null
     }
@@ -78,11 +92,21 @@ export interface MultimediaExtractionResult {
 // Extract text from images using OCR
 export async function extractFromImage(buffer: Buffer, filename: string): Promise<MultimediaExtractionResult> {
   try {
-    console.log(`Processing image: ${filename}`)
+    logger.info({
+      filename,
+      bufferSize: buffer.length,
+      operation: 'image_processing_start'
+    }, `Processing image: ${filename}`)
 
     // Get image metadata
     const metadata = await sharp(buffer).metadata()
-    console.log(`Image metadata:`, { width: metadata.width, height: metadata.height, format: metadata.format })
+    logger.debug({
+      filename,
+      width: metadata.width,
+      height: metadata.height,
+      format: metadata.format,
+      operation: 'image_metadata_extracted'
+    }, 'Image metadata extracted')
 
     // Process image with OCR
     const worker = await createWorker('eng')
@@ -94,7 +118,12 @@ export async function extractFromImage(buffer: Buffer, filename: string): Promis
     const { data: { text, confidence } } = await worker.recognize(buffer)
     await worker.terminate()
 
-    console.log(`OCR completed with confidence: ${confidence}%`)
+    loggers.performance({
+      filename,
+      confidence,
+      textLength: text.length,
+      operation: 'ocr_complete'
+    }, `OCR completed with confidence: ${confidence}%`)
 
     const extractedText = text.trim()
     let content = `Image Analysis of ${filename}:\n`
@@ -126,7 +155,15 @@ export async function extractFromImage(buffer: Buffer, filename: string): Promis
         ocrConfidence: confidence
       }
     }
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Image OCR processing failed'), {
+      operation: 'extractFromImage',
+      phase: 'ocr_processing',
+      severity: 'medium',
+      filename,
+      bufferSize: buffer.length,
+      errorContext: 'OCR extraction failed, attempting fallback with metadata only'
+    })
 
     // Fallback: provide basic metadata without OCR
     try {
@@ -139,8 +176,16 @@ export async function extractFromImage(buffer: Buffer, filename: string): Promis
         processorUsed: 'sharp (metadata only)',
         metadata: metadata as unknown as Record<string, unknown>
       }
-    } catch (_error) {
-      throw new Error(`Image processing completely failed: ${''}`)
+    } catch (fallbackError) {
+      logError(fallbackError instanceof Error ? fallbackError : new Error('Image metadata extraction failed'), {
+        operation: 'extractFromImage',
+        phase: 'fallback_processing',
+        severity: 'high',
+        filename,
+        bufferSize: buffer.length,
+        errorContext: 'Complete image processing failure - both OCR and metadata extraction failed'
+      })
+      throw new Error(`Image processing completely failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`)
     }
   }
 }
@@ -150,14 +195,24 @@ export async function extractFromAudio(buffer: Buffer, filename: string): Promis
   let tempPath: string | null = null
 
   try {
-    console.log(`Processing audio: ${filename}`)
+    logger.info({
+      filename,
+      bufferSize: buffer.length,
+      operation: 'audio_processing_start'
+    }, `Processing audio: ${filename}`)
 
     tempPath = join(tmpdir(), `temp-${randomUUID()}.audio`)
     writeFileSync(tempPath, buffer)
 
     // Extract metadata
     const metadata = await parseFile(tempPath)
-    console.log(`Audio metadata extracted:`, metadata.common)
+    logger.debug({
+      filename,
+      title: metadata.common?.title,
+      artist: metadata.common?.artist,
+      duration: metadata.format?.duration,
+      operation: 'audio_metadata_extracted'
+    }, 'Audio metadata extracted')
 
     let content = `Audio File Analysis: ${filename}\n`
     content += `Title: ${metadata.common?.title || 'Unknown'}\n`
@@ -192,15 +247,28 @@ export async function extractFromAudio(buffer: Buffer, filename: string): Promis
         duration: metadata.format?.duration || 0
       }
     }
-  } catch (_error) {
-    throw new Error(`Audio processing failed: ${''}`)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Audio processing failed'), {
+      operation: 'extractFromAudio',
+      phase: 'metadata_extraction',
+      severity: 'high',
+      filename,
+      bufferSize: buffer.length,
+      tempPath: tempPath || 'none',
+      errorContext: 'Failed to extract metadata from audio file'
+    })
+    throw new Error(`Audio processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   } finally {
     // Clean up temp file
     if (tempPath) {
       try {
         unlinkSync(tempPath)
       } catch (e) {
-        console.warn('Failed to clean up temp audio file:', e)
+        logger.warn({
+          tempPath,
+          error: e instanceof Error ? e.message : 'Unknown error',
+          operation: 'audio_cleanup_failed'
+        }, 'Failed to clean up temp audio file')
       }
     }
   }
@@ -211,13 +279,20 @@ export async function extractFromVideo(buffer: Buffer, filename: string): Promis
   let tempPath: string | null = null
 
   try {
-    console.log(`Processing video: ${filename}`)
+    logger.info({
+      filename,
+      bufferSize: buffer.length,
+      operation: 'video_processing_start'
+    }, `Processing video: ${filename}`)
 
     // Try to load FFmpeg binaries
     const ffmpegPaths = await ensureFFmpegLoaded()
 
     if (!ffmpegPaths || !ffmpegPaths.ffprobePath) {
-      console.log('FFmpeg not available, using fallback video analysis')
+      logger.info({
+        filename,
+        operation: 'video_fallback_mode'
+      }, 'FFmpeg not available, using fallback video analysis')
       return await extractVideoMetadataFallback(buffer, filename)
     }
 
@@ -236,7 +311,12 @@ export async function extractFromVideo(buffer: Buffer, filename: string): Promis
       const { stdout } = await execAsync(ffprobeCmd)
       const metadata = JSON.parse(stdout)
 
-      console.log(`Video metadata extracted for ${filename}`)
+      logger.debug({
+        filename,
+        duration: metadata.format?.duration,
+        format: metadata.format?.format_name,
+        operation: 'video_metadata_extracted'
+      }, `Video metadata extracted for ${filename}`)
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const videoStream = metadata.streams?.find((s: any) => s.codec_type === 'video')
@@ -305,17 +385,38 @@ export async function extractFromVideo(buffer: Buffer, filename: string): Promis
       }
 
     } catch (ffprobeError) {
-      console.warn('FFprobe failed, using fallback:', ffprobeError)
+      logger.warn({
+        filename,
+        error: ffprobeError instanceof Error ? ffprobeError.message : 'Unknown error',
+        operation: 'ffprobe_failed'
+      }, 'FFprobe failed, using fallback')
       return await extractVideoMetadataFallback(buffer, filename)
     }
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Video processing failed'), {
+      operation: 'extractFromVideo',
+      phase: 'ffprobe_extraction',
+      severity: 'high',
+      filename,
+      bufferSize: buffer.length,
+      tempPath: tempPath || 'none',
+      errorContext: 'FFprobe video processing failed, attempting fallback'
+    })
+
     // Try fallback
     try {
       return await extractVideoMetadataFallback(buffer, filename)
     } catch (fallbackError) {
-      console.error('Fallback video processing also failed:', fallbackError)
-      throw new Error(`Video processing failed: ${''}`)
+      logError(fallbackError instanceof Error ? fallbackError : new Error('Video fallback processing failed'), {
+        operation: 'extractFromVideo',
+        phase: 'fallback_processing',
+        severity: 'high',
+        filename,
+        bufferSize: buffer.length,
+        errorContext: 'Complete video processing failure - both FFprobe and fallback failed'
+      })
+      throw new Error(`Video processing failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`)
     }
   } finally {
     // Clean up temp file
@@ -323,7 +424,11 @@ export async function extractFromVideo(buffer: Buffer, filename: string): Promis
       try {
         unlinkSync(tempPath)
       } catch (e) {
-        console.warn('Failed to clean up temp video file:', e)
+        logger.warn({
+          tempPath,
+          error: e instanceof Error ? e.message : 'Unknown error',
+          operation: 'video_cleanup_failed'
+        }, 'Failed to clean up temp video file')
       }
     }
   }
@@ -331,7 +436,11 @@ export async function extractFromVideo(buffer: Buffer, filename: string): Promis
 // Fallback video metadata extraction when FFmpeg is not available
 async function extractVideoMetadataFallback(buffer: Buffer, filename: string): Promise<MultimediaExtractionResult> {
   try {
-    console.log(`Using fallback video analysis for: ${filename}`)
+    logger.info({
+      filename,
+      bufferSize: buffer.length,
+      operation: 'video_fallback_analysis'
+    }, `Using fallback video analysis for: ${filename}`)
 
     let content = `Video File Analysis: ${filename}\n`
     content += `File Size: ${(buffer.length / (1024 * 1024)).toFixed(2)} MB\n`
@@ -364,8 +473,16 @@ async function extractVideoMetadataFallback(buffer: Buffer, filename: string): P
         processingMethod: 'basic'
       }
     }
-  } catch (_error) {
-    throw new Error(`Video fallback processing failed: ${''}`)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Video fallback metadata extraction failed'), {
+      operation: 'extractVideoMetadataFallback',
+      phase: 'basic_analysis',
+      severity: 'critical',
+      filename,
+      bufferSize: buffer.length,
+      errorContext: 'Even basic video file analysis failed - file may be corrupted'
+    })
+    throw new Error(`Video fallback processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 

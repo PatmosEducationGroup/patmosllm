@@ -8,11 +8,12 @@ import { getIdentifier } from '@/lib/get-identifier'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 import { processDocumentVectors } from '@/lib/ingest'
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
+import { loggers, logError } from '@/lib/logger'
 
 // Helper function to clean text content for database storage
 function cleanTextContent(content: string): string {
   if (!content) return ''
-  
+
   return content
     // Remove null bytes (main cause of PostgreSQL error)
     .replace(/\u0000/g, '')
@@ -26,9 +27,9 @@ function cleanTextContent(content: string): string {
 export async function POST(_request: NextRequest) {
   try {
     // RATE LIMITING - Check this FIRST
-    const identifier = getIdentifier(_request)
+    const identifier = await getIdentifier(_request)
     const rateLimitResult = uploadRateLimit(identifier)
-    
+
     if (!rateLimitResult.success) {
       return NextResponse.json({
         success: false,
@@ -47,10 +48,20 @@ export async function POST(_request: NextRequest) {
 
     // Get current user
     const user = await getCurrentUser()
-    console.log('Blob process route - user data:', JSON.stringify(user, null, 2))
+    loggers.auth({
+      operation: 'process_blob_auth_check',
+      userId,
+      role: user?.role,
+      hasUser: !!user
+    }, 'Process blob authentication check')
 
     if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
-      console.log('Blob process route - role check failed. User role:', user?.role)
+      loggers.security({
+        operation: 'process_blob_permission_denied',
+        userId,
+        role: user?.role,
+        requiredRoles: ['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN']
+      }, 'Permission denied for blob processing')
       return NextResponse.json(
         { success: false, error: 'Only administrators and contributors can upload files' },
         { status: 403 }
@@ -58,14 +69,14 @@ export async function POST(_request: NextRequest) {
     }
 
     // Get request data
-    const { 
-      blobUrl, 
-      fileName, 
-      fileSize, 
-      mimeType, 
-      title, 
-      author, 
-      sourceType, 
+    const {
+      blobUrl,
+      fileName,
+      fileSize,
+      mimeType,
+      title,
+      author,
+      sourceType,
       sourceUrl,
       amazon_url,
       resource_url,
@@ -103,38 +114,85 @@ export async function POST(_request: NextRequest) {
       }, { status: 409 }) // 409 Conflict
     }
 
-    console.log(`Processing blob file: ${blobUrl}`)
+    loggers.performance({
+      operation: 'process_blob_start',
+      blobUrl,
+      filename: fileName.substring(0, 50),
+      fileSize,
+      userId
+    }, 'Starting blob file processing')
 
     // Download file from Vercel Blob for processing with retry logic
     let response: Response | null = null
     let downloadError: string | null = null
 
     // Initial delay to allow Vercel Blob propagation (large files need more time)
-    console.log('Waiting for Vercel Blob propagation...')
+    loggers.performance({
+      operation: 'process_blob_propagation_wait',
+      delayMs: 10000,
+      filename: fileName.substring(0, 50),
+      userId
+    }, 'Waiting for Vercel Blob propagation')
     await new Promise(resolve => setTimeout(resolve, 10000)) // 10 second initial delay
 
     // Try multiple times with longer delays for blob propagation
     for (let attempt = 1; attempt <= 5; attempt++) {
       try {
-        console.log(`Download attempt ${attempt}/5 for ${blobUrl}`)
+        loggers.performance({
+          operation: 'process_blob_download_attempt',
+          attempt,
+          totalAttempts: 5,
+          blobUrl,
+          filename: fileName.substring(0, 50),
+          userId
+        }, `Process blob download attempt ${attempt}/5`)
         response = await fetch(blobUrl)
 
         if (response.ok) {
-          console.log(`Successfully downloaded blob on attempt ${attempt}`)
+          loggers.performance({
+            operation: 'process_blob_download_success',
+            attempt,
+            filename: fileName.substring(0, 50),
+            userId
+          }, `Successfully downloaded blob on attempt ${attempt}`)
           break
         } else {
-          console.warn(`Download attempt ${attempt} failed with status:`, response.status, response.statusText)
+          loggers.performance({
+            operation: 'process_blob_download_failed',
+            attempt,
+            httpStatus: response.status,
+            httpStatusText: response.statusText,
+            filename: fileName.substring(0, 50),
+            userId
+          }, `Download attempt ${attempt} failed`)
           downloadError = `${response.status} ${response.statusText}`
 
           // Wait before retrying with longer delays
           if (attempt < 5) {
             const delay = Math.pow(2, attempt) * 3000 // 6s, 12s, 24s, 48s
-            console.log(`Waiting ${delay}ms before retry...`)
+            loggers.performance({
+              operation: 'process_blob_retry_wait',
+              delayMs: delay,
+              attempt,
+              userId
+            }, `Waiting before retry`)
             await new Promise(resolve => setTimeout(resolve, delay))
           }
         }
-      } catch (_error) {
-        downloadError = 'Network error'
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Network error'
+        downloadError = errorMessage
+
+        logError(error instanceof Error ? error : new Error('Blob download network error'), {
+          operation: 'process_blob_download_retry',
+          blobUrl,
+          fileName,
+          fileSize,
+          userId,
+          attempt,
+          phase: 'storage_download',
+          severity: attempt === 5 ? 'critical' : 'medium'
+        })
 
         if (attempt < 5) {
           const delay = Math.pow(2, attempt) * 3000
@@ -144,7 +202,13 @@ export async function POST(_request: NextRequest) {
     }
 
     if (!response || !response.ok) {
-      console.error('Failed to download file from blob storage after all retries:', downloadError)
+      logError(new Error('Process blob download failed after all retries'), {
+        operation: 'process_blob_download_all_failed',
+        downloadError,
+        filename: fileName.substring(0, 50),
+        blobUrl,
+        userId
+      })
       return NextResponse.json(
         { success: false, error: `Failed to download file from blob storage: ${downloadError}. The file may need time to propagate or there may be a permissions issue.` },
         { status: 500 }
@@ -155,24 +219,47 @@ export async function POST(_request: NextRequest) {
     const buffer = Buffer.from(await response.arrayBuffer())
 
     // Extract text content
-    console.log(`Extracting text from ${fileName}...`)
+    loggers.performance({
+      operation: 'process_blob_text_extraction_start',
+      filename: fileName.substring(0, 50),
+      fileSize,
+      mimeType,
+      userId
+    }, 'Starting text extraction from blob')
     const extraction = await extractTextFromFile(buffer, mimeType, fileName)
 
     if (!extraction.content) {
-      console.error('Text extraction failed: No content extracted')
+      logError(new Error('Text extraction produced no content'), {
+        operation: 'process_blob_text_extraction_failed',
+        filename: fileName.substring(0, 50),
+        mimeType,
+        fileSize,
+        userId
+      })
       return NextResponse.json(
         { success: false, error: 'Failed to extract text from file' },
         { status: 400 }
       )
     }
 
-    console.log(`Extracted ${extraction.wordCount} words from ${fileName}`)
+    loggers.performance({
+      operation: 'process_blob_text_extraction_success',
+      filename: fileName.substring(0, 50),
+      wordCount: extraction.wordCount,
+      pageCount: extraction.pageCount,
+      userId
+    }, `Extracted ${extraction.wordCount} words from file`)
 
     // Clean the extracted content to prevent database errors
     const cleanedContent = cleanTextContent(extraction.content)
-    
+
     if (!cleanedContent) {
-      console.error('Content cleaning resulted in empty text')
+      logError(new Error('Content cleaning produced empty text'), {
+        operation: 'process_blob_content_cleaning_failed',
+        filename: fileName.substring(0, 50),
+        originalContentLength: extraction.content.length,
+        userId
+      })
       return NextResponse.json(
         { success: false, error: 'Document content could not be processed (contains unsupported characters)' },
         { status: 400 }
@@ -180,7 +267,14 @@ export async function POST(_request: NextRequest) {
     }
 
     // Save document record to database with cleaned content
-    console.log('Saving document record to database...')
+    loggers.database({
+      operation: 'process_blob_document_save_start',
+      filename: fileName.substring(0, 50),
+      title: cleanTitle.substring(0, 50),
+      wordCount: extraction.wordCount,
+      fileSize,
+      userId
+    }, 'Saving document record to database')
 
     // Prepare document record with multimedia support
     const documentRecord: Record<string, unknown> = {
@@ -216,18 +310,35 @@ export async function POST(_request: NextRequest) {
       .single()
 
     if (dbError) {
+      logError(new Error(`Database insert failed: ${dbError.message}`), {
+        operation: 'process_blob_database_insert',
+        fileName,
+        fileSize,
+        userId,
+        dbErrorCode: dbError.code,
+        dbErrorHint: dbError.hint,
+        phase: 'database_write',
+        severity: 'critical'
+      })
+
       return NextResponse.json(
         { success: false, error: 'Failed to save document to database' },
         { status: 500 }
       )
     }
 
-    console.log(`Document saved with ID: ${document.id}`)
+    loggers.database({
+      operation: 'process_blob_document_save_success',
+      documentId: document.id,
+      title: cleanTitle.substring(0, 50),
+      filename: fileName.substring(0, 50),
+      userId
+    }, 'Document saved successfully')
 
     // Start vector processing in the background
     try {
       await processDocumentVectors(document.id, userId)
-      
+
       // Track first document upload milestone
       await trackOnboardingMilestone({
         clerkUserId: userId,
@@ -238,11 +349,26 @@ export async function POST(_request: NextRequest) {
           mimeType: mimeType
         }
       })
-      
-      console.log(`Successfully processed: ${cleanTitle}`)
+
+      loggers.performance({
+        operation: 'process_blob_complete',
+        documentId: document.id,
+        title: cleanTitle.substring(0, 50),
+        filename: fileName.substring(0, 50),
+        wordCount: extraction.wordCount,
+        fileSize,
+        userId
+      }, 'Successfully processed blob upload')
     } catch (ingestionError) {
-      console.error('Error starting ingest job:', ingestionError)
       // Don't fail the upload if ingestion fails - it can be retried later
+      logError(ingestionError instanceof Error ? ingestionError : new Error('Vector processing failed'), {
+        operation: 'process_blob_vector_processing',
+        documentId: document.id,
+        fileName,
+        userId,
+        phase: 'post_upload_processing',
+        severity: 'medium'
+      })
     }
 
     return NextResponse.json({
@@ -255,11 +381,17 @@ export async function POST(_request: NextRequest) {
       }
     })
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Process blob route failed'), {
+      operation: 'process_blob_route',
+      phase: 'unknown',
+      severity: 'critical'
+    })
+
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Processing failed' 
+      {
+        success: false,
+        error: 'Processing failed'
       },
       { status: 500 }
     )

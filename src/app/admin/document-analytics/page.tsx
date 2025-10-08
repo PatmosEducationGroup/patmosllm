@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { logError } from '@/lib/logger'
 import { useAuth } from '@clerk/nextjs'
 import AdminNavbar from '@/components/AdminNavbar'
 import { Modal } from '@/components/ui/Modal'
@@ -78,9 +79,15 @@ export default function DocumentAnalyticsPage() {
       } else {
         setError('Failed to fetch document analytics')
       }
-    } catch (_error) {
-      setError('Failed to load analytics')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to load analytics')
+  } finally {
       setLoading(false)
     }
   }, [getToken, setLoading, setAnalytics, setError])

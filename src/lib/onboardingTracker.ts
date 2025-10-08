@@ -1,6 +1,7 @@
 // File: src/lib/onboardingTracker.ts
 
 import { supabaseAdmin } from '@/lib/supabase'
+import { logError, loggers } from '@/lib/logger'
 
 export type MilestoneType = 
   | 'invited'
@@ -37,7 +38,7 @@ const supabase = supabaseAdmin
       .single()
 
     if (userError || !user) {
-      console.error('User not found for milestone tracking:', clerkUserId, userError)
+      loggers.database({ clerkUserId, error: userError?.message, operation: 'find_user' }, 'User not found for milestone tracking')
       return false
     }
 
@@ -50,14 +51,22 @@ const supabase = supabaseAdmin
       })
 
     if (milestoneError) {
-      console.error('Error tracking milestone:', milestoneError)
+      loggers.database({ milestone, clerkUserId, userId: user.id, error: milestoneError.message }, 'Error tracking milestone')
       return false
     }
 
-    console.log(`Milestone tracked: ${milestone} for user ${clerkUserId}`)
+    loggers.database({ milestone, clerkUserId, userId: user.id, success: true }, 'Milestone tracked successfully')
     return true
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Onboarding milestone tracking failed'), {
+      operation: 'trackOnboardingMilestone',
+      phase: 'milestone_save',
+      severity: 'low',
+      clerkUserId,
+      milestone,
+      errorContext: 'Failed to track user onboarding milestone in database'
+    })
     return false
   }
 }
@@ -79,7 +88,14 @@ export async function trackMilestoneAPI(milestone: MilestoneType, metadata?: Rec
     })
 
     return response.ok
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Milestone API tracking failed'), {
+      operation: 'trackMilestoneAPI',
+      phase: 'api_request',
+      severity: 'low',
+      milestone,
+      errorContext: 'Failed to track milestone via API endpoint (client-side)'
+    })
     return false
   }
 }
@@ -108,12 +124,19 @@ export async function getUserOnboardingStatus(clerkUserId: string) {
       .single()
 
     if (statusError) {
-      console.error('Error fetching onboarding status:', statusError)
+      loggers.database({ clerkUserId, userId: user.id, error: statusError.message }, 'Error fetching onboarding status')
       return null
     }
 
     return status
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Failed to fetch onboarding status'), {
+      operation: 'getUserOnboardingStatus',
+      phase: 'status_retrieval',
+      severity: 'low',
+      clerkUserId,
+      errorContext: 'Failed to retrieve user onboarding status from database'
+    })
     return null
   }
 }
@@ -131,7 +154,15 @@ export async function hasCompletedMilestone(
 
     const milestoneField = `${milestone}_at` as keyof typeof status
     return !!status[milestoneField]
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Failed to check milestone completion'), {
+      operation: 'hasCompletedMilestone',
+      phase: 'milestone_check',
+      severity: 'low',
+      clerkUserId,
+      milestone,
+      errorContext: 'Failed to check if user completed specific milestone'
+    })
     return false
   }
 }

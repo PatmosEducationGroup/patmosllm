@@ -6,13 +6,14 @@ import { getCurrentUser } from '@/lib/auth'
 import { uploadRateLimit } from '@/lib/rate-limiter'
 import { getIdentifier } from '@/lib/get-identifier'
 import { sanitizeInput } from '@/lib/input-sanitizer'
+import { loggers, logError } from '@/lib/logger'
 
 export async function POST(_request: NextRequest) {
   try {
     // RATE LIMITING - Check this FIRST
-    const identifier = getIdentifier(_request)
+    const identifier = await getIdentifier(_request)
     const rateLimitResult = uploadRateLimit(identifier)
-    
+
     if (!rateLimitResult.success) {
       return NextResponse.json({
         success: false,
@@ -60,7 +61,13 @@ export async function POST(_request: NextRequest) {
     const cleanTitle = sanitizeInput(title || fileName)
     const cleanAuthor = author ? sanitizeInput(author) : null
 
-    console.log(`Processing uploaded file: ${storagePath}`)
+    loggers.performance({
+      operation: 'processes_upload_start',
+      storagePath,
+      filename: fileName.substring(0, 50),
+      fileSize,
+      userId: user.id
+    }, 'Starting file processing')
 
     // Download file from Supabase Storage for processing
     const { data: fileData, error: downloadError } = await supabaseAdmin.storage
@@ -68,7 +75,16 @@ export async function POST(_request: NextRequest) {
       .download(storagePath)
 
     if (downloadError) {
-      console.error('Error downloading file from storage:', downloadError)
+      logError(new Error(`File download failed: ${downloadError.message}`), {
+        operation: 'processes_supabase_storage_download',
+        storagePath,
+        fileName,
+        userId: user.id,
+        errorMessage: downloadError.message,
+        phase: 'storage_download',
+        severity: 'critical'
+      })
+
       return NextResponse.json(
         { success: false, error: 'Failed to download file for processing' },
         { status: 500 }
@@ -79,21 +95,47 @@ export async function POST(_request: NextRequest) {
     const buffer = Buffer.from(await fileData.arrayBuffer())
 
     // Extract text content
-    console.log(`Extracting text from ${fileName}...`)
+    loggers.performance({
+      operation: 'processes_text_extraction_start',
+      filename: fileName.substring(0, 50),
+      fileSize,
+      mimeType,
+      userId: user.id
+    }, 'Starting text extraction')
     const extraction = await extractTextFromFile(buffer, mimeType, fileName)
 
     if (!extraction.content) {
-  console.error('Text extraction failed: No content extracted')
-  return NextResponse.json(
-    { success: false, error: 'Failed to extract text from file' },
-    { status: 400 }
-  )
-}
+      logError(new Error('Text extraction produced no content'), {
+        operation: 'processes_text_extraction_failed',
+        filename: fileName.substring(0, 50),
+        mimeType,
+        fileSize,
+        userId: user.id
+      })
+      return NextResponse.json(
+        { success: false, error: 'Failed to extract text from file' },
+        { status: 400 }
+      )
+    }
 
-    console.log(`Extracted ${extraction.wordCount} words from ${fileName}`)
+    loggers.performance({
+      operation: 'processes_text_extraction_success',
+      filename: fileName.substring(0, 50),
+      wordCount: extraction.wordCount,
+      pageCount: extraction.pageCount,
+      userId: user.id
+    }, `Extracted ${extraction.wordCount} words from file`)
 
     // Save document record to database
-    console.log('Saving document record to database...')
+    loggers.database({
+      operation: 'processes_document_save_start',
+      filename: fileName.substring(0, 50),
+      title: cleanTitle.substring(0, 50),
+      wordCount: extraction.wordCount,
+      fileSize,
+      userId: user.id
+    }, 'Saving document record to database')
+
     const { data: document, error: dbError } = await supabaseAdmin
       .from('documents')
       .insert({
@@ -112,13 +154,30 @@ export async function POST(_request: NextRequest) {
       .single()
 
     if (dbError) {
+      logError(new Error(`Database insert failed: ${dbError.message}`), {
+        operation: 'processes_database_insert',
+        fileName,
+        fileSize,
+        userId: user.id,
+        dbErrorCode: dbError.code,
+        dbErrorHint: dbError.hint,
+        phase: 'database_write',
+        severity: 'critical'
+      })
+
       return NextResponse.json(
         { success: false, error: 'Failed to save document record' },
         { status: 500 }
       )
     }
 
-    console.log(`Document saved with ID: ${document.id}`)
+    loggers.database({
+      operation: 'processes_document_save_success',
+      documentId: document.id,
+      title: cleanTitle.substring(0, 50),
+      filename: fileName.substring(0, 50),
+      userId: user.id
+    }, 'Document saved successfully')
 
     // Start vector processing job
     try {
@@ -131,16 +190,45 @@ export async function POST(_request: NextRequest) {
       })
 
       if (!ingestResponse.ok) {
-        console.error('Failed to start ingest job')
+        const errorText = await ingestResponse.text()
+        logError(new Error(`Ingest API call failed: ${ingestResponse.status} ${errorText}`), {
+          operation: 'processes_ingest_api_call',
+          documentId: document.id,
+          fileName,
+          userId: user.id,
+          httpStatus: ingestResponse.status,
+          phase: 'post_upload_processing',
+          severity: 'medium'
+        })
       } else {
-        console.log('Vector processing job started')
+        loggers.performance({
+          operation: 'processes_vector_processing_started',
+          documentId: document.id,
+          filename: fileName.substring(0, 50),
+          userId: user.id
+        }, 'Vector processing job started')
       }
     } catch (ingestError) {
-      console.error('Error starting ingest job:', ingestError)
       // Don't fail the upload if vector processing fails
+      logError(ingestError instanceof Error ? ingestError : new Error('Vector processing failed'), {
+        operation: 'processes_vector_processing',
+        documentId: document.id,
+        fileName,
+        userId: user.id,
+        phase: 'post_upload_processing',
+        severity: 'medium'
+      })
     }
 
-    console.log(`Successfully processed: ${cleanTitle}`)
+    loggers.performance({
+      operation: 'processes_upload_complete',
+      documentId: document.id,
+      title: cleanTitle.substring(0, 50),
+      filename: fileName.substring(0, 50),
+      wordCount: extraction.wordCount,
+      fileSize,
+      userId: user.id
+    }, 'Successfully processed upload')
 
     return NextResponse.json({
       success: true,
@@ -157,11 +245,17 @@ export async function POST(_request: NextRequest) {
       }
     })
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Upload processes route failed'), {
+      operation: 'upload_processes_route',
+      phase: 'unknown',
+      severity: 'critical'
+    })
+
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Processing failed' 
+      {
+        success: false,
+        error: 'Processing failed'
       },
       { status: 500 }
     )

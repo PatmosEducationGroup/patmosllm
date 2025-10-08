@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logError } from '@/lib/logger'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
@@ -86,8 +87,14 @@ if (currentUser.role === 'ADMIN') {
       user: updatedUser
     })
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/users/[userId]',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to update user role' 

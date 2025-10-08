@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { logError } from '@/lib/logger'
 import { useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
@@ -30,9 +31,15 @@ export default function OnboardingAnalyticsPage() {
         }
         
         setIsAuthorized(true)
-      } catch (_error) {
-        router.push('/')
-      }
+      } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Operation failed'
+    })
+router.push('/')
+  }
     }
 
     checkAuth()

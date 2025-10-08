@@ -43,16 +43,32 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 - **Storage**: Vercel Blob (>50MB), Supabase Storage (<50MB)
 - **Processing**: OCR, multimedia extraction, 25+ file formats
 
-### Database Schema
-- `users` - Role-based access (ADMIN/CONTRIBUTOR/USER)
-- `documents` - Metadata & content storage
-- `chunks` - Vector search segments
-- `conversations` - Chat history
-- `chat_sessions` - Session management
-- `user_context` - Memory: topic familiarity & preferences
-- `conversation_memory` - Memory: conversation analysis & satisfaction
-- `topic_progression` - Memory: learning progression tracking
-- `question_patterns` - Memory: query pattern analysis
+### Database Schema (17 Tables)
+
+**Core Data (Large):**
+- `chunks` (24 MB) - Vector search segments with embeddings
+- `documents` (15 MB) - Metadata & content storage
+- `upload_sessions` (944 kB) - File upload tracking and management
+- `conversations` (560 kB) - Chat history and message threads
+
+**Memory System:**
+- `user_context` (392 kB) - Topic familiarity & preferences (JSONB)
+- `conversation_memory` (264 kB) - Conversation analysis & satisfaction tracking
+- `topic_progression` (72 kB) - Learning progression & expertise tracking
+- `question_patterns` (56 kB) - Global query pattern analysis
+
+**User Management:**
+- `users` (256 kB) - Role-based access (ADMIN/CONTRIBUTOR/USER)
+- `user_onboarding_milestones` (136 kB) - Onboarding progress tracking
+- `user_preferences` (32 kB) - User settings and preferences
+
+**System/Utility:**
+- `ingest_jobs` (208 kB) - Document processing job queue
+- `chat_sessions` (112 kB) - Session management and state
+- `data_export_requests` (48 kB) - GDPR data export tracking
+- `clerk_webhook_events` (40 kB) - Clerk authentication event log
+- `idempotency_keys` (32 kB) - Duplicate request prevention
+- `privacy_audit_log` (32 kB) - Privacy compliance audit trail
 
 ### Core Data Flow
 1. **Upload**: File → Process → Chunk → Embed → Pinecone

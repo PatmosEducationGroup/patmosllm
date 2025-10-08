@@ -1,6 +1,7 @@
 // File: src/app/api/onboarding/track/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
+import { logError } from '@/lib/logger'
 import { auth } from '@clerk/nextjs/server'
 import { trackOnboardingMilestone, MilestoneType } from '@/lib/onboardingTracker'
 
@@ -21,12 +22,18 @@ export async function POST(_request: NextRequest) {
       const body = await _request.json()
       milestone = body.milestone
       metadata = body.metadata || {}
-    } catch (_error) {
-      return NextResponse.json(
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API onboarding/track',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Operation failed'
+    })
+return NextResponse.json(
         { error: 'Invalid JSON body' },
         { status: 400 }
       )
-    }
+  }
 
     // Fix 3: Check if milestone is provided
     if (!milestone) {
@@ -87,9 +94,14 @@ export async function POST(_request: NextRequest) {
       tracked_at: new Date().toISOString()
     })
 
-  } catch (_error) {
-    
-    // Fix 6: Better error logging with context
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API onboarding/track',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Internal server error'
+    })
+// Fix 6: Better error logging with context
     console.error('Request details:', {
       method: _request.method,
       url: _request.url,

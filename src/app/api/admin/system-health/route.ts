@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logError } from '@/lib/logger'
 import { auth } from '@clerk/nextjs/server'
 import { withSupabaseAdmin } from '@/lib/supabase'
 import { advancedCache } from '@/lib/advanced-cache'
@@ -141,8 +142,14 @@ export async function GET(_request: NextRequest) {
       }
     })
 
-  } catch (_error) {
-    return NextResponse.json({
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/system-health',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json({
       success: false,
       error: 'System health check failed',
       health: {
@@ -186,8 +193,14 @@ async function testMemorySystemHealth() {
       responseTime: Date.now() - startTime,
       connected: true
     }
-  } catch (_error) {
-    return {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API admin/system-health',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+return {
       status: 'error',
       responseTime: Date.now() - startTime,
       connected: false,

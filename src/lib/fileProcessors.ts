@@ -2,6 +2,7 @@ import pdf2json from 'pdf2json'
 import mammoth from 'mammoth'
 import { processMultimediaFile, isMultimediaFile, MULTIMEDIA_MIME_TYPES } from './multimediaProcessors'
 import { EPubProcessor, isValidEPubBuffer } from './epubProcessor'
+import { logError, logger, loggers } from './logger'
 
 // Supported file types (combining traditional document types with multimedia)
 export const SUPPORTED_MIME_TYPES = [
@@ -114,11 +115,22 @@ export async function extractTextFromFile(
     const fileExtension = getFileExtension(filename)
     const actualMimeType = mimeType || EXTENSION_TO_MIME[fileExtension]
 
-    console.log(`Processing file: ${filename}, MIME: ${mimeType} -> ${actualMimeType}, Extension: ${fileExtension}`)
+    logger.info({
+      filename,
+      originalMimeType: mimeType,
+      actualMimeType,
+      fileExtension,
+      bufferSize: buffer.length,
+      operation: 'file_processing_start'
+    }, `Processing file: ${filename}`)
 
     // Check if it's a multimedia file first
     if (isMultimediaFile(actualMimeType)) {
-      console.log(`Processing multimedia file: ${filename} (${actualMimeType})`)
+      logger.info({
+        filename,
+        mimeType: actualMimeType,
+        operation: 'multimedia_file_processing'
+      }, `Processing multimedia file: ${filename} (${actualMimeType})`)
       return await processMultimediaFile(buffer, actualMimeType, filename)
     }
 
@@ -144,8 +156,17 @@ export async function extractTextFromFile(
       default:
         throw new Error(`Unsupported file type: ${actualMimeType}`)
     }
-  } catch (_error) {
-    throw new Error(`Failed to extract text from ${filename}: ${''}`)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('File extraction failed'), {
+      operation: 'extractTextFromFile',
+      phase: 'text_extraction',
+      severity: 'critical',
+      filename,
+      mimeType,
+      bufferSize: buffer.length,
+      errorContext: 'Failed to extract text content from uploaded file'
+    })
+    throw new Error(`Failed to extract text from ${filename}: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -156,14 +177,22 @@ async function extractFromPowerPoint(buffer: Buffer, filename: string): Promise<
   processorUsed: string
 }> {
   try {
-    console.log(`Attempting to process PowerPoint: ${filename}`)
+    logger.info({
+      filename,
+      bufferSize: buffer.length,
+      operation: 'powerpoint_processing_start'
+    }, `Attempting to process PowerPoint: ${filename}`)
 
     // Use pptx-parser for accurate text extraction
     const pptxParser = await import('pptx-parser')
 
     try {
       const slides = await pptxParser.parse(buffer)
-      console.log(`PowerPoint parsed successfully: ${slides.length} slides found`)
+      logger.debug({
+        filename,
+        slideCount: slides.length,
+        operation: 'powerpoint_parsed'
+      }, `PowerPoint parsed successfully: ${slides.length} slides found`)
 
       let content = `PowerPoint Presentation: ${filename}\n`
       content += `File Type: Microsoft PowerPoint (.pptx)\n`
@@ -197,7 +226,12 @@ async function extractFromPowerPoint(buffer: Buffer, filename: string): Promise<
 
       const wordCount = content.split(/\s+/).filter(word => word.length > 0).length
 
-      console.log(`PowerPoint processed successfully: ${filename}, extracted ${wordCount} words`)
+      loggers.performance({
+        filename,
+        wordCount,
+        slideCount: slides.length,
+        operation: 'powerpoint_processed'
+      }, `PowerPoint processed successfully: ${filename}, extracted ${wordCount} words`)
 
       return {
         content,
@@ -206,7 +240,19 @@ async function extractFromPowerPoint(buffer: Buffer, filename: string): Promise<
       }
 
     } catch (parseError) {
-      console.warn('PPTX parser failed, using basic analysis:', parseError)
+      logError(parseError instanceof Error ? parseError : new Error('PPTX parsing failed'), {
+        operation: 'extractFromPowerPoint',
+        phase: 'pptx_parsing',
+        severity: 'medium',
+        filename,
+        bufferSize: buffer.length,
+        errorContext: 'PPTX parser failed, using fallback basic analysis'
+      })
+      logger.warn({
+        filename,
+        error: parseError instanceof Error ? parseError.message : 'Unknown error',
+        operation: 'powerpoint_parse_failed'
+      }, 'PPTX parser failed, using basic analysis')
 
       // Fallback to basic analysis
       const content = `PowerPoint Presentation: ${filename}
@@ -227,7 +273,11 @@ Technical Details:
 
       const wordCount = content.split(/\s+/).filter(word => word.length > 0).length
 
-      console.log(`PowerPoint processed with fallback: ${filename}`)
+      logger.info({
+        filename,
+        wordCount,
+        operation: 'powerpoint_fallback_processed'
+      }, `PowerPoint processed with fallback: ${filename}`)
 
       return {
         content: content.trim(),
@@ -236,8 +286,16 @@ Technical Details:
       }
     }
 
-  } catch (_error) {
-    throw new Error(`PowerPoint processing failed: ${''}`)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('PowerPoint processing failed'), {
+      operation: 'extractFromPowerPoint',
+      phase: 'file_processing',
+      severity: 'high',
+      filename,
+      bufferSize: buffer.length,
+      errorContext: 'Complete PowerPoint processing failure - both parser and fallback failed'
+    })
+    throw new Error(`PowerPoint processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -325,8 +383,14 @@ async function extractFromPDF(buffer: Buffer): Promise<{
           pageCount,
           processorUsed: 'pdf2json'
         })
-      } catch (_error) {
-        reject(new Error(`Error processing PDF data: ${''}`))
+      } catch (error) {
+        logError(error instanceof Error ? error : new Error('PDF data processing failed'), {
+          operation: 'extractFromPDF',
+          phase: 'pdf_data_parsing',
+          severity: 'high',
+          errorContext: 'Error processing parsed PDF data structure'
+        })
+        reject(new Error(`Error processing PDF data: ${error instanceof Error ? error.message : 'Unknown error'}`))
       }
     })
     
@@ -356,8 +420,15 @@ async function extractFromWord(buffer: Buffer): Promise<{
       wordCount,
       processorUsed: 'mammoth'
     }
-  } catch (_error) {
-    throw new Error(`Word document processing failed: ${''}`)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Word document processing failed'), {
+      operation: 'extractFromWord',
+      phase: 'docx_extraction',
+      severity: 'high',
+      bufferSize: buffer.length,
+      errorContext: 'Failed to extract text from Word document using mammoth'
+    })
+    throw new Error(`Word document processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -370,7 +441,11 @@ async function extractFromEPub(buffer: Buffer, filename: string): Promise<{
   pageCount?: number
 }> {
   try {
-    console.log(`Processing EPUB: ${filename}`)
+    logger.info({
+      filename,
+      bufferSize: buffer.length,
+      operation: 'epub_processing_start'
+    }, `Processing EPUB: ${filename}`)
 
     // Validate EPUB format
     if (!isValidEPubBuffer(buffer)) {
@@ -381,7 +456,12 @@ async function extractFromEPub(buffer: Buffer, filename: string): Promise<{
     const processor = new EPubProcessor(buffer)
     const processed = await processor.parse()
 
-    console.log(`EPUB processed successfully: ${processed.chapterCount} chapters, ${processed.wordCount} words`)
+    loggers.performance({
+      filename,
+      chapterCount: processed.chapterCount,
+      wordCount: processed.wordCount,
+      operation: 'epub_processed'
+    }, `EPUB processed successfully: ${processed.chapterCount} chapters, ${processed.wordCount} words`)
 
     // Return with metadata
     return {
@@ -404,8 +484,16 @@ async function extractFromEPub(buffer: Buffer, filename: string): Promise<{
         }))
       }
     }
-  } catch (_error) {
-    throw new Error(`EPUB processing failed: ${''}`)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('EPUB processing failed'), {
+      operation: 'extractFromEPub',
+      phase: 'epub_parsing',
+      severity: 'high',
+      filename,
+      bufferSize: buffer.length,
+      errorContext: 'Failed to parse EPUB file structure and extract content'
+    })
+    throw new Error(`EPUB processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 

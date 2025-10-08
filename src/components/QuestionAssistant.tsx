@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { logError } from '@/lib/logger'
 import { Button } from '@/components/ui/Button'
 import {
   Lightbulb,
@@ -57,8 +58,15 @@ export function QuestionAssistant({ question, onQuestionChange, onClose, classNa
         setAnalysis(data.analysis)
         setTemplates(data.templates || [])
       }
-    } catch (_error) {
-    }
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Operation failed'
+    })
+
+  }
     setLoading(false)
   }
 

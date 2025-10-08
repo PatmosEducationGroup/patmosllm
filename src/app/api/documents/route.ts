@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
+import {logger, loggers, logError} from '@/lib/logger'
 
 export async function GET(_request: NextRequest) {
   try {
@@ -87,8 +88,14 @@ export async function GET(_request: NextRequest) {
       total: formattedDocs.length
     })
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API documents',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to fetch documents' 
@@ -183,15 +190,21 @@ export async function DELETE(_request: NextRequest) {
       )
     }
 
-    console.log(`User ${user.email} (${user.role}) deleted document: ${document.title}`)
+    logger.info({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      documentId,
+      documentTitle: document.title
+    }, 'User deleted document')
 
    // Delete vectors from Pinecone
     try {
       const { deleteDocumentChunks } = await import('@/lib/pinecone')
       await deleteDocumentChunks(documentId)
-      console.log(`Deleted vectors from Pinecone for document: ${document.title}`)
+      loggers.ai({ documentId, documentTitle: document.title, operation: 'delete_vectors', provider: 'pinecone' }, 'Deleted vectors from Pinecone')
     } catch (pineconeError) {
-      console.error('Failed to delete vectors from Pinecone:', pineconeError)
+      loggers.ai({ documentId, error: pineconeError instanceof Error ? pineconeError.message : 'Unknown error', operation: 'delete_vectors', provider: 'pinecone' }, 'Failed to delete vectors from Pinecone')
       // Don't fail the entire operation if Pinecone deletion fails
       // The document is still deleted from the database
     }
@@ -201,8 +214,14 @@ export async function DELETE(_request: NextRequest) {
       message: `Document "${document.title}" deleted successfully`
     })
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API documents',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { 
         success: false, 
         error: 'Delete operation failed' 

@@ -1,10 +1,48 @@
-// lib/rate-limiter.js
+// lib/rate-limiter.ts
+
+/**
+ * Rate Limiter with in-memory storage
+ *
+ * WARNING: This uses in-memory Map() which doesn't work properly in serverless
+ * environments where each invocation may get a different instance.
+ *
+ * TODO: Migrate to Upstash Redis or Vercel KV for production use
+ * See: https://vercel.com/docs/storage/vercel-kv
+ */
 
 // Store rate limit data in memory (for development)
 // In production, you'd want to use Redis for this
-const rateLimitMap = new Map();
+const rateLimitMap = new Map<string, number[]>();
 
-export function createRateLimit(options = {}) {
+interface RateLimitOptions {
+  windowMs?: number;
+  max?: number;
+  message?: string;
+  exemptUsers?: string[];
+}
+
+interface RateLimitResult {
+  success: boolean;
+  remaining: number;
+  message?: string;
+  resetTime?: string;
+}
+
+/**
+ * Get exempt users from environment variable
+ * Format: RATE_LIMIT_EXEMPT_USERS=userId1,userId2,userId3
+ */
+function getExemptUsersFromEnv(): string[] {
+  const envValue = process.env.RATE_LIMIT_EXEMPT_USERS;
+  if (!envValue) return [];
+
+  return envValue
+    .split(',')
+    .map(id => id.trim())
+    .filter(id => id.length > 0);
+}
+
+export function createRateLimit(options: RateLimitOptions = {}) {
   const {
     windowMs = 15 * 60 * 1000, // 15 minutes default
     max = 100, // 100 requests per window default
@@ -12,9 +50,12 @@ export function createRateLimit(options = {}) {
     exemptUsers = [] // Array of exempt user identifiers
   } = options;
 
-  return function rateLimit(identifier) {
+  // Merge provided exempt users with environment variable users
+  const allExemptUsers = [...exemptUsers, ...getExemptUsersFromEnv()];
+
+  return function rateLimit(identifier: string): RateLimitResult {
     // Check if user is exempt from rate limiting
-    if (exemptUsers.includes(identifier)) {
+    if (allExemptUsers.includes(identifier)) {
       return {
         success: true,
         remaining: max // Show full limit for exempt users
@@ -26,16 +67,16 @@ export function createRateLimit(options = {}) {
 
     // Get existing requests for this identifier (IP address or user ID)
     let requests = rateLimitMap.get(identifier) || [];
-    
+
     // Remove old requests outside the current window
     requests = requests.filter(timestamp => timestamp > windowStart);
-    
+
     // Check if we've exceeded the limit
     if (requests.length >= max) {
       // Calculate when the limit will reset
       const oldestRequest = requests[0];
       const resetTime = new Date(oldestRequest + windowMs);
-      
+
       return {
         success: false,
         message,
@@ -65,14 +106,8 @@ export const chatRateLimit = createRateLimit({
 export const uploadRateLimit = createRateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 100, // 100 uploads per hour for bulk uploads
-  message: 'Upload limit exceeded. You can upload up to 100 files per hour.',
-    exemptUsers: [
-    'user_31VtkWmZ1hKvQ7XKK8EgGtTYUtx', // Your current active Clerk ID
-    '8fe756a4-d5c4-4b6b-87d9-5ada1e579bff', // Your database ID
-    // Keep the old one too just in case
-    'user_31cRURPn0EXFUf1JwtWzN5S7rKG',
-    '49c9d0d2-9380-451d-96bc-952d36951340'
-  ]
+  message: 'Upload limit exceeded. You can upload up to 100 files per hour.'
+  // SECURITY FIX: Removed hardcoded user IDs - now loaded from RATE_LIMIT_EXEMPT_USERS env var
 });
 
 export const generalRateLimit = createRateLimit({

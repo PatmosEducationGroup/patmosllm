@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { VoyageAIClient } from 'voyageai'
+import { loggers, logError } from './logger'
 
 export const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -82,9 +83,20 @@ export async function createEmbedding(text: string): Promise<number[]> {
     }
 
     return response.data[0].embedding
-  } catch (_error) {
+  } catch (error) {
+    const errorType = classifyError(error)
 
-    const errorType = classifyError(_error)
+    // Log the embedding error with full context
+    logError(error instanceof Error ? error : new Error('Failed to create embedding'), {
+      operation: 'createEmbedding',
+      phase: 'api_request',
+      severity: 'critical',
+      errorType: errorType.category,
+      model: EMBEDDING_CONFIG.MODEL,
+      textLength: text.length,
+      estimatedTokens,
+      errorContext: `Embedding generation failed: ${errorType.suggestion}`
+    })
 
     // Report error metrics
     if (metricsCallback) {
@@ -173,7 +185,13 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
     const batchTokens = estimateBatchTokenCount(texts)
 
     if (batchTokens > maxTokens) {
-      console.log(`Batch exceeds token limit (${batchTokens} > ${maxTokens}), splitting automatically...`)
+      loggers.ai({
+        operation: 'batch_split',
+        batchTokens,
+        maxTokens,
+        textCount: texts.length,
+        model: EMBEDDING_CONFIG.MODEL
+      }, 'Batch exceeds token limit, splitting automatically')
 
       // Split into smaller batches and process recursively
       const batches = createTokenAwareBatches(texts, maxTokens)
@@ -182,7 +200,14 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i]
         const batchTokens = estimateBatchTokenCount(batch)
-        console.log(`Processing batch ${i + 1}/${batches.length} (${batch.length} texts, ~${batchTokens} tokens)`)
+        loggers.performance({
+          operation: 'batch_processing',
+          batchIndex: i + 1,
+          totalBatches: batches.length,
+          batchSize: batch.length,
+          estimatedTokens: batchTokens,
+          model: EMBEDDING_CONFIG.MODEL
+        }, `Processing batch ${i + 1}/${batches.length}`)
 
         const batchEmbeddings = await createEmbeddings(batch, retryCount) // Recursive call with same retry count
         allEmbeddings.push(...batchEmbeddings)
@@ -197,7 +222,12 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
     }
 
     // Single batch processing (under token limit)
-    console.log(`Processing single batch (${texts.length} texts, ~${batchTokens} tokens)`)
+    loggers.ai({
+      operation: 'single_batch_processing',
+      textCount: texts.length,
+      estimatedTokens: batchTokens,
+      model: EMBEDDING_CONFIG.MODEL
+    }, 'Processing single batch')
     const response = await voyage.embed({
       input: texts.map(text => text.trim()),
       model: EMBEDDING_CONFIG.MODEL
@@ -218,9 +248,21 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
     }
 
     return result
-  } catch (_error) {
+  } catch (error) {
+    const errorType = classifyError(error)
 
-    const errorType = classifyError(_error)
+    // Log batch embedding error with context
+    logError(error instanceof Error ? error : new Error('Failed to create batch embeddings'), {
+      operation: 'createEmbeddings',
+      phase: 'batch_processing',
+      severity: 'critical',
+      errorType: errorType.category,
+      model: EMBEDDING_CONFIG.MODEL,
+      batchSize: texts.length,
+      estimatedTokens,
+      retryCount,
+      errorContext: `Batch embedding failed: ${errorType.suggestion}`
+    })
     const batchTokens = estimateBatchTokenCount(texts)
 
     // Handle different error types with configurable strategies
@@ -231,7 +273,16 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
           const { base, multiplier } = EMBEDDING_CONFIG.BACKOFF_STRATEGIES.TOKEN_LIMIT
           const waitTime = Math.pow(multiplier, newRetryCount) * base
 
-          console.log(`🔄 TOKEN LIMIT: Retrying with smaller batches in ${waitTime/1000}s (attempt ${newRetryCount}/${EMBEDDING_CONFIG.MAX_RETRIES})`)
+          loggers.ai({
+            operation: 'embedding_retry',
+            errorType: 'TOKEN_LIMIT',
+            retryAttempt: newRetryCount,
+            maxRetries: EMBEDDING_CONFIG.MAX_RETRIES,
+            waitTimeMs: waitTime,
+            waitTimeSec: waitTime / 1000,
+            batchSize: texts.length,
+            estimatedTokens: batchTokens
+          }, 'Retrying with smaller batches due to token limit')
           await new Promise(resolve => setTimeout(resolve, waitTime))
           return createEmbeddings(texts, newRetryCount)
         }
@@ -241,7 +292,16 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
         if (retryCount < EMBEDDING_CONFIG.MAX_RETRIES) {
           const { base, increment } = EMBEDDING_CONFIG.BACKOFF_STRATEGIES.RATE_LIMIT
           const waitTime = errorType.suggestedWait || (base + (retryCount * increment))
-          console.log(`⏳ RATE LIMIT: Waiting ${waitTime/1000}s before retry (attempt ${retryCount + 1}/${EMBEDDING_CONFIG.MAX_RETRIES})`)
+          loggers.ai({
+            operation: 'embedding_retry',
+            errorType: 'RATE_LIMIT',
+            retryAttempt: retryCount + 1,
+            maxRetries: EMBEDDING_CONFIG.MAX_RETRIES,
+            waitTimeMs: waitTime,
+            waitTimeSec: waitTime / 1000,
+            suggestedWait: errorType.suggestedWait,
+            batchSize: texts.length
+          }, 'Waiting before retry due to rate limit')
           await new Promise(resolve => setTimeout(resolve, waitTime))
           return createEmbeddings(texts, retryCount + 1)
         }
@@ -251,7 +311,16 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
         if (retryCount < EMBEDDING_CONFIG.MAX_RETRIES) {
           const { base, increment } = EMBEDDING_CONFIG.BACKOFF_STRATEGIES.MODEL_UNAVAILABLE
           const waitTime = base + (retryCount * increment)
-          console.log(`🚨 MODEL UNAVAILABLE: Waiting ${waitTime/1000}s for model recovery (attempt ${retryCount + 1}/${EMBEDDING_CONFIG.MAX_RETRIES})`)
+          loggers.ai({
+            operation: 'embedding_retry',
+            errorType: 'MODEL_UNAVAILABLE',
+            retryAttempt: retryCount + 1,
+            maxRetries: EMBEDDING_CONFIG.MAX_RETRIES,
+            waitTimeMs: waitTime,
+            waitTimeSec: waitTime / 1000,
+            model: EMBEDDING_CONFIG.MODEL,
+            batchSize: texts.length
+          }, 'Waiting for model recovery')
           await new Promise(resolve => setTimeout(resolve, waitTime))
           return createEmbeddings(texts, retryCount + 1)
         }
@@ -261,7 +330,15 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
         if (retryCount < EMBEDDING_CONFIG.MAX_RETRIES) {
           const { base, increment } = EMBEDDING_CONFIG.BACKOFF_STRATEGIES.NETWORK
           const waitTime = base + (retryCount * increment)
-          console.log(`🌐 NETWORK ERROR: Retrying connection in ${waitTime/1000}s (attempt ${retryCount + 1}/${EMBEDDING_CONFIG.MAX_RETRIES})`)
+          loggers.ai({
+            operation: 'embedding_retry',
+            errorType: 'NETWORK',
+            retryAttempt: retryCount + 1,
+            maxRetries: EMBEDDING_CONFIG.MAX_RETRIES,
+            waitTimeMs: waitTime,
+            waitTimeSec: waitTime / 1000,
+            batchSize: texts.length
+          }, 'Retrying connection due to network error')
           await new Promise(resolve => setTimeout(resolve, waitTime))
           return createEmbeddings(texts, retryCount + 1)
         }
@@ -269,12 +346,24 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
 
       case 'AUTH':
         // Don't retry auth errors - they won't resolve automatically
-        console.error('🔑 AUTHENTICATION ERROR: Check API key configuration')
+        logError(error, {
+          operation: 'embedding_generation',
+          errorType: 'AUTH',
+          category: 'security',
+          suggestion: 'Check API key configuration',
+          batchSize: texts.length
+        })
         break
 
       case 'QUOTA':
         // Don't retry quota errors - user needs to check billing
-        console.error('💳 QUOTA EXCEEDED: Check account billing and usage limits')
+        logError(error, {
+          operation: 'embedding_generation',
+          errorType: 'QUOTA',
+          category: 'billing',
+          suggestion: 'Check account billing and usage limits',
+          batchSize: texts.length
+        })
         break
 
       default:
@@ -369,8 +458,18 @@ ${contextString}`;
         total_tokens: response.usage?.total_tokens || 0
       }
     }
-  } catch (_error) {
-    throw new Error(`Failed to generate response: ${''}`)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Failed to generate chat response'), {
+      operation: 'generateChatResponse',
+      phase: 'llm_generation',
+      severity: 'high',
+      model: 'gpt-4o-mini',
+      questionLength: question.length,
+      contextCount: context.length,
+      errorContext: 'Chat completion failed during response generation'
+    })
+
+    throw new Error(`Failed to generate response: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 

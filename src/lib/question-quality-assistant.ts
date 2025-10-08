@@ -1,5 +1,6 @@
 // Question Quality Assistant for Real-time Question Improvement
 import { openai } from '@/lib/openai'
+import { logError } from '@/lib/logger'
 
 // =================================================================
 // TYPE DEFINITIONS
@@ -488,7 +489,14 @@ Format as JSON:
         return { current: question, improved: [] }
       }
 
-    } catch (_error) {
+    } catch (error) {
+      logError(error instanceof Error ? error : new Error('Question example generation failed'), {
+        operation: 'generateQuestionExamples',
+        phase: 'llm_generation',
+        severity: 'low',
+        question: question.substring(0, 100),
+        errorContext: 'Failed to generate improved question examples using LLM'
+      })
       return { current: question, improved: [] }
     }
   }

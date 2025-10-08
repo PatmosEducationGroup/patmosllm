@@ -7,6 +7,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import { logError, logger } from '@/lib/logger'
 
 const TEMP_DIR = '/tmp/patmosllm-documents'
 const FILE_EXPIRATION_MS = 5 * 60 * 1000 // 5 minutes
@@ -18,7 +19,10 @@ async function ensureTempDir() {
   try {
     await fs.mkdir(TEMP_DIR, { recursive: true })
   } catch (error) {
-    console.error('Error creating temp directory:', error)
+    logError(error instanceof Error ? error : new Error('Temp directory creation failed'), {
+      operation: 'ensureTempDir',
+      tempDir: TEMP_DIR
+    })
   }
 }
 
@@ -45,16 +49,35 @@ export async function storeTempFile(
 
   // Write file
   await fs.writeFile(filePath, buffer)
-  console.log(`💾 Stored temporary file: ${fileId} (${buffer.length} bytes)`)
+  logger.info({
+    fileId,
+    fileSize: buffer.length,
+    extension,
+    filename: sanitizedFilename,
+    operation: 'temp_file_stored'
+  }, `Stored temporary file: ${fileId} (${buffer.length} bytes)`)
 
   // Schedule cleanup after expiration
   setTimeout(async () => {
     try {
       await fs.unlink(filePath)
-      console.log(`🗑️  Auto-deleted expired file: ${fileId}`)
-    } catch (_error) {
-      // File might already be deleted by download endpoint
-      console.log(`⚠️  File already cleaned up: ${fileId}`)
+      logger.info({
+        fileId,
+        operation: 'temp_file_auto_deleted'
+      }, `Auto-deleted expired file: ${fileId}`)
+    } catch (error) {
+      logError(error instanceof Error ? error : new Error('Temp file cleanup failed'), {
+        operation: 'saveTempFile',
+        phase: 'auto_cleanup',
+        severity: 'low',
+        fileId,
+        filePath,
+        errorContext: 'Failed to auto-delete expired temp file - may already be deleted'
+      })
+      logger.debug({
+        fileId,
+        operation: 'temp_file_already_cleaned'
+      }, `File already cleaned up: ${fileId}`)
     }
   }, FILE_EXPIRATION_MS)
 
@@ -77,11 +100,18 @@ export async function cleanupExpiredFiles(): Promise<void> {
 
       if (age > FILE_EXPIRATION_MS) {
         await fs.unlink(filePath)
-        console.log(`🗑️  Cleaned up old file: ${file}`)
+        logger.info({
+          file,
+          ageMs: age,
+          operation: 'temp_file_cleanup'
+        }, `Cleaned up old file: ${file}`)
       }
     }
   } catch (error) {
-    console.error('Error during file cleanup:', error)
+    logError(error instanceof Error ? error : new Error('File cleanup failed'), {
+      operation: 'cleanupExpiredFiles',
+      tempDir: TEMP_DIR
+    })
   }
 }
 

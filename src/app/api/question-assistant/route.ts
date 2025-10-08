@@ -5,13 +5,14 @@ import { questionQualityAssistant } from '@/lib/question-quality-assistant'
 import { chatRateLimit } from '@/lib/rate-limiter'
 import { getIdentifier } from '@/lib/get-identifier'
 import { sanitizeInput } from '@/lib/input-sanitizer'
+import { logError } from '@/lib/logger'
 
 export async function POST(_request: NextRequest) {
   try {
     // =================================================================
     // RATE LIMITING & AUTHENTICATION
     // =================================================================
-    const identifier = getIdentifier(_request)
+    const identifier = await getIdentifier(_request)
     const rateLimitResult = chatRateLimit(identifier)
 
     if (!rateLimitResult.success) {
@@ -56,7 +57,15 @@ export async function POST(_request: NextRequest) {
           templates
         })
 
-      } catch (_error) {
+      } catch (error) {
+        logError(error instanceof Error ? error : new Error('Question analysis failed'), {
+          operation: 'POST /api/question-assistant',
+          phase: 'question_analysis',
+          severity: 'high',
+          userId: user.id,
+          action: 'analyze',
+          errorContext: 'Failed to analyze question quality using AI assistant'
+        })
         return NextResponse.json(
           { error: 'Failed to analyze question' },
           { status: 500 }
@@ -77,7 +86,15 @@ export async function POST(_request: NextRequest) {
           templates
         })
 
-      } catch (_error) {
+      } catch (error) {
+        logError(error instanceof Error ? error : new Error('Failed to retrieve question templates'), {
+          operation: 'POST /api/question-assistant',
+          phase: 'get_templates',
+          severity: 'medium',
+          userId: user.id,
+          action: 'get_templates',
+          errorContext: 'Failed to retrieve question templates for user'
+        })
         return NextResponse.json(
           { error: 'Failed to get templates' },
           { status: 500 }
@@ -96,7 +113,15 @@ export async function POST(_request: NextRequest) {
           builder
         })
 
-      } catch (_error) {
+      } catch (error) {
+        logError(error instanceof Error ? error : new Error('Failed to generate question builder'), {
+          operation: 'POST /api/question-assistant',
+          phase: 'get_builder',
+          severity: 'medium',
+          userId: user.id,
+          action: 'get_builder',
+          errorContext: 'Failed to generate question builder for user'
+        })
         return NextResponse.json(
           { error: 'Failed to get question builder' },
           { status: 500 }
@@ -106,7 +131,13 @@ export async function POST(_request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Question assistant request failed'), {
+      operation: 'POST /api/question-assistant',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Unhandled error in question assistant API route'
+    })
     return NextResponse.json(
       { error: 'Question assistant request failed' },
       { status: 500 }
@@ -141,7 +172,13 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Question assistant GET request failed'), {
+      operation: 'GET /api/question-assistant',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Unhandled error in question assistant GET route'
+    })
     return NextResponse.json(
       { error: 'Failed to process request' },
       { status: 500 }

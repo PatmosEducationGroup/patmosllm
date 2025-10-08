@@ -9,11 +9,12 @@ import { sanitizeInput } from '@/lib/input-sanitizer'
 import { processDocumentVectors } from '@/lib/ingest'
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 import { cleanTitle } from '@/lib/titleCleaner'
+import { loggers, logError } from '@/lib/logger'
 
 // Helper function to clean text content for database storage
 function cleanTextContent(content: string): string {
   if (!content) return ''
-  
+
   return content
     // Remove null bytes (main cause of PostgreSQL error)
     .replace(/\u0000/g, '')
@@ -27,9 +28,9 @@ function cleanTextContent(content: string): string {
 export async function POST(_request: NextRequest) {
   try {
     // RATE LIMITING - Check this FIRST
-    const identifier = getIdentifier(_request)
+    const identifier = await getIdentifier(_request)
     const rateLimitResult = uploadRateLimit(identifier)
-    
+
     if (!rateLimitResult.success) {
       return NextResponse.json({
         success: false,
@@ -47,33 +48,42 @@ export async function POST(_request: NextRequest) {
     }
 
     // Get current user
-  // Get current user
-const user = await getCurrentUser()
-console.log('Upload route - user data:', JSON.stringify(user, null, 2))
+    const user = await getCurrentUser()
+    loggers.auth({
+      operation: 'upload_process_auth_check',
+      userId,
+      role: user?.role,
+      hasUser: !!user
+    }, 'Upload process authentication check')
 
-if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
-  console.log('Upload route - role check failed. User role:', user?.role)
-  return NextResponse.json(
-    { success: false, error: 'Only administrators and contributors can upload files' },
-    { status: 403 }
-  )
-}
+    if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
+      loggers.security({
+        operation: 'upload_process_permission_denied',
+        userId,
+        role: user?.role,
+        requiredRoles: ['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN']
+      }, 'Permission denied for upload processing')
+      return NextResponse.json(
+        { success: false, error: 'Only administrators and contributors can upload files' },
+        { status: 403 }
+      )
+    }
 
     // Get request data
     const {
-  storagePath,
-  fileName,
-  fileSize,
-  mimeType,
-  title,
-  author,
-  sourceType,
-  sourceUrl,
-  amazon_url,
-  download_enabled,
-  contact_person,
-  contact_email
-} = await _request.json()
+      storagePath,
+      fileName,
+      fileSize,
+      mimeType,
+      title,
+      author,
+      sourceType,
+      sourceUrl,
+      amazon_url,
+      download_enabled,
+      contact_person,
+      contact_email
+    } = await _request.json()
 
     if (!storagePath || !fileName) {
       return NextResponse.json(
@@ -99,7 +109,13 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
     const cleanContactPerson = contact_person ? sanitizeInput(contact_person) : null
     const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
 
-    console.log(`Processing uploaded file: ${storagePath}`)
+    loggers.performance({
+      operation: 'upload_process_start',
+      storagePath,
+      filename: fileName.substring(0, 50),
+      fileSize,
+      userId
+    }, 'Starting upload file processing')
 
     // Download file from Supabase Storage for processing
     const { data: fileData, error: downloadError } = await supabaseAdmin.storage
@@ -107,7 +123,16 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       .download(storagePath)
 
     if (downloadError) {
-      console.error('Error downloading file from storage:', downloadError)
+      logError(new Error(`File download failed: ${downloadError.message}`), {
+        operation: 'supabase_storage_download',
+        storagePath,
+        fileName,
+        userId: user.id,
+        errorMessage: downloadError.message,
+        phase: 'storage_download',
+        severity: 'critical'
+      })
+
       return NextResponse.json(
         { success: false, error: 'Failed to download file for processing' },
         { status: 500 }
@@ -118,24 +143,47 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
     const buffer = Buffer.from(await fileData.arrayBuffer())
 
     // Extract text content
-    console.log(`Extracting text from ${fileName}...`)
+    loggers.performance({
+      operation: 'upload_process_text_extraction_start',
+      filename: fileName.substring(0, 50),
+      fileSize,
+      mimeType,
+      userId
+    }, 'Starting text extraction from upload')
     const extraction = await extractTextFromFile(buffer, mimeType, fileName)
 
     if (!extraction.content) {
-      console.error('Text extraction failed: No content extracted')
+      logError(new Error('Text extraction produced no content'), {
+        operation: 'upload_process_text_extraction_failed',
+        filename: fileName.substring(0, 50),
+        mimeType,
+        fileSize,
+        userId
+      })
       return NextResponse.json(
         { success: false, error: 'Failed to extract text from file' },
         { status: 400 }
       )
     }
 
-    console.log(`Extracted ${extraction.wordCount} words from ${fileName}`)
+    loggers.performance({
+      operation: 'upload_process_text_extraction_success',
+      filename: fileName.substring(0, 50),
+      wordCount: extraction.wordCount,
+      pageCount: extraction.pageCount,
+      userId
+    }, `Extracted ${extraction.wordCount} words from file`)
 
     // Clean the extracted content to prevent database errors
     const cleanedContent = cleanTextContent(extraction.content)
-    
+
     if (!cleanedContent) {
-      console.error('Content cleaning resulted in empty text')
+      logError(new Error('Content cleaning produced empty text'), {
+        operation: 'upload_process_content_cleaning_failed',
+        filename: fileName.substring(0, 50),
+        originalContentLength: extraction.content.length,
+        userId
+      })
       return NextResponse.json(
         { success: false, error: 'Document content could not be processed (contains unsupported characters)' },
         { status: 400 }
@@ -143,7 +191,14 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
     }
 
     // Save document record to database with cleaned content
-    console.log('Saving document record to database...')
+    loggers.database({
+      operation: 'upload_process_document_save_start',
+      filename: fileName.substring(0, 50),
+      title: cleanedTitle.substring(0, 50),
+      wordCount: extraction.wordCount,
+      fileSize,
+      userId
+    }, 'Saving document record to database')
 
     // Prepare document record with multimedia support
     const documentRecord: Record<string, unknown> = {
@@ -175,14 +230,13 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
     const { data: document, error: dbError } = await supabaseAdmin
       .from('documents')
       .insert(documentRecord)
-  .select()
-  .single()
+      .select()
+      .single()
 
     if (dbError) {
-      
       // Provide more specific error messages for common issues
       let errorMessage = 'Failed to save document record'
-      
+
       if (dbError.code === '22P05') {
         errorMessage = 'Document contains unsupported characters'
       } else if (dbError.code === '23505') {
@@ -190,22 +244,52 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       } else if (dbError.code === '23502') {
         errorMessage = 'Missing required document information'
       }
-      
+
+      logError(new Error(`Database insert failed: ${dbError.message}`), {
+        operation: 'upload_process_database_insert',
+        fileName,
+        fileSize,
+        userId: user.id,
+        dbErrorCode: dbError.code,
+        dbErrorHint: dbError.hint,
+        dbErrorDetail: dbError.details,
+        phase: 'database_write',
+        severity: 'critical'
+      })
+
       return NextResponse.json(
         { success: false, error: errorMessage },
         { status: 500 }
       )
     }
 
-    console.log(`Document saved with ID: ${document.id}`)
+    loggers.database({
+      operation: 'upload_process_document_save_success',
+      documentId: document.id,
+      title: cleanedTitle.substring(0, 50),
+      filename: fileName.substring(0, 50),
+      userId
+    }, 'Document saved successfully')
 
     // Start vector processing job
     try {
       await processDocumentVectors(document.id, user.id)
-      console.log('Vector processing job started')
+      loggers.performance({
+        operation: 'upload_process_vector_processing_started',
+        documentId: document.id,
+        filename: fileName.substring(0, 50),
+        userId
+      }, 'Vector processing job started')
     } catch (ingestError) {
-      console.error('Error starting ingest job:', ingestError)
       // Don't fail the upload if vector processing fails
+      logError(ingestError instanceof Error ? ingestError : new Error('Vector processing failed'), {
+        operation: 'upload_process_vector_processing',
+        documentId: document.id,
+        fileName,
+        userId: user.id,
+        phase: 'post_upload_processing',
+        severity: 'medium'
+      })
     }
 
     // Track onboarding milestone AFTER successful upload
@@ -224,10 +308,24 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       })
     } catch (milestoneError) {
       // Log but don't fail the upload
-      console.error('Failed to track onboarding milestone:', milestoneError)
+      logError(milestoneError instanceof Error ? milestoneError : new Error('Onboarding milestone tracking failed'), {
+        operation: 'onboarding_milestone_tracking',
+        documentId: document.id,
+        userId,
+        phase: 'post_upload_processing',
+        severity: 'low' // Low because it's just tracking, doesn't affect core functionality
+      })
     }
 
-    console.log(`Successfully processed: ${cleanTitle}`)
+    loggers.performance({
+      operation: 'upload_process_complete',
+      documentId: document.id,
+      title: cleanedTitle.substring(0, 50),
+      filename: fileName.substring(0, 50),
+      wordCount: extraction.wordCount,
+      fileSize,
+      userId
+    }, 'Successfully processed upload')
 
     return NextResponse.json({
       success: true,
@@ -244,11 +342,17 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       }
     })
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Upload process route failed'), {
+      operation: 'upload_process_route',
+      phase: 'unknown',
+      severity: 'critical'
+    })
+
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Processing failed' 
+      {
+        success: false,
+        error: 'Processing failed'
       },
       { status: 500 }
     )

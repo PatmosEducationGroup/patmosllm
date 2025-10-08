@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
+import {loggers, logError} from '@/lib/logger'
 
 export async function GET(
  request: NextRequest,
@@ -65,14 +66,17 @@ export async function GET(
      .limit(100)
 
    // Debug logging
-   console.log('Timeline Debug:', {
+   loggers.database({
+     operation: 'fetch_user_timeline',
+     adminUserId: currentUser.id,
+     adminEmail: currentUser.email,
      targetUserId: userId,
      conversationsFound: conversations?.length || 0,
-     conversationError: convError,
-     sampleConversation: conversations?.[0],
+     conversationError: convError ? convError.message : null,
+     sampleConversation: conversations?.[0]?.id,
      documentsFound: documents?.length || 0,
      chatSessionsFound: chatSessions?.length || 0
-   })
+   }, 'Fetched user timeline data')
 
    // Build timeline events
    const timeline = []
@@ -162,10 +166,16 @@ export async function GET(
      }
    })
 
- } catch (_error) {
-   return NextResponse.json(
+ } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/users/[userId]/timeline',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
      { success: false, error: 'Failed to fetch user timeline' },
      { status: 500 }
    )
- }
+  }
 }

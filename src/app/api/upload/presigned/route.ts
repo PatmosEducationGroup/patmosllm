@@ -6,11 +6,12 @@ import { uploadRateLimit } from '@/lib/rate-limiter'
 import { getIdentifier } from '@/lib/get-identifier'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 import { SUPPORTED_MIME_TYPES, SUPPORTED_EXTENSIONS } from '@/lib/clientValidation'
+import { logError } from '@/lib/logger'
 
 export async function POST(_request: NextRequest) {
   try {
     // Rate limiting
-    const identifier = getIdentifier(_request)
+    const identifier = await getIdentifier(_request)
     const rateLimitResult = uploadRateLimit(identifier)
     
     if (!rateLimitResult.success) {
@@ -84,6 +85,17 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       })
 
     if (presignedError) {
+      logError(new Error(`Presigned URL generation failed: ${presignedError.message}`), {
+        operation: 'presigned_url_generation',
+        fileName,
+        fileSize,
+        mimeType,
+        userId: user.id,
+        errorMessage: presignedError.message,
+        phase: 'presigned_url_creation',
+        severity: 'critical'
+      })
+
       return NextResponse.json(
         { success: false, error: 'Failed to generate upload URL' },
         { status: 500 }
@@ -116,8 +128,18 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       })
 
     if (metadataError) {
-      console.error('Failed to store upload session:', metadataError)
       // Continue anyway - the upload can still work
+      // This is medium severity because upload can proceed without session tracking
+      logError(new Error(`Upload session storage failed: ${metadataError.message}`), {
+        operation: 'upload_session_storage',
+        fileName,
+        fileSize,
+        userId: user.id,
+        token: presignedData.token,
+        dbErrorCode: metadataError.code,
+        phase: 'session_metadata_write',
+        severity: 'medium'
+      })
     }
 
     return NextResponse.json({
@@ -128,11 +150,17 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       expiresIn: 900 // 15 minutes in seconds
     })
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Presigned upload route failed'), {
+      operation: 'presigned_upload_route',
+      phase: 'unknown',
+      severity: 'critical'
+    })
+
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to generate upload URL' 
+      {
+        success: false,
+        error: 'Failed to generate upload URL'
       },
       { status: 500 }
     )

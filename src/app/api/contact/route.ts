@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { getCurrentUser } from '@/lib/auth'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 import { Resend } from 'resend'
+import { logger, logError } from '@/lib/logger'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -97,18 +98,30 @@ export async function POST(_request: NextRequest) {
       )
     }
 
-    console.log(`Contact email sent successfully from ${senderEmail} to ${to} about "${documentTitle}"`)
+    logger.info({
+      from: senderEmail,
+      to,
+      documentTitle,
+      userId: user.id,
+      emailId: emailResult.data?.id
+    }, 'Contact email sent successfully')
 
     return NextResponse.json({
       success: true,
       message: 'Message sent successfully'
     })
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Contact email failed'), {
+      operation: 'POST /api/contact',
+      phase: 'email_sending',
+      severity: 'high',
+      errorContext: 'Failed to send contact email via Resend'
+    })
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to send message' 
+      {
+        success: false,
+        error: 'Failed to send message'
       },
       { status: 500 }
     )

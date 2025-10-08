@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import {loggers, logError} from '@/lib/logger'
 
 export async function GET(
   request: NextRequest,
@@ -56,8 +57,14 @@ export async function GET(
       }
     })
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API invite/[token]',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { success: false, error: 'Failed to validate invitation' },
       { status: 500 }
     )
@@ -123,22 +130,28 @@ export async function PATCH(
       .eq('id', invitation.id)
 
     if (updateError) {
-      console.error('Error updating user with Clerk ID:', updateError)
+      loggers.database({ email, clerkId, error: updateError.message, operation: 'link_clerk_account' }, 'Error updating user with Clerk ID')
       return NextResponse.json(
         { success: false, error: 'Failed to complete account setup' },
         { status: 500 }
       )
     }
 
-    console.log(`Successfully linked Clerk account ${clerkId} to user ${email}`)
+    loggers.auth({ email, clerkId, invitationId: invitation.id, success: true }, 'Successfully linked Clerk account to user')
 
     return NextResponse.json({
       success: true,
       message: 'Account setup completed successfully'
     })
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API invite/[token]',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { success: false, error: 'Failed to complete account setup' },
       { status: 500 }
     )

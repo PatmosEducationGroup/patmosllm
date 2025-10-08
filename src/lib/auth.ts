@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from './supabase'
 import { User } from './types'
+import { logError, loggers } from './logger'
 
 // Get current user from database (server-side)
 export async function getCurrentUser(): Promise<User | null> {
@@ -23,7 +24,14 @@ export async function getCurrentUser(): Promise<User | null> {
     }
 
     return user
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Failed to get current user'), {
+      operation: 'getCurrentUser',
+      phase: 'user_retrieval',
+      severity: 'high',
+      userId: 'unknown',
+      errorContext: 'Failed to fetch user from database after Clerk auth'
+    })
     return null
   }
 }
@@ -97,7 +105,7 @@ export async function syncUserWithDatabase(clerkUser: {
           .single()
 
         if (error) throw error
-        console.log(`Activated invited user: ${email}`)
+        loggers.auth({ email, userId: clerkUser.id, activated: true }, 'Activated invited user')
         return activatedUser
       }
 
@@ -124,10 +132,18 @@ export async function syncUserWithDatabase(clerkUser: {
       }
 
       // User not invited - reject
-      console.log(`Rejected non-invited user: ${email}`)
+      loggers.auth({ email, userId: clerkUser.id, rejected: true, reason: 'not_invited' }, 'Rejected non-invited user')
       return null
     }
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Failed to sync user with database'), {
+      operation: 'syncUserWithDatabase',
+      phase: 'user_sync',
+      severity: 'critical',
+      clerkUserId: clerkUser.id,
+      email: clerkUser.emailAddresses[0]?.emailAddress,
+      errorContext: 'Failed to sync Clerk user with Supabase database - user may be unable to access system'
+    })
     return null
   }
 }

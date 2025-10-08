@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { logError } from '@/lib/logger'
 
 export async function GET(_request: NextRequest) {
   try {
@@ -36,7 +37,13 @@ export async function GET(_request: NextRequest) {
       }
     })
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Auth verification failed'), {
+      operation: 'GET /api/auth',
+      phase: 'user_verification',
+      severity: 'critical',
+      errorContext: 'Failed to verify user authentication status'
+    })
     return NextResponse.json(
       { success: false, error: 'Server error' },
       { status: 500 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logError } from '@/lib/logger'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
@@ -71,8 +72,14 @@ export async function GET(
       document
     })
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/documents/[id]',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { success: false, error: 'Failed to load document' },
       { status: 500 }
     )
@@ -202,8 +209,14 @@ export async function PUT(
       document: updatedDoc
     })
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/documents/[id]',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { success: false, error: 'Failed to update document' },
       { status: 500 }
     )

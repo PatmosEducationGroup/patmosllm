@@ -1,4 +1,5 @@
 import { Pinecone } from '@pinecone-database/pinecone'
+import { logError, logger } from './logger'
 
 // Initialize Pinecone client
 const pinecone = new Pinecone({
@@ -51,13 +52,29 @@ export async function storeChunks(chunks: Array<{
       const batch = vectors.slice(i, i + batchSize)
       
       await index.namespace(namespace).upsert(batch)
-      
-      console.log(`Uploaded batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(vectors.length / batchSize)}`)
+
+      logger.info(
+        {
+          batchNumber: Math.floor(i / batchSize) + 1,
+          totalBatches: Math.ceil(vectors.length / batchSize),
+          namespace
+        },
+        'Uploaded batch to Pinecone'
+      )
     }
 
-    console.log(`Successfully stored ${vectors.length} chunks in Pinecone`)
-  } catch (_error) {
-    throw new Error(`Failed to store chunks: ${''}`)
+    logger.info(
+      { vectorCount: vectors.length, namespace },
+      'Successfully stored chunks in Pinecone'
+    )
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Failed to store chunks in Pinecone'), {
+      operation: 'storeChunks',
+      chunkCount: chunks.length,
+      namespace: process.env.PINECONE_NAMESPACE || 'default',
+      documentIds: [...new Set(chunks.map(c => c.documentId))],
+    })
+    throw new Error(`Failed to store chunks in Pinecone: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -92,10 +109,15 @@ export async function searchChunks(
 
     // DEBUG: Log raw Pinecone results for complex queries to understand ranking
     if (searchResponse.matches.length > 0 && searchResponse.matches[0].score && searchResponse.matches[0].score < 0.7) {
-      console.log(`DEBUG: Raw Pinecone search results (top 5):`)
-      searchResponse.matches.slice(0, 5).forEach((match, i) => {
-        console.log(`  ${i+1}. Score: ${match.score?.toFixed(4)}, Doc: "${match.metadata?.documentTitle}"`)
-      })
+      const topResults = searchResponse.matches.slice(0, 5).map((match, i) => ({
+        rank: i + 1,
+        score: match.score?.toFixed(4),
+        documentTitle: match.metadata?.documentTitle,
+      }))
+      logger.debug(
+        { topResults, threshold: 0.7 },
+        'Raw Pinecone search results for low-confidence query'
+      )
     }
 
     // Filter by minimum score
@@ -123,8 +145,17 @@ export async function searchChunks(
         if (fullChunks) {
           fullContentMap = new Map(fullChunks.map(chunk => [chunk.id, chunk.content]))
         }
-      } catch (_error) {
-        console.warn(`Batch fetch failed for ${truncatedIds.length} chunks, using truncated content`)
+      } catch (error) {
+        // This is non-critical - we can fall back to truncated content
+        logError(error instanceof Error ? error : new Error('Batch fetch of full content failed'), {
+          operation: 'searchChunks.batchFetch',
+          truncatedChunkCount: truncatedIds.length,
+          truncatedIds: truncatedIds.slice(0, 5), // Log first 5 for debugging
+        })
+        logger.warn(
+          { truncatedChunkCount: truncatedIds.length },
+          'Batch fetch failed for truncated chunks, using truncated content'
+        )
       }
     }
 
@@ -149,11 +180,21 @@ export async function searchChunks(
       }
     })
 
-    console.log(`Found ${results.length} relevant chunks (score >= ${minScore})`)
-    
+    logger.info(
+      { resultCount: results.length, minScore, topK },
+      'Found relevant chunks in Pinecone'
+    )
+
     return results
-  } catch (_error) {
-    throw new Error(`Failed to search chunks: ${''}`)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Failed to search chunks in Pinecone'), {
+      operation: 'searchChunks',
+      topK,
+      minScore,
+      namespace: process.env.PINECONE_NAMESPACE || 'default',
+      embeddingDimension: queryEmbedding.length,
+    })
+    throw new Error(`Failed to search chunks in Pinecone: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -175,14 +216,27 @@ export async function deleteDocumentChunks(documentId: string): Promise<void> {
 
     if (searchResponse.matches && searchResponse.matches.length > 0) {
       const chunkIds = searchResponse.matches.map(match => match.id)
-      
+
       // Delete the chunks
       await index.namespace(namespace).deleteMany(chunkIds)
-      
-      console.log(`Deleted ${chunkIds.length} chunks for document ${documentId}`)
+
+      logger.info(
+        { deletedChunkCount: chunkIds.length, documentId, namespace },
+        'Deleted chunks for document from Pinecone'
+      )
+    } else {
+      logger.info(
+        { documentId, namespace },
+        'No chunks found to delete for document in Pinecone'
+      )
     }
-  } catch (_error) {
-    throw new Error(`Failed to delete chunks: ${''}`)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Failed to delete chunks from Pinecone'), {
+      operation: 'deleteDocumentChunks',
+      documentId,
+      namespace: process.env.PINECONE_NAMESPACE || 'default',
+    })
+    throw new Error(`Failed to delete chunks for document ${documentId}: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -195,14 +249,19 @@ export async function getIndexStats(): Promise<{
   try {
     const stats = await index.describeIndexStats()
     const namespace = process.env.PINECONE_NAMESPACE || 'default'
-    
+
     return {
       totalVectors: stats.totalRecordCount || 0,
       dimension: stats.dimension || 1024,
       namespace
     }
-  } catch (_error) {
-    throw new Error(`Failed to get index stats: ${''}`)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Failed to get index stats from Pinecone'), {
+      operation: 'getIndexStats',
+      namespace: process.env.PINECONE_NAMESPACE || 'default',
+      index: process.env.PINECONE_INDEX,
+    })
+    throw new Error(`Failed to get index stats: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -210,8 +269,15 @@ export async function getIndexStats(): Promise<{
 export async function testConnection(): Promise<boolean> {
   try {
     await getIndexStats()
+    logger.info({ operation: 'testConnection' }, 'Pinecone connection test successful')
     return true
-  } catch (_error) {
+  } catch (error) {
+    // This is a health check - log at debug level to avoid noise
+    logError(error instanceof Error ? error : new Error('Pinecone connection test failed'), {
+      operation: 'testConnection',
+      namespace: process.env.PINECONE_NAMESPACE || 'default',
+      index: process.env.PINECONE_INDEX,
+    })
     return false
   }
 }

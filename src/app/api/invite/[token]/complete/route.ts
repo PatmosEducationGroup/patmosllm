@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import {loggers, logError} from '@/lib/logger'
 
 export async function GET(
   request: NextRequest,
@@ -48,16 +49,22 @@ export async function GET(
       .eq('id', invitation.id)
 
     if (updateError) {
-      console.error('Error updating user with Clerk ID:', updateError)
+      loggers.database({ email: invitation.email, userId, error: updateError.message, operation: 'link_clerk_account' }, 'Error updating user with Clerk ID')
       return NextResponse.redirect(new URL('/', request.url))
     }
 
-    console.log(`Successfully linked Clerk account ${userId} to user ${invitation.email}`)
+    loggers.auth({ email: invitation.email, userId, invitationId: invitation.id, success: true }, 'Successfully linked Clerk account to user via complete endpoint')
 
     // Redirect to main app
     return NextResponse.redirect(new URL('/', request.url))
 
-  } catch (_error) {
-    return NextResponse.redirect(new URL('/', request.url))
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API invite/[token]/complete',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Operation failed'
+    })
+return NextResponse.redirect(new URL('/', request.url))
   }
 }

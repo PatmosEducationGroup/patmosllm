@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { logError } from '@/lib/logger'
 import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
@@ -145,11 +146,17 @@ export default function AdminUsersPage() {
       
       loadUsers()
       
-    } catch (_error) {
-      setAccessDenied(true)
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setAccessDenied(true)
       setError('Access denied: Unable to verify your permissions.')
       setLoading(false)
-    }
+  }
   }
 
   const loadUsers = async () => {
@@ -162,9 +169,15 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to load users')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to load users')
+  } finally {
       setLoading(false)
     }
   }
@@ -191,9 +204,15 @@ export default function AdminUsersPage() {
       } else {
         setError('Failed to fetch user timeline')
       }
-    } catch (_error) {
-      setError('Failed to load user timeline')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to load user timeline')
+  } finally {
       setLoadingTimeline(false)
     }
   }
@@ -242,9 +261,15 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to update user role')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to update user role')
+  } finally {
       setUpdatingRole(null)
     }
   }
@@ -277,9 +302,15 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to delete user')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to delete user')
+  } finally {
       setDeleting(null)
       setShowDeleteModal(false)
       setUserToDelete(null)
@@ -329,9 +360,15 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to invite user')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to invite user')
+  } finally {
       setInviting(false)
     }
   }
@@ -389,9 +426,15 @@ export default function AdminUsersPage() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to resend invitation')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to resend invitation')
+  } finally {
       setResending(null)
     }
   }

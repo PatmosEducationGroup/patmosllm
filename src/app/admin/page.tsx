@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { logError } from '@/lib/logger'
 import { useAuth, useUser } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
@@ -14,6 +15,7 @@ import { ToastProvider, useToast } from '@/components/ui/Toast'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Modal } from '@/components/ui/Modal'
 import { AlertCircle } from 'lucide-react'
+import { AdminErrorBoundary } from '@/components/ErrorBoundary'
 
 interface Document {
   id: string
@@ -253,11 +255,17 @@ function AdminPageContent() {
       loadDocuments()
       loadIngestJobs()
       
-    } catch (_error) {
-      setAccessDenied(true)
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+setAccessDenied(true)
       setError('Access denied: Unable to verify your permissions.')
       setLoading(false)
-    }
+  }
   }
 
   const loadDocuments = async () => {
@@ -278,9 +286,15 @@ function AdminPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to load documents')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to load documents')
+  } finally {
       setLoading(false)
     }
   }
@@ -293,9 +307,15 @@ function AdminPageContent() {
       if (data.success) {
         setIngestJobs(data.jobs)
       }
-    } catch (_error) {
-      // Failed to load ingest jobs
-    }
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+// Failed to load ingest jobs
+  }
   }
 
   // Metadata editing functions
@@ -338,9 +358,15 @@ function AdminPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to save document changes')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to save document changes')
+  } finally {
       setSaving(false)
     }
   }
@@ -383,12 +409,18 @@ function AdminPageContent() {
           message: `Failed to reingest "${documentTitle}": ${data.error || ''}`
         })
       }
-    } catch (_error) {
-      addToast({
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+addToast({
         type: 'error',
         message: `Failed to reingest "${documentTitle}"`
       })
-    } finally {
+  } finally {
       // Remove from reingesting set
       setReingestingDocs(prev => {
         const newSet = new Set(prev)
@@ -449,11 +481,17 @@ function AdminPageContent() {
         setScrapingMessageType('error')
         setIsDiscovering(false)
       }
-    } catch (_error) {
-      setScrapingMessage('Failed to discover website pages')
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+setScrapingMessage('Failed to discover website pages')
       setScrapingMessageType('error')
       setIsDiscovering(false)
-    }
+  }
   }
 
   const scrapeSelectedPages = async () => {
@@ -501,10 +539,16 @@ function AdminPageContent() {
         setScrapingMessage(data.error || 'Failed to scrape pages')
         setScrapingMessageType('error')
       }
-    } catch (_error) {
-      setScrapingMessage('Failed to scrape website pages')
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+setScrapingMessage('Failed to scrape website pages')
       setScrapingMessageType('error')
-    } finally {
+  } finally {
       setIsScrapingPages(false)
       setScrapingProgress(100)
     }
@@ -574,10 +618,16 @@ function AdminPageContent() {
         throw new Error(data.error || 'Batch processing failed')
       }
         
-    } catch (_error) {
-      setScrapingMessage('Failed to save scraped content')
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+setScrapingMessage('Failed to save scraped content')
       setScrapingMessageType('error')
-    } finally {
+  } finally {
       setUploading(false)
       setUploadProgress(0)
     }
@@ -799,12 +849,18 @@ function AdminPageContent() {
           continue
         }
         return response
-      } catch (_error) {
-        if (attempt === maxRetries) throw error
+      } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+if (attempt === maxRetries) throw error
         // Wait before retry
         const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
         await new Promise(resolve => setTimeout(resolve, delay))
-      }
+  }
     }
     throw new Error('Max retries exceeded')
   }
@@ -838,8 +894,14 @@ function AdminPageContent() {
           message: `"${queueItem.metadata.title}" uploaded successfully`,
           duration: 3000
         })
-      } catch (_error) {
-        // Mark as error
+      } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+// Mark as error
         setUploadQueue(prev => prev.map((item, index) =>
           index === i ? {
             ...item,
@@ -856,7 +918,7 @@ function AdminPageContent() {
           message: `"${queueItem.metadata.title}": ${errorMessage}`,
           duration: 8000
         })
-      }
+  }
 
       // Add delay between uploads to avoid rate limiting
       if (i < uploadQueue.length - 1) {
@@ -1086,9 +1148,15 @@ function AdminPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to delete document')
-    }
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to delete document')
+  }
   }
 
   const formatFileSize = (bytes: number | null | undefined) => {
@@ -3421,8 +3489,10 @@ function AdminPageContent() {
 
 export default function AdminPage() {
   return (
-    <ToastProvider>
-      <AdminPageContent />
-    </ToastProvider>
+    <AdminErrorBoundary>
+      <ToastProvider>
+        <AdminPageContent />
+      </ToastProvider>
+    </AdminErrorBoundary>
   )
 }

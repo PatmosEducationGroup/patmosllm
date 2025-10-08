@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { promises as fs } from 'fs'
 import path from 'path'
+import { logger } from '@/lib/logger'
 
 const TEMP_DIR = '/tmp/patmosllm-documents'
 
@@ -68,9 +69,9 @@ export async function GET(
     setTimeout(async () => {
       try {
         await fs.unlink(filePath)
-        console.log(`🗑️  Deleted temporary file: ${fileId}`)
+        logger.info({ fileId, filePath, operation: 'cleanup' }, 'Deleted temporary file')
       } catch (error) {
-        console.error(`Error deleting file ${fileId}:`, error)
+        logger.error({ fileId, error: error instanceof Error ? error.message : 'Unknown error' }, 'Error deleting temporary file')
       }
     }, 1000)
 
@@ -78,7 +79,7 @@ export async function GET(
     return new NextResponse(fileBuffer as BodyInit, { headers })
 
   } catch (error) {
-    console.error('Error in download endpoint:', error)
+    logger.error({ error: error instanceof Error ? error.message : 'Unknown error', operation: 'download' }, 'Error in download endpoint')
     return new NextResponse('Internal server error', { status: 500 })
   }
 }

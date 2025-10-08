@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { withSupabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
+import { logError } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -65,7 +66,12 @@ export async function GET(request: NextRequest) {
       const { data, error } = await query
 
       if (error) {
-        console.error('Error fetching question quality data:', error)
+        logError(error, {
+          operation: 'fetch_question_quality',
+          adminUserId: user.id,
+          adminEmail: user.email,
+          filters: { minSatisfaction, clarificationOnly, noResultsOnly, limit, offset }
+        })
         throw error
       }
 
@@ -114,7 +120,10 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Error in question-quality API:', error)
+    logError(error, {
+      operation: 'question_quality_api',
+      endpoint: '/api/admin/question-quality'
+    })
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

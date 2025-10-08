@@ -2,6 +2,7 @@
 import { searchChunks } from './pinecone'
 import { supabaseAdmin } from './supabase'
 import { advancedCache, CACHE_NAMESPACES, CACHE_TTL } from './advanced-cache'
+import { loggers, logError } from '@/lib/logger'
 
 export interface SearchResult {
   id: string
@@ -145,7 +146,17 @@ async function keywordSearch(
 
     return scoredResults
 
-  } catch (_error) {
+  } catch (error) {
+    // Log keyword search failure - this is a critical path component
+    // Return empty array so hybrid search can fall back to semantic-only
+    logError(error instanceof Error ? error : new Error('Keyword search failed'), {
+      operation: 'keywordSearch',
+      query: query.substring(0, 100),
+      maxResults,
+      minScore,
+      phase: 'database_text_search',
+      fallbackBehavior: 'return_empty_array'
+    })
     return []
   }
 }
@@ -167,7 +178,13 @@ export async function hybridSearch(
       { userId: opts.userId }
     )
     if (cached) {
-      console.log('Returning cached hybrid search results')
+      loggers.cache({
+        hit: true,
+        namespace: CACHE_NAMESPACES.SEARCH_RESULTS,
+        key: cacheKey,
+        resultsCount: cached.length,
+        userId: opts.userId
+      }, 'Hybrid search cache hit')
       return cached
     }
   }
@@ -228,7 +245,6 @@ export async function hybridSearch(
 
     // Apply title relevance boosting before final sorting
     const queryTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 2)
-    // console.log(`DEBUG TITLE BOOSTING: Query terms extracted: [${queryTerms.join(', ')}]`)
 
     const boostedResults = Array.from(resultMap.values()).map(result => {
       let titleBoost = 0
@@ -254,17 +270,6 @@ export async function hybridSearch(
         titleBoost += conceptBonus
       }
 
-      // Debug logging for title boosting (show all results with boosts)
-      // if (titleBoost > 0) {
-      //   console.log(`DEBUG TITLE BOOST: "${result.documentTitle}"`)
-      //   console.log(`  - Original score: ${result.score.toFixed(4)}`)
-      //   console.log(`  - Matched terms: [${matchedTerms.join(', ')}] (${matchedTerms.length}/${queryTerms.length})`)
-      //   console.log(`  - Term boost: ${(matchedTerms.length * 0.15).toFixed(3)}`)
-      //   console.log(`  - Concept bonus: ${conceptBonus.toFixed(3)}`)
-      //   console.log(`  - Total title boost: ${titleBoost.toFixed(3)}`)
-      //   console.log(`  - Final score: ${(result.score + titleBoost).toFixed(4)}`)
-      // }
-
       return {
         ...result,
         score: result.score + titleBoost,
@@ -281,12 +286,6 @@ export async function hybridSearch(
     // Add diversity scoring to prevent too many results from the same document
     const diversifiedResults = diversifyResults(hybridResults)
 
-    // Debug: Show final results with titles and scores
-    // console.log(`DEBUG FINAL RESULTS (after title boosting and diversity filtering):`)
-    // diversifiedResults.slice(0, 10).forEach((result, i) => {
-    //   console.log(`  ${i+1}. "${result.documentTitle}" - Score: ${result.score.toFixed(4)} (original: ${result.originalScore?.toFixed(4)}, boost: ${result.titleBoost?.toFixed(3)})`)
-    // })
-
     // Cache results if enabled
     if (opts.enableCache) {
       const cacheKey = `${query}-${JSON.stringify(opts)}`
@@ -297,14 +296,40 @@ export async function hybridSearch(
         CACHE_TTL.SHORT,
         { userId: opts.userId }
       )
+
+      loggers.cache({
+        hit: false,
+        namespace: CACHE_NAMESPACES.SEARCH_RESULTS,
+        key: cacheKey,
+        resultsCount: diversifiedResults.length,
+        userId: opts.userId
+      }, 'Hybrid search results cached')
     }
 
-    console.log(`Hybrid search results: ${semanticResults.length} semantic + ${keywordResults.length} keyword = ${diversifiedResults.length} hybrid`)
+    loggers.performance({
+      query,
+      semanticCount: semanticResults.length,
+      keywordCount: keywordResults.length,
+      hybridCount: diversifiedResults.length,
+      semanticWeight: opts.semanticWeight,
+      keywordWeight: opts.keywordWeight,
+      topScore: diversifiedResults[0]?.score.toFixed(4) || 'N/A'
+    }, 'Hybrid search completed')
 
     return diversifiedResults
 
-  } catch (_error) {
-    throw new Error(`Hybrid search failed: ${''}`)
+  } catch (error) {
+    // Hybrid search is a critical path - we MUST log and rethrow
+    logError(error instanceof Error ? error : new Error('Hybrid search failed'), {
+      operation: 'hybridSearch',
+      query: query.substring(0, 100),
+      semanticWeight: opts.semanticWeight,
+      keywordWeight: opts.keywordWeight,
+      maxResults: opts.maxResults,
+      userId: opts.userId,
+      phase: 'hybrid_search_execution'
+    })
+    throw new Error(`Hybrid search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -342,7 +367,11 @@ export async function intelligentSearch(
   // If query was preprocessed, we need a new embedding for the processed query
   let finalEmbedding = queryEmbedding
   if (processedQuery !== query) {
-    console.log(`Creating new embedding for processed query: "${processedQuery}"`)
+    loggers.ai({
+      originalQuery: query,
+      processedQuery,
+      preprocessing: 'query_refinement'
+    }, 'Creating new embedding for preprocessed query')
     const { createEmbedding } = await import('@/lib/openai')
     finalEmbedding = await createEmbedding(processedQuery)
   }
@@ -501,7 +530,6 @@ function preprocessQuery(query: string): string {
   const match = queryLower.match(forContextPattern)
   if (match) {
     const coreQuery = match[1].trim()
-    // console.log(`DEBUG PREPROCESSING: "${query}" -> "${coreQuery}"`)
     return coreQuery
   }
 

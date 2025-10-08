@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logError } from '@/lib/logger'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
@@ -41,8 +42,14 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       jobs: jobs || []
     })
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API ingest',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to load jobs' 
@@ -96,8 +103,14 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       )
     }
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API ingest',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { 
         success: false, 
         error: 'Ingestion failed' 

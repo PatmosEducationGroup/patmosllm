@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logError } from '@/lib/logger'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 
@@ -78,8 +79,13 @@ export async function GET(
       expiresIn: 60 // seconds
     })
 
-  } catch (_error) {
-    console.error('Download API error:', _error)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API documents/download/[documentId]',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Internal server error'
+    })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

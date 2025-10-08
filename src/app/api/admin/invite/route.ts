@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import { sendInvitationEmail, generateInvitationToken } from '@/lib/email'
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
+import { loggers, logError } from '@/lib/logger'
 
 // =================================================================
 // POST - Create new user invitation
@@ -92,7 +93,13 @@ export async function POST(_request: NextRequest) {
       .single()
 
     if (inviteError) {
-      console.error('Error creating invitation:', inviteError)
+      logError(inviteError, {
+        operation: 'create_invitation',
+        adminUserId: user.id,
+        adminEmail: user.email,
+        inviteeEmail: email.toLowerCase(),
+        inviteeRole: role
+      })
       return NextResponse.json(
         { success: false, error: 'Failed to create invitation' },
         { status: 500 }
@@ -132,15 +139,20 @@ export async function POST(_request: NextRequest) {
 
       // Extract the Clerk ticket from the invitation URL
       // Clerk returns a URL like: https://clerk.dev/v1/tickets/accept?ticket=JWT_TOKEN
-      console.log('🔍 Clerk invitation response:', JSON.stringify(clerkInvitation, null, 2))
+      loggers.security({
+        operation: 'clerk_invitation_created',
+        adminUserId: user.id,
+        inviteeEmail: email.toLowerCase(),
+        hasUrl: !!clerkInvitation.url
+      }, 'Processing Clerk invitation response')
 
       if (clerkInvitation.url) {
-        console.log('📍 Clerk invitation URL:', clerkInvitation.url)
+        loggers.security({
+          operation: 'extract_clerk_ticket',
+          inviteeEmail: email.toLowerCase()
+        }, 'Extracting Clerk ticket from invitation URL')
         const clerkUrl = new URL(clerkInvitation.url)
         clerkTicket = clerkUrl.searchParams.get('ticket') // Changed from __clerk_ticket to ticket
-        console.log('🎫 Extracted ticket:', clerkTicket)
-      } else {
-        console.log('⚠️  No URL in Clerk invitation response')
       }
 
       if (clerkTicket) {
@@ -149,14 +161,26 @@ export async function POST(_request: NextRequest) {
           .from('users')
           .update({ clerk_ticket: clerkTicket })
           .eq('id', invitedUser.id)
-        console.log(`✅ Clerk ticket stored in database for ${email}`)
-      } else {
-        console.log(`⚠️  No Clerk ticket to store for ${email}`)
+        loggers.security({
+          operation: 'store_clerk_ticket',
+          inviteeEmail: email.toLowerCase(),
+          ticketStored: true
+        }, 'Clerk ticket stored in database')
       }
 
-      console.log(`✅ Clerk invitation created for ${email}${clerkTicket ? ` with ticket: ${clerkTicket.substring(0, 16)}...` : ' (no ticket)'}`)
+      loggers.security({
+        operation: 'clerk_invitation_complete',
+        adminUserId: user.id,
+        adminEmail: user.email,
+        inviteeEmail: email.toLowerCase(),
+        hasTicket: !!clerkTicket
+      }, 'Clerk invitation created successfully')
     } catch (clerkError) {
-      console.error('❌ Failed to create Clerk invitation:', clerkError)
+      logError(clerkError, {
+        operation: 'create_clerk_invitation',
+        adminUserId: user.id,
+        inviteeEmail: email.toLowerCase()
+      })
       // Don't fail the whole request - user can still use the custom invitation link
       // if Clerk is switched to a different mode
     }
@@ -182,7 +206,15 @@ export async function POST(_request: NextRequest) {
       invitationUrl += `?__clerk_ticket=${clerkTicket}`
     }
 
-    console.log(`Admin ${user.email} invited ${email} as ${role} with token ${invitationToken} (email: ${sendEmail})`)
+    loggers.security({
+      operation: 'admin_invite_user',
+      adminUserId: user.id,
+      adminEmail: user.email,
+      inviteeEmail: email,
+      inviteeRole: role,
+      invitationToken,
+      emailSent: sendEmail
+    }, 'Admin invited new user')
 
     // =================================================================
     // SUCCESS RESPONSE - Return invitation success details
@@ -206,8 +238,14 @@ export async function POST(_request: NextRequest) {
       }
     })
 
-  } catch (_error) {
-    // =================================================================
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/invite',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Internal server error'
+    })
+// =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
     return NextResponse.json(
@@ -295,8 +333,14 @@ export async function GET(_request: NextRequest) {
       total: users.length
     })
 
-  } catch (_error) {
-    // =================================================================
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/invite',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Internal server error'
+    })
+// =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
     return NextResponse.json(
@@ -392,7 +436,13 @@ export async function DELETE(_request: NextRequest) {
       .eq('id', targetUserId)
 
     if (deleteError) {
-      console.error('Error deleting user:', deleteError)
+      logError(deleteError, {
+        operation: 'delete_user',
+        adminUserId: user.id,
+        adminEmail: user.email,
+        targetUserId,
+        targetEmail: targetUser.email
+      })
       return NextResponse.json(
         { success: false, error: 'Failed to delete user' },
         { status: 500 }
@@ -417,10 +467,20 @@ export async function DELETE(_request: NextRequest) {
 
         if (invitation) {
           await client.invitations.revokeInvitation(invitation.id)
-          console.log(`✅ Clerk invitation revoked for ${targetUser.email}`)
+          loggers.security({
+            operation: 'revoke_clerk_invitation',
+            adminUserId: user.id,
+            adminEmail: user.email,
+            targetEmail: targetUser.email,
+            clerkInvitationId: invitation.id
+          }, 'Clerk invitation revoked')
         }
       } catch (clerkError) {
-        console.error('❌ Failed to revoke Clerk invitation:', clerkError)
+        logError(clerkError, {
+          operation: 'revoke_clerk_invitation',
+          adminUserId: user.id,
+          targetEmail: targetUser.email
+        })
         // Don't fail the whole request - user is already deleted from database
       }
     }
@@ -429,7 +489,14 @@ export async function DELETE(_request: NextRequest) {
     // LOGGING - Log admin action for audit trail
     // =================================================================
     const actionType = isPendingInvitation ? 'retracted invitation for' : 'deleted user'
-    console.log(`Admin ${user.email} ${actionType} ${targetUser.email}`)
+    loggers.security({
+      operation: isPendingInvitation ? 'admin_retract_invitation' : 'admin_delete_user',
+      adminUserId: user.id,
+      adminEmail: user.email,
+      targetUserId,
+      targetEmail: targetUser.email,
+      wasPendingInvitation: isPendingInvitation
+    }, `Admin ${actionType} user`)
 
     // =================================================================
     // SUCCESS RESPONSE - Return deletion confirmation
@@ -446,8 +513,14 @@ export async function DELETE(_request: NextRequest) {
       }
     })
 
-  } catch (_error) {
-    // =================================================================
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/invite',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Internal server error'
+    })
+// =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
     return NextResponse.json(

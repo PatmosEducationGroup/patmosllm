@@ -18,6 +18,7 @@ import {
   cacheConversationHistory
 } from '@/lib/advanced-cache'
 import OpenAI from 'openai'
+import { logger, loggers, logError } from '@/lib/logger'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -43,12 +44,16 @@ interface CachedChatResponse {
 
 function getCachedChatResponse(question: string, userId: string): CachedChatResponse | null {
   const cacheKey = generateQuestionCacheKey(question, userId)
-  console.log(`Cache lookup: key="${cacheKey}"`)
+  loggers.cache({ cacheKey, userId: userId.substring(0, 8) }, 'Cache lookup')
   const result = advancedCache.get<CachedChatResponse>(
     CACHE_NAMESPACES.CHAT_HISTORY,
     cacheKey
   )
-  console.log(`Cache ${result ? 'HIT' : 'MISS'} for question: "${question.substring(0, 50)}..."`)
+  loggers.cache({
+    hit: !!result,
+    question: question.substring(0, 50),
+    userId: userId.substring(0, 8)
+  }, `Cache ${result ? 'HIT' : 'MISS'}`)
   return result
 }
 
@@ -136,7 +141,7 @@ export async function POST(_request: NextRequest) {
     // =================================================================
     // RATE LIMITING - Prevent abuse by limiting requests per user/IP
     // =================================================================
-    const identifier = getIdentifier(_request);
+    const identifier = await getIdentifier(_request);
     const rateLimitResult = chatRateLimit(identifier);
     
     if (!rateLimitResult.success) {
@@ -200,7 +205,12 @@ export async function POST(_request: NextRequest) {
     }
 
     const trimmedQuestion = question.trim()
-    console.log(`Processing question: "${trimmedQuestion}" for user: ${userEmail}`)
+    logger.info({
+      question: trimmedQuestion.substring(0, 100),
+      userEmail,
+      userId: currentUserId,
+      sessionId
+    }, 'Processing chat question')
 
     // =================================================================
     // PARALLEL BATCH 1: SESSION VALIDATION + CACHE CHECK + CONVERSATION HISTORY
@@ -250,7 +260,11 @@ export async function POST(_request: NextRequest) {
     // =================================================================
 
     if (cachedResponse) {
-      console.log(`Advanced cache hit! Returning instant response for user: ${currentUserId}`)
+      loggers.cache({
+        userId: currentUserId,
+        answerLength: cachedResponse.answer.length,
+        sourcesCount: cachedResponse.sources.length
+      }, 'Advanced cache hit - returning instant response')
 
       // Return cached response immediately as streaming format
       const encoder = new TextEncoder()
@@ -283,7 +297,7 @@ export async function POST(_request: NextRequest) {
       })
     }
 
-    console.log(`Cache miss for user ${currentUserId}, proceeding with full processing`)
+    loggers.cache({ userId: currentUserId }, 'Cache miss - proceeding with full processing')
 
     // =================================================================
     // STEP 1.6: CLARIFICATION ANALYSIS - Check if question needs clarification
@@ -307,7 +321,10 @@ export async function POST(_request: NextRequest) {
     // STEP 1: USE PRE-FETCHED CONVERSATION HISTORY FOR CONTEXTUAL SEARCH
     // Already fetched in parallel batch above for optimal performance
     // =================================================================
-    console.log(`Using pre-fetched conversation history (${conversationHistory.length} messages)`)
+    logger.info({
+      conversationCount: conversationHistory.length,
+      sessionId
+    }, 'Using pre-fetched conversation history')
 
     // Cache the history for future requests
     if (conversationHistory.length > 0) {
@@ -341,14 +358,23 @@ export async function POST(_request: NextRequest) {
     const queryIntent = intentResult.intent
     const documentFormat = intentResult.documentFormat
 
-    console.log(`🎯 Query Intent: ${queryIntent}${documentFormat ? ` (format: ${documentFormat})` : ''}`)
+    loggers.ai({
+      queryIntent,
+      documentFormat,
+      hasHistory: conversationHistory.length > 0
+    }, 'Query intent classified')
 
     if (queryIntent === 'transform_prior_artifact') {
-      console.log(`📋 Transform mode: Using last artifact (${lastArtifact.length} chars) as primary context`)
+      loggers.ai({
+        artifactLength: lastArtifact.length
+      }, 'Transform mode - using last artifact as primary context')
     }
 
     if (queryIntent === 'generate_document') {
-      console.log(`📄 Document generation mode: Creating ${documentFormat} from ${lastArtifact ? 'last artifact' : 'search results'}`)
+      loggers.ai({
+        documentFormat,
+        source: lastArtifact ? 'last_artifact' : 'search_results'
+      }, 'Document generation mode activated')
     }
 
     // Create contextual search query by combining current question with recent context
@@ -371,20 +397,23 @@ export async function POST(_request: NextRequest) {
 
       if (isFollowUpQuestion) {
         contextualSearchQuery = `${recentTopics} ${trimmedQuestion}`
-        console.log(`Enhanced search query with context: "${contextualSearchQuery}"`)
+        logger.info({
+          originalQuery: trimmedQuestion.substring(0, 50),
+          enhancedQuery: contextualSearchQuery.substring(0, 100)
+        }, 'Enhanced search query with context')
       }
     }
 
     // =================================================================
     // STEP 2: EMBEDDING GENERATION - Convert contextual query to vector
     // =================================================================
-    console.log('Creating question embedding...')
+    loggers.ai({ queryLength: contextualSearchQuery.length }, 'Creating question embedding')
     const questionEmbedding = await createEmbedding(contextualSearchQuery)
 
     // =================================================================
     // STEP 3: HYBRID SEARCH - Advanced semantic + keyword search with context
     // =================================================================
-    console.log('Starting intelligent hybrid search...')
+    loggers.performance({ userId: currentUserId }, 'Starting intelligent hybrid search')
     const searchResult = await intelligentSearch(
       contextualSearchQuery,
       questionEmbedding,
@@ -398,7 +427,12 @@ export async function POST(_request: NextRequest) {
     )
 
     const relevantChunks = searchResult.results
-    console.log(`Hybrid search completed: ${relevantChunks.length} chunks found using ${searchResult.searchStrategy} (confidence: ${(searchResult.confidence * 100).toFixed(1)}%)`)
+    loggers.performance({
+      chunksFound: relevantChunks.length,
+      searchStrategy: searchResult.searchStrategy,
+      confidence: searchResult.confidence,
+      userId: currentUserId
+    }, 'Hybrid search completed')
 
     // =================================================================
     // INTELLIGENT CLARIFICATION ANALYSIS - Check if clarification would improve results
@@ -417,8 +451,11 @@ export async function POST(_request: NextRequest) {
 
     // If clarification is beneficial, provide conversational guidance
     if (clarificationAnalysis.needsClarification && clarificationAnalysis.clarificationMessage) {
-      console.log(`🎯 INTELLIGENT CLARIFICATION TRIGGERED: ${clarificationAnalysis.clarificationType} (confidence: ${(clarificationAnalysis.confidence * 100).toFixed(1)}%)`)
-      console.log(`📊 Decision reasoning: ${clarificationAnalysis.reasoning}`)
+      loggers.ai({
+        clarificationType: clarificationAnalysis.clarificationType,
+        confidence: clarificationAnalysis.confidence,
+        reasoning: clarificationAnalysis.reasoning
+      }, 'Intelligent clarification triggered')
 
       // Generate enhanced conversational clarification
       const conversationalMessage = intelligentClarification.generateConversationalClarification(
@@ -477,7 +514,10 @@ export async function POST(_request: NextRequest) {
       const allowTransformBypass = queryIntent === 'transform_prior_artifact' && lastArtifact.trim()
 
       if (allowTransformBypass) {
-        console.log(`✅ TRANSFORM BYPASS: Zero search results but continuing with artifact (${lastArtifact.length} chars) for transformation`)
+        loggers.ai({
+          artifactLength: lastArtifact.length,
+          queryIntent
+        }, 'Transform bypass - continuing with artifact despite zero search results')
         // Don't return early - continue to generation with artifact as context
       } else {
         const noResultsMessage = searchResult.suggestions && searchResult.suggestions.length > 0
@@ -558,11 +598,11 @@ export async function POST(_request: NextRequest) {
       }))
 
     const uniqueDocuments = new Set(context.map(c => c.title)).size
-    console.log(`Using context from ${uniqueDocuments} different documents with ${context.length} total chunks`)
-
-    // DEBUG: Log the actual documents being used for complex queries
-    if (context.length < 8) {
-    }
+    loggers.performance({
+      uniqueDocuments,
+      totalChunks: context.length,
+      userId: currentUserId
+    }, 'Context prepared from documents')
 
     // =================================================================
     // NONSENSE QUERY CHECK - Early exit for gibberish/nonsense
@@ -570,7 +610,10 @@ export async function POST(_request: NextRequest) {
     // The clarificationAnalysis was already performed earlier in the route
     // Check if it indicates very low confidence (nonsense/gibberish)
     if (clarificationAnalysis.confidence <= 0.1) {
-      console.log(`🚫 NONSENSE/GIBBERISH DETECTED by intelligent system: "${trimmedQuestion}" (confidence: ${clarificationAnalysis.confidence}) - early exit`)
+      loggers.ai({
+        question: trimmedQuestion.substring(0, 50),
+        confidence: clarificationAnalysis.confidence
+      }, 'Nonsense/gibberish detected - early exit')
 
       const nonsenseMessage = "I don't have information about that. Please ask about topics related to the available documents."
 
@@ -639,7 +682,11 @@ export async function POST(_request: NextRequest) {
       // Synthesis queries naturally have lower scores (weaving multiple docs)
       confidenceThreshold = 0.35
       scoreThreshold = 0.40
-      console.log(`📊 Using relaxed thresholds for synthesis query (confidence: ${confidenceThreshold}, score: ${scoreThreshold})`)
+      loggers.ai({
+        confidenceThreshold,
+        scoreThreshold,
+        queryIntent
+      }, 'Using relaxed thresholds for synthesis query')
     }
 
     // Special intent overrides: Transform or document generation bypass quality checks
@@ -656,13 +703,25 @@ export async function POST(_request: NextRequest) {
     if (isLowQuality) {
       // Check if we should allow this anyway due to special intent override
       if (allowTransformOverride) {
-        console.log(`✅ TRANSFORM OVERRIDE: Allowing request despite low search confidence (${(searchResult.confidence * 100).toFixed(1)}%) - using last artifact (${lastArtifact.length} chars) + ${context.length} supporting chunks`)
+        loggers.ai({
+          confidence: searchResult.confidence,
+          artifactLength: lastArtifact.length,
+          supportingChunks: context.length
+        }, 'Transform override - allowing despite low search confidence')
         // Continue to generation (don't return early)
       } else if (allowDocumentOverride) {
-        console.log(`✅ DOCUMENT OVERRIDE: Allowing document generation despite low search confidence (${(searchResult.confidence * 100).toFixed(1)}%) - using ${lastArtifact ? 'last artifact (' + lastArtifact.length + ' chars)' : 'search results (' + context.length + ' chunks)'}`)
+        loggers.ai({
+          confidence: searchResult.confidence,
+          source: lastArtifact ? 'last_artifact' : 'search_results',
+          contentLength: lastArtifact ? lastArtifact.length : context.length
+        }, 'Document override - allowing generation despite low search confidence')
         // Continue to generation (don't return early)
       } else {
-      console.log(`🚫 LOW QUALITY RESULTS - Early exit triggered - context: ${context.length} chunks, confidence: ${(searchResult.confidence * 100).toFixed(1)}%, top score: ${topChunkScore.toFixed(3)} - providing brief response`)
+      loggers.ai({
+        contextChunks: context.length,
+        confidence: searchResult.confidence,
+        topScore: topChunkScore
+      }, 'Low quality results - early exit triggered')
 
       const lowConfidenceMessage = "I don't have information about that. Please ask about topics related to the available documents."
 
@@ -796,7 +855,9 @@ export async function POST(_request: NextRequest) {
         conversationHistoryText += `User: ${conv.question}\nAssistant: ${conv.answer}\n\n`
       })
       conversationHistoryText += '=== END CONVERSATION HISTORY ===\n'
-      console.log(`Including ${conversationHistory.length} previous messages for context`)
+      logger.info({
+        messageCount: conversationHistory.length
+      }, 'Including previous messages for context')
     }
 
     // =================================================================
@@ -862,7 +923,10 @@ ${contextDocuments}`
     let userMessage = trimmedQuestion
     if (queryIntent === 'transform_prior_artifact' && lastArtifact.trim()) {
       userMessage = `Previous assistant response to build upon:\n---\n${lastArtifact}\n---\n\nUser request: ${trimmedQuestion}`
-      console.log(`📝 Including previous artifact (${lastArtifact.length} chars) in user message for transformation`)
+      loggers.ai({
+        artifactLength: lastArtifact.length,
+        queryIntent
+      }, 'Including previous artifact in user message for transformation')
     }
 
     let stream
@@ -878,7 +942,11 @@ ${contextDocuments}`
         stream: true,
       })
     } catch (openaiError) {
-      console.error(`❌ OpenAI API call failed:`, openaiError)
+      logError(openaiError instanceof Error ? openaiError : new Error('OpenAI API call failed'), {
+        userId: currentUserId,
+        sessionId,
+        endpoint: 'chat'
+      })
       throw new Error(`OpenAI API failed: ${openaiError instanceof Error ? openaiError.message : ''}`)
     }
 
@@ -929,7 +997,10 @@ ${contextDocuments}`
           // =================================================================
           if (queryIntent === 'generate_document' && documentFormat && fullResponse.trim()) {
             try {
-              console.log(`📄 Generating ${documentFormat.toUpperCase()} document...`)
+              loggers.ai({
+                documentFormat,
+                responseLength: fullResponse.length
+              }, `Generating ${documentFormat.toUpperCase()} document`)
 
               const { generatePDF, generatePPTX, generateXLSX } = await import('@/lib/document-generator')
               const { storeTempFile, getDownloadUrl } = await import('@/lib/temp-file-storage')
@@ -954,9 +1025,12 @@ ${contextDocuments}`
 
               // Prepare metadata for document generation
               const contentToExport = lastArtifact && lastArtifact.trim() ? lastArtifact : fullResponse
-              console.log(`📋 Content source: ${lastArtifact && lastArtifact.trim() ? 'lastArtifact' : 'fullResponse'} (${contentToExport.length} chars)`)
+              loggers.ai({
+                contentSource: lastArtifact && lastArtifact.trim() ? 'lastArtifact' : 'fullResponse',
+                contentLength: contentToExport.length
+              }, 'Document content source selected')
               const smartTitle = generateSmartTitle(contentToExport)
-              console.log(`📝 Generated title: "${smartTitle}"`)
+              loggers.ai({ title: smartTitle }, 'Generated document title')
 
               const documentMetadata = {
                 title: smartTitle,
@@ -1003,7 +1077,11 @@ ${contextDocuments}`
               const fileId = await storeTempFile(buffer, documentFormat, filename)
               const downloadUrl = getDownloadUrl(fileId)
 
-              console.log(`✅ Document generated: ${fileId} (${buffer.length} bytes)`)
+              loggers.ai({
+                fileId,
+                format: documentFormat,
+                size: buffer.length
+              }, 'Document generated successfully')
 
               // Send document metadata to frontend
               const documentMetadataPayload = {
@@ -1014,11 +1092,19 @@ ${contextDocuments}`
                 size: buffer.length,
                 expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString()
               }
-              console.log(`📤 STREAMING DOCUMENT METADATA TO FRONTEND:`, JSON.stringify(documentMetadataPayload))
+              loggers.ai({
+                format: documentFormat,
+                fileId,
+                size: buffer.length
+              }, 'Streaming document metadata to frontend')
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(documentMetadataPayload)}\n\n`))
 
             } catch (docError) {
-              console.error(`❌ Document generation failed:`, docError)
+              logError(docError instanceof Error ? docError : new Error('Document generation failed'), {
+                userId: currentUserId,
+                sessionId,
+                documentFormat
+              })
               // Send error to frontend but don't fail the entire request
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({
                 type: 'document_error',
@@ -1033,19 +1119,29 @@ ${contextDocuments}`
             fullResponse: fullResponse
           })}\n\n`))
 
-        } catch (_error) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+        } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API chat',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+controller.enqueue(encoder.encode(`data: ${JSON.stringify({
             type: 'error',
             error: 'Failed to generate response'
           })}\n\n`))
-        } finally {
+  } finally {
           controller.close()
           
           // ✅ PERFECT CACHE TIMING - Only cache after streaming is 100% complete
           if (streamingComplete && fullResponse.trim()) {
             try {
               setCachedChatResponse(trimmedQuestion, currentUserId, fullResponse, sources)
-              console.log(`✅ ADVANCED CACHE: Stored complete response (${fullResponse.length} chars) for user ${currentUserId}`)
+              loggers.cache({
+                userId: currentUserId,
+                responseLength: fullResponse.length,
+                sourcesCount: sources.length
+              }, 'Advanced cache - stored complete response')
               
               // Save conversation to database using connection pool
               let conversationId: string | null = null
@@ -1063,7 +1159,11 @@ ${contextDocuments}`
                   .single()
 
                 if (insertError) {
-                  console.error('Error saving conversation:', insertError)
+                  logError(insertError, {
+                    userId: currentUserId,
+                    sessionId,
+                    operation: 'save_conversation'
+                  })
                   throw insertError
                 }
 
@@ -1076,7 +1176,11 @@ ${contextDocuments}`
                   .eq('id', sessionId)
 
                 if (updateError) {
-                  console.error('Error updating session:', updateError)
+                  logError(updateError, {
+                    userId: currentUserId,
+                    sessionId,
+                    operation: 'update_session_timestamp'
+                  })
                 }
               })
 
@@ -1105,7 +1209,11 @@ ${contextDocuments}`
                   true // Had search results
                 )
 
-                console.log(`✅ MEMORY: Updated user context and logged conversation for user ${currentUserId}`)
+                logger.info({
+                  userId: currentUserId,
+                  sessionId,
+                  conversationId
+                }, 'Memory system - updated user context and logged conversation')
               } catch (_memoryError) {
                 // Don't throw - memory errors shouldn't break the chat experience
               }
@@ -1126,8 +1234,12 @@ ${contextDocuments}`
                 }
               })
 
-              console.log(`Successfully saved streaming conversation for user ${currentUserId}`)
-              
+              loggers.database({
+                userId: currentUserId,
+                conversationId,
+                responseLength: fullResponse.length
+              }, 'Successfully saved streaming conversation')
+
             } catch (_cacheError) {
             }
           }
@@ -1142,8 +1254,14 @@ ${contextDocuments}`
         'Connection': 'keep-alive'
       }
     })
-  } catch (_error) {
-    return new Response(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API chat',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+return new Response(
       JSON.stringify({
         success: false,
         error: 'Chat request failed'

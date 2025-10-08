@@ -4,38 +4,53 @@ import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import { sendInvitationEmail } from '@/lib/email'
+import { loggers, logError } from '@/lib/logger'
 
 export async function POST(_request: NextRequest) {
-  console.log('🔄 Resend invitation endpoint called')
+  loggers.security({
+    operation: 'resend_invitation_request',
+    endpoint: '/api/admin/invite/resend'
+  }, 'Resend invitation endpoint called')
+
   try {
     // Check authentication
     const { userId } = await auth()
     if (!userId) {
-      console.log('❌ Authentication failed')
+      loggers.security({
+        operation: 'resend_invitation_auth_failed',
+        reason: 'no_user_id'
+      }, 'Authentication failed')
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       )
     }
-    console.log('✅ Authentication passed:', userId)
 
     // Verify admin permissions
     const user = await getCurrentUser()
-    console.log('Current user:', user?.email, 'Role:', user?.role)
     if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
-      console.log('❌ Admin access denied')
+      loggers.security({
+        operation: 'resend_invitation_auth_failed',
+        userId,
+        userEmail: user?.email,
+        userRole: user?.role,
+        reason: 'insufficient_permissions'
+      }, 'Admin access denied')
       return NextResponse.json(
         { success: false, error: 'Admin access required' },
         { status: 403 }
       )
     }
-    console.log('✅ Admin access granted')
 
     const { userId: targetUserId } = await _request.json()
-    console.log('Target user ID:', targetUserId)
 
     if (!targetUserId) {
-      console.log('❌ No user ID provided')
+      loggers.security({
+        operation: 'resend_invitation_validation_failed',
+        adminUserId: user.id,
+        adminEmail: user.email,
+        reason: 'missing_target_user_id'
+      }, 'No user ID provided')
       return NextResponse.json(
         { success: false, error: 'User ID required' },
         { status: 400 }
@@ -43,7 +58,12 @@ export async function POST(_request: NextRequest) {
     }
 
     // Get the target user
-    console.log('Fetching target user from database...')
+    loggers.database({
+      operation: 'fetch_target_user',
+      adminUserId: user.id,
+      targetUserId
+    }, 'Fetching target user from database')
+
     const { data: targetUser, error: fetchError } = await supabaseAdmin
       .from('users')
       .select('id, email, name, role, clerk_id, invitation_token, invitation_expires_at, clerk_ticket')
@@ -51,20 +71,35 @@ export async function POST(_request: NextRequest) {
       .single()
 
     if (fetchError || !targetUser) {
-      console.error('❌ Error fetching user:', fetchError)
+      logError(fetchError || new Error('User not found'), {
+        operation: 'fetch_target_user',
+        adminUserId: user.id,
+        targetUserId
+      })
       return NextResponse.json(
         { success: false, error: 'User not found' },
         { status: 404 }
       )
     }
-    console.log('✅ Found user:', targetUser.email)
+
+    loggers.database({
+      operation: 'target_user_found',
+      adminUserId: user.id,
+      targetUserId,
+      targetEmail: targetUser.email
+    }, 'Target user found')
 
     // Check if this is a pending invitation
     const isPendingInvitation = targetUser.clerk_id.startsWith('invited_')
-    console.log('Is pending invitation:', isPendingInvitation)
 
     if (!isPendingInvitation) {
-      console.log('❌ User already activated')
+      loggers.security({
+        operation: 'resend_invitation_failed',
+        adminUserId: user.id,
+        targetUserId,
+        targetEmail: targetUser.email,
+        reason: 'user_already_activated'
+      }, 'Cannot resend - user already activated')
       return NextResponse.json(
         { success: false, error: 'User has already activated their account' },
         { status: 400 }
@@ -73,10 +108,15 @@ export async function POST(_request: NextRequest) {
 
     // Use existing invitation token, just extend the expiry
     const existingToken = targetUser.invitation_token
-    console.log('Existing token:', existingToken ? 'Present' : 'Missing')
 
     if (!existingToken) {
-      console.error('❌ Missing invitation token for user:', targetUser.email)
+      loggers.security({
+        operation: 'resend_invitation_failed',
+        adminUserId: user.id,
+        targetUserId,
+        targetEmail: targetUser.email,
+        reason: 'missing_invitation_token'
+      }, 'Missing invitation token')
       return NextResponse.json(
         { success: false, error: 'No invitation token found for this user' },
         { status: 400 }
@@ -84,7 +124,6 @@ export async function POST(_request: NextRequest) {
     }
 
     const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
-    console.log('Updating expiry to:', newExpiresAt.toISOString())
 
     // Only update the expiration date, keep the same token
     const { error: updateError } = await supabaseAdmin
@@ -96,16 +135,27 @@ export async function POST(_request: NextRequest) {
       .eq('id', targetUserId)
 
     if (updateError) {
-      console.error('❌ Error updating invitation expiry:', updateError)
+      logError(updateError, {
+        operation: 'update_invitation_expiry',
+        adminUserId: user.id,
+        targetUserId,
+        targetEmail: targetUser.email
+      })
       return NextResponse.json(
         { success: false, error: 'Failed to update invitation' },
         { status: 500 }
       )
     }
-    console.log('✅ Expiry updated successfully')
+
+    loggers.database({
+      operation: 'update_invitation_expiry',
+      adminUserId: user.id,
+      targetUserId,
+      targetEmail: targetUser.email,
+      newExpiresAt: newExpiresAt.toISOString()
+    }, 'Invitation expiry updated successfully')
 
     // Resend invitation email with the existing token and clerk ticket
-    console.log('Sending invitation email...')
     const emailResult = await sendInvitationEmail(
       targetUser.email,
       targetUser.name || '',
@@ -114,12 +164,22 @@ export async function POST(_request: NextRequest) {
       existingToken,
       targetUser.clerk_ticket
     )
-    console.log('Email result:', emailResult)
 
     if (!emailResult.success) {
-      console.warn('⚠️ Email failed but invitation was extended:', emailResult.error)
+      loggers.security({
+        operation: 'resend_invitation_email_failed',
+        adminUserId: user.id,
+        targetUserId,
+        targetEmail: targetUser.email,
+        error: emailResult.error
+      }, 'Email failed but invitation was extended')
     } else {
-      console.log('✅ Email sent successfully')
+      loggers.security({
+        operation: 'resend_invitation_email_sent',
+        adminUserId: user.id,
+        targetUserId,
+        targetEmail: targetUser.email
+      }, 'Invitation email sent successfully')
     }
 
     let invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${existingToken}`
@@ -127,7 +187,15 @@ export async function POST(_request: NextRequest) {
       invitationUrl += `?__clerk_ticket=${targetUser.clerk_ticket}`
     }
 
-    console.log(`Admin ${user.email} resent invitation to ${targetUser.email} (extended expiry by 7 days, email: ${emailResult.success})`)
+    loggers.security({
+      operation: 'admin_resend_invitation',
+      adminUserId: user.id,
+      adminEmail: user.email,
+      targetUserId,
+      targetEmail: targetUser.email,
+      emailSent: emailResult.success,
+      expiryExtendedDays: 7
+    }, 'Admin resent invitation')
 
     return NextResponse.json({
       success: true,
@@ -144,8 +212,13 @@ export async function POST(_request: NextRequest) {
       }
     })
 
-  } catch (_error) {
-    console.error('Error in resend invitation:', _error)
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/invite/resend',
+      phase: 'request_handling',
+      severity: 'high',
+      errorContext: 'Internal server error'
+    })
     return NextResponse.json(
       {
         success: false,

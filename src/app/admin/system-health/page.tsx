@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { logError } from '@/lib/logger'
 import { useAuth } from '@clerk/nextjs'
 import AdminNavbar from '@/components/AdminNavbar'
 import {
@@ -121,9 +122,15 @@ export default function SystemHealthPage() {
       } else {
         setError(data.error || 'Failed to fetch system health')
       }
-    } catch (_error) {
-      setError('Failed to load system health')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to load system health')
+  } finally {
       setLoading(false)
     }
   }

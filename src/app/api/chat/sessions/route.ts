@@ -7,6 +7,7 @@ import {
   CACHE_NAMESPACES,
   CACHE_TTL
 } from '@/lib/advanced-cache'
+import { loggers, logError } from '@/lib/logger'
 
 // Get all chat sessions for user
 export async function GET(_request: NextRequest) {
@@ -35,7 +36,7 @@ export async function GET(_request: NextRequest) {
     )
 
     if (cachedSessions) {
-      console.log(`Cache hit for user sessions: ${user.id}`)
+      loggers.cache({ userId: user.id, sessionCount: cachedSessions.length, hit: true }, 'Cache hit for user sessions')
       return NextResponse.json({
         success: true,
         sessions: cachedSessions,
@@ -80,18 +81,24 @@ export async function GET(_request: NextRequest) {
       CACHE_TTL.SHORT // 5 minutes for session lists
     )
 
-    console.log(`Cached user sessions: ${user.id} (${formattedSessions.length} sessions)`)
+    loggers.cache({ userId: user.id, sessionCount: formattedSessions.length, operation: 'set' }, 'Cached user sessions')
 
     return NextResponse.json({
       success: true,
       sessions: formattedSessions
     })
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Failed to fetch chat sessions'), {
+      operation: 'GET /api/chat/sessions',
+      phase: 'session_retrieval',
+      severity: 'high',
+      errorContext: 'Failed to retrieve user chat sessions from database'
+    })
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to fetch sessions' 
+      {
+        success: false,
+        error: 'Failed to fetch sessions'
       },
       { status: 500 }
     )
@@ -138,7 +145,7 @@ export async function POST(_request: NextRequest) {
     // Invalidate cached sessions since we created a new one
     const cacheKey = `sessions-${user.id}`
     advancedCache.delete(CACHE_NAMESPACES.USER_SESSIONS, cacheKey)
-    console.log(`Cache invalidated for user sessions: ${user.id}`)
+    loggers.cache({ userId: user.id, operation: 'invalidate', reason: 'new_session' }, 'Cache invalidated for user sessions')
 
     return NextResponse.json({
       success: true,
@@ -150,11 +157,17 @@ export async function POST(_request: NextRequest) {
       }
     })
 
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Failed to create chat session'), {
+      operation: 'POST /api/chat/sessions',
+      phase: 'session_creation',
+      severity: 'high',
+      errorContext: 'Failed to create new chat session in database'
+    })
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to create session' 
+      {
+        success: false,
+        error: 'Failed to create session'
       },
       { status: 500 }
     )

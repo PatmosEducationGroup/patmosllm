@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { logError } from '@/lib/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { SignUp } from '@clerk/nextjs'
 import { Button } from '@/components/ui/Button'
@@ -50,9 +51,15 @@ export default function InvitePage() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to validate invitation')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to validate invitation')
+  } finally {
       setLoading(false)
     }
   }

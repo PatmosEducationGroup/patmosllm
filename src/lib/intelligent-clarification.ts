@@ -1,6 +1,7 @@
 // Intelligent Question Clarification System
 // Analyzes actual search results to determine if clarification would improve answer quality
 
+import { loggers } from '@/lib/logger'
 import type { SearchResult } from './hybrid-search'
 
 // =================================================================
@@ -59,12 +60,21 @@ export class IntelligentClarificationSystem {
     const queryForAnalysis = originalQuery || query
     const actualSearchQuery = enhancedQuery || query
 
-    console.log(`🔍 CLARIFICATION ANALYSIS: original="${queryForAnalysis}", enhanced="${actualSearchQuery}", wasEnhanced=${wasQueryEnhanced}`);
+    loggers.ai({
+      originalQuery: queryForAnalysis,
+      enhancedQuery: actualSearchQuery,
+      wasQueryEnhanced,
+      resultCount: searchResults.length
+    }, 'Starting clarification analysis');
 
     // Pre-filter: Quick deterministic checks for obvious garbage (OpenAI-inspired)
     const preFilterResult = this.preFilterQuery(query)
     if (preFilterResult.isRejected) {
-      console.log(`🚫 PRE-FILTER REJECTION: "${query}" - ${preFilterResult.reason}`)
+      loggers.ai({
+        query,
+        rejectionReason: preFilterResult.reason,
+        confidence: 0.01
+      }, 'Pre-filter rejection - query appears to be garbage');
       return {
         needsClarification: false,
         confidence: 0.01, // Extremely low confidence for garbage
@@ -86,7 +96,11 @@ export class IntelligentClarificationSystem {
     // Check for obvious gibberish patterns first - use original query
     const isGibberish = this.detectGibberish(queryForAnalysis)
     if (isGibberish) {
-      console.log(`🚫 GIBBERISH DETECTED: "${queryForAnalysis}" - obvious keyboard mashing`)
+      loggers.ai({
+        query: queryForAnalysis,
+        detectionType: 'gibberish',
+        confidence: 0.01
+      }, 'Gibberish detected - obvious keyboard mashing');
       return {
         needsClarification: false,
         confidence: 0.01, // Extremely low confidence for gibberish
@@ -100,7 +114,14 @@ export class IntelligentClarificationSystem {
 
     // Check for nonsensical queries using coverage metrics
     if (coverageAnalysis.isNonsensical) {
-      console.log(`🚫 NONSENSICAL QUERY DETECTED: "${query}" - ${coverageAnalysis.reasoning}`)
+      loggers.ai({
+        query,
+        detectionType: 'nonsensical',
+        coverage: coverageAnalysis.coverage,
+        topScore: coverageAnalysis.topScore,
+        reasoning: coverageAnalysis.reasoning,
+        confidence: 0.05
+      }, 'Nonsensical query detected via coverage analysis');
       return {
         needsClarification: false,
         confidence: 0.05, // Very low confidence indicates poor results
@@ -112,7 +133,12 @@ export class IntelligentClarificationSystem {
     // Check if this is a clarification follow-up
     const isFollowUp = this.isClarificationFollowUp(query, recentConversations)
     if (isFollowUp) {
-      console.log(`🎯 CLARIFICATION FOLLOW-UP DETECTED: "${query}" - proceeding directly to answer`)
+      loggers.ai({
+        query,
+        detectionType: 'clarification_followup',
+        confidence: Math.max(searchConfidence, 0.7),
+        recentConversationCount: recentConversations?.length || 0
+      }, 'Clarification follow-up detected - proceeding directly to answer');
       return {
         needsClarification: false,
         confidence: Math.max(searchConfidence, 0.7),
@@ -762,10 +788,20 @@ export class IntelligentClarificationSystem {
 
     // Don't clarify very specific queries that already seem focused
     const isQuerySpecific = this.isQuerySpecific(query)
-    console.log(`🔍 Query specificity check: "${query}" → specific: ${isQuerySpecific}, searchConfidence: ${searchConfidence.toFixed(3)}`)
+    loggers.ai({
+      query,
+      isQuerySpecific,
+      searchConfidence,
+      decision: 'specificity_check'
+    }, 'Evaluating query specificity');
 
     if (isQuerySpecific && searchConfidence > 0.6) {
-      console.log(`✅ SKIPPING CLARIFICATION: Query is specific enough (${searchConfidence.toFixed(3)} confidence)`)
+      loggers.ai({
+        query,
+        confidence: searchConfidence,
+        decision: 'skip_clarification',
+        reason: 'query_specific'
+      }, 'Skipping clarification - query is specific enough');
       return {
         needsClarification: false,
         confidence: searchConfidence,
@@ -780,17 +816,36 @@ export class IntelligentClarificationSystem {
         // DISABLED: Content diversity should ALWAYS trigger synthesis, not clarification
         // Multiple themes from different documents = perfect synthesis opportunity!
         // The system should combine insights from all themes into one comprehensive answer
-        console.log(`❌ Content diversity clarification DISABLED - multiple themes = synthesis opportunity (${documentDiversityAnalysis.contentThemes?.length || 0} themes, ${searchConfidence.toFixed(3)} confidence)`)
+        loggers.ai({
+          decision: 'content_diversity_disabled',
+          themeCount: documentDiversityAnalysis.contentThemes?.length || 0,
+          confidence: searchConfidence,
+          reasoning: 'Multiple themes = synthesis opportunity, not clarification'
+        }, 'Content diversity clarification disabled - synthesis approach preferred');
         break
 
       case 'topic_clustering':
         // Only clarify if we have clear distinct aspects AND it's not already specific
-        console.log(`📊 Topic clustering: confidence ${bestOpportunity.confidence.toFixed(3)}, resultCount ${resultCount}, thresholds: conf>0.75, results>=12`)
+        loggers.ai({
+          decision: 'topic_clustering_evaluation',
+          confidence: bestOpportunity.confidence,
+          resultCount,
+          thresholds: { confidence: 0.75, results: 12 }
+        }, 'Evaluating topic clustering clarification');
         if (bestOpportunity.confidence > 0.75 && resultCount >= 12) {
-          console.log(`✅ TOPIC CLUSTERING CLARIFICATION APPROVED`)
+          loggers.ai({
+            decision: 'topic_clustering_approved',
+            confidence: bestOpportunity.confidence,
+            resultCount
+          }, 'Topic clustering clarification approved');
           return bestOpportunity
         }
-        console.log(`❌ Topic clustering clarification rejected (doesn't meet thresholds)`)
+        loggers.ai({
+          decision: 'topic_clustering_rejected',
+          confidence: bestOpportunity.confidence,
+          resultCount,
+          reason: 'does_not_meet_thresholds'
+        }, 'Topic clustering clarification rejected');
         break
 
       case 'low_confidence_broad':
@@ -809,7 +864,12 @@ export class IntelligentClarificationSystem {
     }
 
     // Default: don't clarify if we don't meet the specific thresholds
-    console.log(`✅ SKIPPING CLARIFICATION: No opportunities met quality thresholds`)
+    loggers.ai({
+      decision: 'skip_clarification',
+      reason: 'no_quality_thresholds_met',
+      opportunityCount: clarificationOpportunities.length,
+      confidence: Math.max(searchConfidence, 0.6)
+    }, 'Skipping clarification - no opportunities met quality thresholds');
     return {
       needsClarification: false,
       confidence: Math.max(searchConfidence, 0.6),
@@ -974,7 +1034,11 @@ export class IntelligentClarificationSystem {
     const isContextualFollowUp = contextualFollowUpPatterns.some(pattern => pattern.test(queryLower))
 
     if (isContextualFollowUp) {
-      console.log(`✅ CONTEXTUAL FOLLOW-UP detected: "${query}" - likely refers to previous topic`)
+      loggers.ai({
+        query,
+        detectionType: 'contextual_followup',
+        patterns: 'pronouns_or_conjunctions'
+      }, 'Contextual follow-up detected - likely refers to previous topic');
       return true
     }
 
@@ -1000,7 +1064,11 @@ export class IntelligentClarificationSystem {
       return false
     }
 
-    console.log(`🔍 Recent clarification detected in answer: "${mostRecentAnswer.substring(0, 100)}..."`)
+    loggers.ai({
+      query,
+      detectionType: 'recent_clarification',
+      answerPreview: mostRecentAnswer.substring(0, 100)
+    }, 'Recent clarification detected in conversation history');
 
     // Define clarification response patterns based on natural themes
     const clarificationResponseTerms = [
@@ -1025,7 +1093,11 @@ export class IntelligentClarificationSystem {
     })
 
     if (isFollowUpTerm) {
-      console.log(`✅ Clarification follow-up confirmed: "${query}" matches response term`)
+      loggers.ai({
+        query,
+        detectionType: 'clarification_followup_confirmed',
+        matchType: 'response_term'
+      }, 'Clarification follow-up confirmed - matches response term');
       return true
     }
 
@@ -1033,11 +1105,20 @@ export class IntelligentClarificationSystem {
     const isShortFocusedQuery = query.split(' ').length <= 3 && query.length <= 25
 
     if (isShortFocusedQuery && wasRecentClarification) {
-      console.log(`✅ Short focused query after clarification: "${query}"`)
+      loggers.ai({
+        query,
+        detectionType: 'short_focused_query',
+        wordCount: query.split(' ').length,
+        charLength: query.length
+      }, 'Short focused query after clarification detected');
       return true
     }
 
-    console.log(`❌ Not a clarification follow-up: "${query}"`)
+    loggers.ai({
+      query,
+      detectionType: 'not_followup',
+      wasRecentClarification
+    }, 'Not a clarification follow-up');
     return false
   }
 
@@ -1110,7 +1191,15 @@ export class IntelligentClarificationSystem {
       const singleWord = words[0].toLowerCase()
       const corpusRelevance = this.analyzeCorpusRelevance(singleWord, searchResults)
 
-      console.log(`📊 Single word analysis: "${singleWord}" - coverage: ${coverage}, topScore: ${topScore.toFixed(3)}, corpusRelevance: ${corpusRelevance.relevanceScore.toFixed(3)}, wasEnhanced: ${wasQueryEnhanced}`)
+      loggers.ai({
+        query: singleWord,
+        analysisType: 'single_word',
+        coverage,
+        topScore,
+        corpusRelevanceScore: corpusRelevance.relevanceScore,
+        wasEnhanced: wasQueryEnhanced,
+        isCorpusRelevant: corpusRelevance.isCorpusRelevant
+      }, 'Single word coverage analysis');
 
       // If the query was enhanced but the original is a single word with poor results,
       // be more aggressive about calling it nonsensical
@@ -1139,9 +1228,21 @@ export class IntelligentClarificationSystem {
 
       // Even if basic thresholds pass, check if it's a meaningful word in our corpus
       if (corpusRelevance.isCorpusRelevant) {
-        console.log(`✅ Single word "${singleWord}" is corpus-relevant: ${corpusRelevance.reasoning}`)
+        loggers.ai({
+          query: singleWord,
+          analysisType: 'corpus_relevance',
+          isRelevant: true,
+          reasoning: corpusRelevance.reasoning
+        }, 'Single word is corpus-relevant');
       } else if (coverage >= minCoverage || topScore >= 0.5) {
-        console.log(`⚠️ Single word "${singleWord}" passes basic thresholds but low corpus relevance: ${corpusRelevance.reasoning}`)
+        loggers.ai({
+          query: singleWord,
+          analysisType: 'corpus_relevance',
+          warning: 'passes_thresholds_but_low_relevance',
+          coverage,
+          topScore,
+          reasoning: corpusRelevance.reasoning
+        }, 'Single word passes basic thresholds but has low corpus relevance');
       }
     }
 

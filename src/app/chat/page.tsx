@@ -4,6 +4,7 @@
 // IMPORTS - All necessary dependencies for the modern chat interface
 // =================================================================
 import { useState, useRef, useEffect, Suspense } from 'react'
+import { logError } from '@/lib/logger'
 import { useAuth, UserButton } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -25,6 +26,7 @@ import {
 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { ToastProvider, useToastActions } from '@/components/ui/Toast'
+import { ChatErrorBoundary } from '@/components/ErrorBoundary'
 
 const ensureHttps = (url: string): string => {
   if (!url) return url
@@ -197,10 +199,15 @@ function ChatPageContent() {
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-    } catch (_error) {
-      console.error('Download failed:', _error)
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
       alert('Failed to download document. Please try again.')
-    }
+  }
   }
 
   // =================================================================
@@ -355,10 +362,16 @@ function ChatPageContent() {
         showErrorToast('There was an error sending your feedback. Please try again.')
         _setFeedbackSubmitStatus('error')
       }
-    } catch (_error) {
-      showErrorToast('There was an error sending your feedback. Please try again.')
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+showErrorToast('There was an error sending your feedback. Please try again.')
       _setFeedbackSubmitStatus('error')
-    } finally {
+  } finally {
       setIsSubmittingFeedback(false)
     }
   }
@@ -397,9 +410,15 @@ function ChatPageContent() {
       } else {
         showErrorToast(data.error || 'Failed to send message')
       }
-    } catch (_error) {
-      showErrorToast('Failed to send contact message')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+showErrorToast('Failed to send contact message')
+  } finally {
       setSendingContact(false)
     }
   }
@@ -418,9 +437,15 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to load chat sessions')
-    } finally {
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to load chat sessions')
+  } finally {
       setLoadingSessions(false)
     }
   }
@@ -457,9 +482,15 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to load conversation')
-    }
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to load conversation')
+  }
   }
 
   const createNewSession = async (title?: string) => {
@@ -484,9 +515,15 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to create new chat')
-    }
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to create new chat')
+  }
   }
 
   const updateSessionTitle = async (sessionId: string, newTitle: string) => {
@@ -503,9 +540,15 @@ function ChatPageContent() {
         setCurrentSessionTitle(newTitle)
         loadSessions()
       }
-    } catch (_error) {
-      // Silent error handling for session title updates
-    }
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+// Silent error handling for session title updates
+  }
   }
 
   const deleteSession = async (sessionId: string) => {
@@ -531,9 +574,15 @@ function ChatPageContent() {
       } else {
         setError(data.error)
       }
-    } catch (_error) {
-      setError('Failed to delete conversation')
-    }
+    } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to delete conversation')
+  }
   }
 
   // =================================================================
@@ -563,10 +612,16 @@ function ChatPageContent() {
           setError('Failed to create chat session. Please try again.')
           return
         }
-      } catch (_error) {
-        setError('Failed to create chat session. Please try again.')
+      } catch (error) {
+    logError(error instanceof Error ? error : new Error('Operation failed'), {
+      operation: 'API route',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Operation failed'
+    })
+setError('Failed to create chat session. Please try again.')
         return
-      }
+  }
     }
 
     const userMessage: Message = {
@@ -1025,7 +1080,7 @@ function ChatPageContent() {
                     <div className="text-xs text-neutral-600">Interact. Learn. Multiply.</div>
                   </div>
                 </div>
-                <UserButton afterSignOutUrl="/" />
+                <UserButton />
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -1093,7 +1148,7 @@ function ChatPageContent() {
 
               {/* Mobile User Button */}
               <div className="min-w-[48px] min-h-[48px] flex items-center justify-center">
-                <UserButton afterSignOutUrl="/" />
+                <UserButton />
               </div>
             </div>
           </div>
@@ -1583,14 +1638,16 @@ function ChatPageContent() {
 
 export default function ModernChatPage() {
   return (
-    <ToastProvider>
-      <Suspense fallback={
-        <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
-          <div className="text-neutral-600">Loading chat...</div>
-        </div>
-      }>
-        <ChatPageContent />
-      </Suspense>
-    </ToastProvider>
+    <ChatErrorBoundary>
+      <ToastProvider>
+        <Suspense fallback={
+          <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+            <div className="text-neutral-600">Loading chat...</div>
+          </div>
+        }>
+          <ChatPageContent />
+        </Suspense>
+      </ToastProvider>
+    </ChatErrorBoundary>
   )
 }

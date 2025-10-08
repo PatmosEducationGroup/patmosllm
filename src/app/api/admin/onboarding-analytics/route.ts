@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
+import { logError } from '@/lib/logger'
 
 export async function GET(_request: NextRequest) {
   try {
@@ -27,7 +28,12 @@ export async function GET(_request: NextRequest) {
       .order('user_created_at', { ascending: false })
 
     if (statusError) {
-      console.error('Error fetching onboarding status:', statusError)
+      logError(statusError, {
+        operation: 'fetch_onboarding_status',
+        adminUserId: user.id,
+        adminEmail: user.email,
+        table: 'user_onboarding_status'
+      })
       return NextResponse.json({ success: false, error: 'Failed to fetch onboarding data' }, { status: 500 })
     }
 
@@ -163,8 +169,14 @@ export async function GET(_request: NextRequest) {
       }))
     })
 
-  } catch (_error) {
-    // =================================================================
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API admin/onboarding-analytics',
+      phase: 'request_handling',
+      severity: 'medium',
+      errorContext: 'Internal server error'
+    })
+// =================================================================
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })

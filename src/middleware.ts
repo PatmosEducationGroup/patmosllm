@@ -13,6 +13,15 @@ const isProtectedRoute = createRouteMatcher([
 ])
 
 export default clerkMiddleware(async (auth, req) => {
+  // Quick Win: Request size limit (prevent DoS attacks)
+  const contentLength = req.headers.get('content-length')
+  if (contentLength && parseInt(contentLength) > 10_000_000) { // 10MB limit for API requests
+    return new Response(JSON.stringify({ error: 'Payload too large' }), {
+      status: 413,
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+
   // Create response (either from auth protection or next)
   let response
 

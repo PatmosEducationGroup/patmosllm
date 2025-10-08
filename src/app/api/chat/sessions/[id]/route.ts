@@ -8,6 +8,7 @@ import {
   getCachedConversationHistory,
   cacheConversationHistory
 } from '@/lib/advanced-cache'
+import {loggers, logError} from '@/lib/logger'
 
 // Get conversation history for a specific session
 export async function GET(
@@ -52,7 +53,7 @@ export async function GET(
     // Check cache for conversation history first
     const cachedConversations = getCachedConversationHistory(sessionId)
     if (cachedConversations) {
-      console.log(`Cache hit for conversation history: ${sessionId}`)
+      loggers.cache({ sessionId, userId: user.id, conversationCount: cachedConversations.length, hit: true }, 'Cache hit for conversation history')
       return NextResponse.json({
         success: true,
         session: {
@@ -73,7 +74,7 @@ export async function GET(
       .order('created_at', { ascending: true })
 
     if (conversationsError) {
-      console.error('Error fetching conversations:', conversationsError)
+      loggers.database({ sessionId, userId: user.id, error: conversationsError.message }, 'Error fetching conversations')
       return NextResponse.json(
         { success: false, error: 'Failed to fetch conversation history' },
         { status: 500 }
@@ -84,7 +85,7 @@ export async function GET(
 
     // Cache the conversation history for future requests
     cacheConversationHistory(sessionId, conversationList)
-    console.log(`Cached conversation history: ${sessionId} (${conversationList.length} conversations)`)
+    loggers.cache({ sessionId, userId: user.id, conversationCount: conversationList.length, operation: 'set' }, 'Cached conversation history')
 
     return NextResponse.json({
       success: true,
@@ -95,8 +96,14 @@ export async function GET(
       conversations: conversationList
     })
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API chat/sessions/[id]',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to fetch session' 
@@ -160,7 +167,7 @@ export async function PUT(
     // Invalidate session list cache since we updated the title
     const sessionCacheKey = `sessions-${user.id}`
     advancedCache.delete(CACHE_NAMESPACES.USER_SESSIONS, sessionCacheKey)
-    console.log(`Cache invalidated for user sessions after title update: ${user.id}`)
+    loggers.cache({ sessionId, userId: user.id, operation: 'invalidate', reason: 'title_update' }, 'Cache invalidated for user sessions after title update')
 
     return NextResponse.json({
       success: true,
@@ -171,8 +178,14 @@ export async function PUT(
       }
     })
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API chat/sessions/[id]',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to update session' 
@@ -229,7 +242,7 @@ export async function DELETE(
       .eq('session_id', sessionId)
 
     if (conversationsError) {
-      console.error('Error soft deleting conversations:', conversationsError)
+      loggers.database({ sessionId, userId: user.id, error: conversationsError.message }, 'Error soft deleting conversations')
       // Don't fail the request if conversation deletion fails
     }
 
@@ -237,15 +250,21 @@ export async function DELETE(
     const sessionCacheKey = `sessions-${user.id}`
     advancedCache.delete(CACHE_NAMESPACES.USER_SESSIONS, sessionCacheKey)
     advancedCache.delete(CACHE_NAMESPACES.CHAT_HISTORY, sessionId)
-    console.log(`Cache invalidated after session deletion: ${sessionId} and user sessions: ${user.id}`)
+    loggers.cache({ sessionId, userId: user.id, operation: 'invalidate', reason: 'session_deletion' }, 'Cache invalidated after session deletion')
 
     return NextResponse.json({
       success: true,
       message: 'Session deleted successfully'
     })
 
-  } catch (_error) {
-    return NextResponse.json(
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Internal server error'), {
+      operation: 'API chat/sessions/[id]',
+      phase: 'request_handling',
+      severity: 'critical',
+      errorContext: 'Internal server error'
+    })
+return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to delete session' 

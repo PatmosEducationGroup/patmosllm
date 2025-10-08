@@ -1,5 +1,6 @@
 import EPub from 'epub2'
 import { load } from 'cheerio'
+import { logError } from './logger'
 
 interface EPubMetadata {
   title: string
@@ -128,7 +129,15 @@ export class EPubProcessor {
           order: i,
           wordCount: this.calculateWordCount(content)
         })
-      } catch (_error) {
+      } catch (error) {
+        logError(error instanceof Error ? error : new Error('EPUB chapter extraction failed'), {
+          operation: 'extractChapters',
+          phase: 'chapter_processing',
+          severity: 'medium',
+          chapterId: chapter.id,
+          chapterIndex: i,
+          errorContext: 'Failed to extract individual EPUB chapter - continuing with remaining chapters'
+        })
         // Continue with other chapters
       }
     }

@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import crypto from 'crypto'
+import { logError } from './logger'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -107,7 +108,16 @@ export async function sendInvitationEmail(
     }
 
     return { success: true, messageId: data?.id }
-  } catch (_error) {
+  } catch (error) {
+    logError(error instanceof Error ? error : new Error('Email sending failed'), {
+      operation: 'sendInvitationEmail',
+      phase: 'email_send',
+      severity: 'high',
+      email,
+      role,
+      invitedBy,
+      errorContext: 'Failed to send invitation email via Resend API'
+    })
     return { success: false, error: 'Failed to send email' }
   }
 }
