@@ -2,6 +2,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { SentryInit } from '../../sentry.client.config'
 import './globals.css'
 
 const inter = Inter({ 
@@ -42,6 +43,7 @@ export default function RootLayout({
           <meta name="theme-color" content="#000000" />
         </head>
         <body className={inter.className}>
+          <SentryInit />
           <ErrorBoundary>
             {children}
             <Analytics />

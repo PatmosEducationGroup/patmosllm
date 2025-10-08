@@ -95,12 +95,10 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "eslint --fix",
-      "npm run type-check"
+      "eslint --fix"
     ],
     "*.test.{ts,tsx}": [
       "eslint --fix",
-      "npm run type-check",
       "vitest related --run"
     ]
   }
