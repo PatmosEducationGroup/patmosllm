@@ -4,6 +4,11 @@
 
 import * as Sentry from '@sentry/nextjs'
 
+// Log DSN for debugging (will be removed after testing)
+if (typeof window !== 'undefined') {
+  console.log('[Sentry] DSN configured:', process.env.NEXT_PUBLIC_SENTRY_DSN ? 'Yes' : 'No')
+}
+
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
