@@ -1,5 +1,6 @@
 import { withSupabaseAdmin } from '@/lib/supabase'
 import { advancedCache, CACHE_NAMESPACES, CACHE_TTL } from '@/lib/advanced-cache'
+import { logError } from '@/lib/logger'
 
 // =================================================================
 // TYPE DEFINITIONS - Memory system interfaces
@@ -196,11 +197,15 @@ class UserContextManager {
     sessionId: string,
     userSatisfaction?: number
   ): Promise<void> {
+    let extractedTopics: string[] | undefined
+    let context: UserContext | undefined
+
     try {
-      const context = await this.getUserContext(userId)
+      context = await this.getUserContext(userId)
 
       // Extract topics from the conversation
       const topics = await this.extractTopics(question, response, sources)
+      extractedTopics = topics
 
       // Update topic familiarity
       await this.updateTopicFamiliarity(context, topics, question, userSatisfaction)
@@ -221,8 +226,18 @@ class UserContextManager {
       const cacheKey = `user_context_${userId}`
       advancedCache.set(CACHE_NAMESPACES.USER_SESSIONS, cacheKey, context, CACHE_TTL.SHORT)
 
-    } catch (_error) {
+    } catch (error) {
       // Don't throw - memory updates shouldn't break the main chat flow
+      // But we MUST log the error for debugging and monitoring
+      logError(error instanceof Error ? error : new Error('User context update failed'), {
+        operation: 'updateUserContext',
+        userId,
+        sessionId,
+        question: question.substring(0, 100),
+        topicsExtracted: extractedTopics?.length || 0,
+        contextTopics: context?.currentSessionTopics?.length || 0,
+        phase: 'user_context_update'
+      })
     }
   }
 
@@ -268,12 +283,29 @@ Example: ["prayer", "spiritual warfare", "missions"]`
       try {
         const topics = JSON.parse(content)
         return Array.isArray(topics) ? topics.slice(0, 3) : ['general']
-      } catch (_error) {
+      } catch (parseError) {
         // Fallback: extract keywords if JSON parsing fails
+        // This is expected behavior when GPT returns non-JSON, so just info log
+        logError(parseError instanceof Error ? parseError : new Error('Topic JSON parse failed'), {
+          operation: 'extractTopics',
+          phase: 'json_parsing',
+          gptResponse: content?.substring(0, 200),
+          fallbackUsed: true,
+          severity: 'low'
+        })
         return this.extractKeywords(question, response).slice(0, 3)
       }
 
-    } catch (_error) {
+    } catch (error) {
+      // OpenAI API failure - log and use fallback
+      logError(error instanceof Error ? error : new Error('Topic extraction API failed'), {
+        operation: 'extractTopics',
+        phase: 'openai_api_call',
+        questionLength: question.length,
+        responseLength: response.length,
+        sourcesCount: sources.length,
+        fallbackUsed: true
+      })
       return this.fallbackTopicExtraction(question, response)
     }
   }
@@ -442,38 +474,60 @@ Example: ["prayer", "spiritual warfare", "missions"]`
     satisfaction?: number,
     hadSearchResults?: boolean
   ): Promise<void> {
+    let topics: string[] | undefined
+
     try {
-      const topics = await this.extractTopics(question, response, sources)
+      topics = await this.extractTopics(question, response, sources)
       const intent = await this.classifyQuestionIntent(question)
       const complexity = await this.assessQuestionComplexity(question)
 
-      return withSupabaseAdmin(async (supabase) => {
-        const { error } = await supabase
-          .from('conversation_memory')
-          .insert({
-            user_id: userId,
-            session_id: sessionId,
-            conversation_id: conversationId,
-            question_text: question,
-            question_intent: intent,
-            question_complexity: complexity,
-            ambiguity_score: 0, // Will be enhanced later
-            extracted_topics: topics,
-            user_satisfaction: satisfaction || null,
-            clarification_requested: false,
-            follow_up_generated: false,
-            is_follow_up: false,
-            related_conversation_ids: [],
-            personalized_threshold: null,
-            recommended_complexity: null,
-            had_search_results: hadSearchResults !== undefined ? hadSearchResults : true
-          })
+      // Get current user context for transaction
+      const context = await this.getUserContext(userId)
 
-        if (error) {
+      return withSupabaseAdmin(async (supabase) => {
+        // Use atomic transaction instead of separate inserts
+        const { data, error } = await supabase.rpc('log_conversation_transaction', {
+          p_user_id: userId,
+          p_session_id: sessionId,
+          p_conversation_id: conversationId,
+          p_question_text: question,
+          p_question_intent: intent,
+          p_question_complexity: complexity,
+          p_extracted_topics: topics || [],
+          p_user_satisfaction: satisfaction || null,
+          p_had_search_results: hadSearchResults !== undefined ? hadSearchResults : true,
+          p_topic_familiarity: context.topicFamiliarity || {},
+          p_question_patterns: context.questionPatterns || {},
+          p_behavioral_insights: context.behavioralInsights || {},
+          p_current_session_topics: context.currentSessionTopics || [],
+          p_cross_session_connections: context.crossSessionConnections || []
+        })
+
+        if (error || !data?.success) {
+          logError(new Error(data?.error || 'Failed to log conversation transaction'), {
+            operation: 'logConversation',
+            userId,
+            sessionId: sessionId || 'none',
+            conversationId: conversationId || 'none',
+            dbError: error?.message || data?.error,
+            dbCode: error?.code,
+            phase: 'transaction_execution',
+            severity: 'critical'
+          })
         }
       })
-    } catch (_error) {
+    } catch (error) {
       // Don't throw - memory logging shouldn't break chat
+      // But log the error for monitoring
+      logError(error instanceof Error ? error : new Error('Conversation logging failed'), {
+        operation: 'logConversation',
+        userId,
+        sessionId: sessionId || 'none',
+        conversationId: conversationId || 'none',
+        questionLength: question.length,
+        topicsExtracted: topics?.length || 0,
+        phase: 'conversation_memory_logging'
+      })
     }
   }
 

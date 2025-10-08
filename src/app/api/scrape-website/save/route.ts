@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 import { processDocumentVectors } from '@/lib/ingest'
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
+import { logError, logger } from '@/lib/logger'
 
 // Helper function to clean text content for database storage
 function cleanTextContent(content: string): string {
@@ -68,12 +69,19 @@ export async function POST(_request: NextRequest) {
     }
 
     const selectedPages = scrapedPages.filter(page => page.selected && page.success)
-    
+
     if (selectedPages.length === 0) {
       return NextResponse.json({ error: 'No valid pages selected' }, { status: 400 })
     }
 
-    console.log(`Batch processing ${selectedPages.length} scraped pages`)
+    logger.info({
+      operation: 'scrape_website_save_batch',
+      userId: user.id,
+      userRole: user.role,
+      pagesTotal: scrapedPages.length,
+      pagesSelected: selectedPages.length,
+      phase: 'batch_start'
+    }, `Batch processing ${selectedPages.length} scraped pages`)
 
     const result: BatchProcessResult = {
       success: true,
@@ -106,44 +114,75 @@ export async function POST(_request: NextRequest) {
         const cleanTitle = sanitizeInput(page.title || page.url)
         const author = `Web scraped from ${domain}`
 
-        // Create document record
-        const { data: document, error: dbError } = await supabaseAdmin
-          .from('documents')
-          .insert({
-            title: cleanTitle,
-            author: author,
-            storage_path: `scraped/${Date.now()}-${cleanTitle.replace(/[^a-zA-Z0-9]/g, '-').slice(0, 50)}.txt`,
-            mime_type: 'text/plain',
-            file_size: Buffer.byteLength(cleanedContent, 'utf8'),
-            content: cleanedContent,
-            word_count: wordCount,
-            page_count: null,
-            uploaded_by: user.id,
-            processed_at: new Date().toISOString(),
-            source_type: 'web_scraped',
-            source_url: page.url,
-            // Set metadata defaults for scraped content
-            amazon_url: null,
-            resource_url: null,
-            download_enabled: false,
-            contact_person: null,
-            contact_email: null
+        // Create document record using atomic transaction
+        const { data: transactionResult, error: rpcError } = await supabaseAdmin
+          .rpc('save_document_transaction', {
+            p_title: cleanTitle,
+            p_author: author,
+            p_storage_path: `scraped/${Date.now()}-${cleanTitle.replace(/[^a-zA-Z0-9]/g, '-').slice(0, 50)}.txt`,
+            p_mime_type: 'text/plain',
+            p_file_size: Buffer.byteLength(cleanedContent, 'utf8'),
+            p_content: cleanedContent,
+            p_word_count: wordCount,
+            p_page_count: null,
+            p_uploaded_by: user.id,
+            p_source_type: 'web_scraped',
+            p_source_url: page.url
           })
-          .select()
-          .single()
 
-        if (dbError) {
+        if (rpcError || !transactionResult?.success) {
           result.failed++
-          result.errors.push(`${page.url}: Database error - ${dbError.message}`)
+          result.errors.push(`${page.url}: Transaction failed - ${transactionResult?.error || rpcError?.message}`)
+          logError(new Error(transactionResult?.error || 'Document transaction failed'), {
+            operation: 'save_document_transaction',
+            userId: user.id,
+            url: page.url,
+            title: cleanTitle,
+            phase: 'database_transaction',
+            severity: 'high',
+            dbError: rpcError?.message,
+            transactionError: transactionResult?.error
+          })
           continue
+        }
+
+        // Extract document data from transaction result
+        const documentId = transactionResult.document_id
+        const document = {
+          id: documentId,
+          title: cleanTitle,
+          author: author,
+          word_count: wordCount,
+          file_size: Buffer.byteLength(cleanedContent, 'utf8')
         }
 
         // Start vector processing (don't wait for completion)
         try {
-          processDocumentVectors(document.id, user.id).catch(_error => {
+          processDocumentVectors(document.id, user.id).catch(vectorError => {
+            // CRITICAL: Vector processing failed - document saved but not searchable
+            logError(vectorError instanceof Error ? vectorError : new Error('Vector processing failed'), {
+              operation: 'process_document_vectors',
+              documentId: document.id,
+              userId: user.id,
+              title: document.title,
+              url: page.url,
+              phase: 'vector_embedding',
+              severity: 'critical',
+              impact: 'Document saved but not searchable - manual reprocessing required'
+            })
           })
         } catch (ingestError) {
-          console.error(`Error starting vector processing for ${document.id}:`, ingestError)
+          // Error initiating vector processing
+          logError(ingestError instanceof Error ? ingestError : new Error('Failed to initiate vector processing'), {
+            operation: 'initiate_vector_processing',
+            documentId: document.id,
+            userId: user.id,
+            title: document.title,
+            url: page.url,
+            phase: 'vector_init',
+            severity: 'high',
+            impact: 'Document saved but vector processing not started'
+          })
           // Don't fail the entire operation for vector processing errors
         }
 
@@ -157,12 +196,30 @@ export async function POST(_request: NextRequest) {
           fileSize: document.file_size
         })
 
-        console.log(`Successfully processed: ${cleanTitle} (${wordCount} words)`)
+        logger.info({
+          operation: 'scrape_page_save',
+          documentId: document.id,
+          userId: user.id,
+          title: cleanTitle,
+          url: page.url,
+          wordCount: wordCount,
+          fileSize: document.file_size,
+          phase: 'document_saved'
+        }, `Successfully processed: ${cleanTitle} (${wordCount} words)`)
 
       } catch (pageError) {
-        console.error(`Error processing page ${page.url}:`, pageError)
+        // Page-level processing error
+        logError(pageError instanceof Error ? pageError : new Error('Page processing failed'), {
+          operation: 'scrape_page_process',
+          userId: user.id,
+          url: page.url,
+          title: page.title,
+          phase: 'page_processing',
+          severity: 'medium',
+          impact: 'Single page failed but batch continues'
+        })
         result.failed++
-        result.errors.push(`${page.url}: ${pageError instanceof Error ? pageError.message : ''}`)
+        result.errors.push(`${page.url}: ${pageError instanceof Error ? pageError.message : 'Unknown error'}`)
       }
     }
 
@@ -180,14 +237,31 @@ export async function POST(_request: NextRequest) {
           }
         })
       } catch (milestoneError) {
-        console.error('Failed to track onboarding milestone:', milestoneError)
+        // Non-critical: Milestone tracking failed but documents saved successfully
+        logError(milestoneError instanceof Error ? milestoneError : new Error('Milestone tracking failed'), {
+          operation: 'track_onboarding_milestone',
+          clerkUserId: userId,
+          milestone: 'first_document_upload',
+          pagesProcessed: result.processed,
+          phase: 'onboarding_tracking',
+          severity: 'low',
+          impact: 'Analytics not recorded but operation succeeded'
+        })
       }
     }
 
     // Determine overall success
     result.success = result.processed > 0
 
-    console.log(`Batch processing complete: ${result.processed} processed, ${result.failed} failed`)
+    logger.info({
+      operation: 'scrape_website_save_batch',
+      userId: user.id,
+      processed: result.processed,
+      failed: result.failed,
+      totalPages: selectedPages.length,
+      successRate: `${((result.processed / selectedPages.length) * 100).toFixed(1)}%`,
+      phase: 'batch_complete'
+    }, `Batch processing complete: ${result.processed} processed, ${result.failed} failed`)
 
     return NextResponse.json({
       success: true,
@@ -197,12 +271,21 @@ export async function POST(_request: NextRequest) {
       result
     })
 
-  } catch (_error) {
+  } catch (error) {
+    // CRITICAL: Top-level batch processing failure
+    logError(error instanceof Error ? error : new Error('Batch processing failed'), {
+      operation: 'scrape_website_save_batch',
+      userId: 'unknown', // May not have userId if auth fails
+      phase: 'batch_processing',
+      severity: 'critical',
+      impact: 'Entire batch operation failed - no documents saved'
+    })
+
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: 'Batch processing failed',
-        details: ''
+        details: error instanceof Error ? error.message : 'Unknown error occurred'
       },
       { status: 500 }
     )
