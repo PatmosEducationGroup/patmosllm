@@ -123,6 +123,7 @@ RESEND_API_KEY
 - **100% document ingestion** success rate (462/462 documents, 7,956+ chunks)
 
 ### Recent Completions
+- ✅ Sentry integration: Error tracking with CSP configuration (Oct 2024)
 - ✅ Chat UX: Auto-create sessions, default to new chat on load (Oct 2024)
 - ✅ Document generation: AI-triggered PDF/PPTX/XLSX with serverless Chromium (Oct 2024)
 - ✅ Code quality: Fixed all ESLint warnings & TypeScript compilation errors (Oct 2024)
@@ -143,7 +144,7 @@ RESEND_API_KEY
 - [ ] Fix async auth() bug in `get-identifier.js` (add await)
 - [ ] Convert 5 JavaScript files to TypeScript (`rate-limiter.js`, `input-sanitizer.js`, `get-identifier.js`, `file-security.js`, `env-validator.js`)
 - [ ] Add environment variable validation using Zod
-- [ ] Set up Sentry for error tracking
+- [x] Set up Sentry for error tracking
 - [ ] Implement structured logging (winston/pino) to replace 300+ console.log statements
 
 **Estimated Time**: 10-14 hours | **Impact**: Prevent security breaches, enable production debugging
@@ -216,11 +217,10 @@ RESEND_API_KEY
 4. **No request size limits** - Potential DoS vector on POST requests
 
 ### Code Quality Issues ⚠️
-1. **Swallowed errors** - 300+ `catch (_error)` blocks with no logging (production debugging impossible)
+1. **Swallowed errors** - 300+ `catch (_error)` blocks with no logging (production debugging challenging)
 2. **5 JavaScript files** in critical paths (no type safety)
 3. **Large files** - `src/app/api/chat/route.ts` (799 lines), violates single responsibility
-4. **No error tracking** - Zero visibility into production errors
-5. **Unstructured logging** - 300+ console.log statements need structured logging
+4. **Unstructured logging** - 300+ console.log statements need structured logging
 
 ### Database Issues ⚠️
 1. **No transactions** - Multi-step operations can fail partially (conversation save + session update + memory)
@@ -237,8 +237,8 @@ RESEND_API_KEY
 ### Testing & DevOps Issues 🚨
 1. **Zero test coverage** - High regression risk, fear of refactoring
 2. **No CI/CD pipeline** - Manual testing required
-3. **No monitoring** - No APM, error tracking, or observability
-4. **No dependency scanning** - Security vulnerabilities not tracked
+3. **No APM monitoring** - Limited observability beyond Sentry error tracking
+4. **No dependency scanning** - Security vulnerabilities not tracked (manual audits only)
 
 ### Architecture Issues ⚠️
 1. **No service layer** - Business logic mixed with API routes
@@ -247,9 +247,40 @@ RESEND_API_KEY
 4. **Cache instability** - Using `JSON.stringify()` creates cache misses
 5. **Memory leak potential** - Advanced cache has no enforced memory limit
 
+### Known Dependency Vulnerabilities ⚠️
+**Status**: Accepted (low risk) - Last reviewed: October 2024
+
+`npm audit --production` reports 9 moderate vulnerabilities in `pptx-parser@1.1.7-beta.9`:
+- **jszip@2.6.1**: Prototype Pollution, Path Traversal
+- **postcss@7.0.39**: Line return parsing error
+
+**Risk Assessment: LOW**
+- Package last updated May 2022 (unmaintained)
+- Only used during authenticated document upload (`src/lib/parsers/office/pptx-parser.ts:9`)
+- Only ADMIN/CONTRIBUTOR roles can upload documents
+- Not exposed to public/untrusted input
+- Production code uses safe versions (jszip@3.10.1, postcss@8.5.6)
+
+**Mitigation**:
+- Upload limited to authenticated, trusted users only
+- File type validation enforced
+- Monitoring via Sentry for unexpected errors
+
+**Future Action**: Consider replacing pptx-parser with maintained alternative when resources allow.
+
 ---
 
 ## Recent Implementation History
+
+### Sentry Error Tracking (October 2024)
+- **Integration**: Client, server, and edge runtime error monitoring
+- **Session Replay**: 100% error replay sampling with privacy controls (maskAllText, blockAllMedia)
+- **CSP Configuration**: Added `https://*.sentry.io` to middleware Content Security Policy
+- **Error Filtering**: Filters out browser noise (ResizeObserver errors)
+- **Production Ready**: Tested with multiple error types, all captured successfully
+- **Turbopack Compatible**: Migrated from deprecated `sentry.client.config.ts` to `instrumentation-client.ts`
+- **Source Maps**: Automatic upload for production debugging
+- **Commits**: ec17d2c, a3f3ae1
 
 ### Chat UX Improvements (October 2024)
 - **Auto-create sessions**: Users can type without selecting a conversation - new session created automatically on submit
