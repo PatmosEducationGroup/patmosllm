@@ -105,9 +105,8 @@ function LoginForm() {
         return
       }
 
-      // Success! Redirect
-      router.push(data.redirect || '/chat')
-      router.refresh()
+      // Success! Use window.location for full page reload to ensure cookies are set
+      window.location.href = data.redirect || '/chat'
     } catch (_err) {
       setError('An error occurred. Please try again.')
       setLoading(false)
