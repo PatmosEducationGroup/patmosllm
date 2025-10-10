@@ -80,7 +80,7 @@ function setCachedChatResponse(
 // =================================================================
 // INTENT CLASSIFICATION - Determine query type for context routing
 // =================================================================
-type QueryIntent = 'retrieve_from_docs' | 'synthesize_from_docs' | 'transform_prior_artifact' | 'generate_document'
+type QueryIntent = 'retrieve_from_docs' | 'basic_factual' | 'synthesize_from_docs' | 'transform_prior_artifact' | 'generate_document'
 type DocumentFormat = 'pdf' | 'pptx' | 'xlsx' | null
 
 interface IntentResult {
@@ -129,6 +129,13 @@ function classifyIntent(question: string, hasHistory: boolean, lastAnswerLength:
   const synthKeywords = /\b(outline|scope|sequence|syllabus|curriculum|framework|weekly|modules?|lesson plan|teaching plan|course design)\b/i
   if (synthKeywords.test(q)) {
     return { intent: 'synthesize_from_docs' }
+  }
+
+  // Basic factual detection: simple "what is X" or "who is X" questions
+  // These should use lower thresholds since they're direct factual lookups
+  const basicFactualPatterns = /^(what is|what's|who is|who's|define|explain|describe|tell me about)\s/i
+  if (basicFactualPatterns.test(q) && q.split(' ').length <= 8) {
+    return { intent: 'basic_factual' }
   }
 
   // Default: normal retrieval
@@ -675,6 +682,16 @@ export async function POST(_request: NextRequest) {
         scoreThreshold,
         queryIntent
       }, 'Using relaxed thresholds for synthesis query')
+    } else if (queryIntent === 'basic_factual') {
+      // Basic factual questions should use lower thresholds
+      // These are simple lookups like "what is prayer"
+      confidenceThreshold = 0.4
+      scoreThreshold = 0.45
+      loggers.ai({
+        confidenceThreshold,
+        scoreThreshold,
+        queryIntent
+      }, 'Using relaxed thresholds for basic factual query')
     }
 
     // Special intent overrides: Transform or document generation bypass quality checks
