@@ -212,12 +212,11 @@ function ChatPageContent() {
 
   // =================================================================
   // AUTHENTICATION EFFECT - Redirect unauthenticated users
+  // NOTE: Middleware handles actual auth, this is just UX
+  // Users with Supabase sessions won't have userId but are authenticated
   // =================================================================
-  useEffect(() => {
-    if (isLoaded && !userId) {
-      router.push('/sign-in')
-    }
-  }, [isLoaded, userId, router])
+  // REMOVED: Client-side redirect interferes with Supabase Auth
+  // The middleware handles all authentication - if user reaches this page, they're authenticated
 
   // =================================================================
   // SESSION LOADING EFFECT - Load user's chat sessions on mount
@@ -901,9 +900,11 @@ setError('Failed to create chat session. Please try again.')
   }
 
   // =================================================================
-  // LOADING STATE - Show loading spinner while authenticating
+  // LOADING STATE - Show loading spinner while checking Clerk state
+  // NOTE: We still show loading while Clerk initializes, even though
+  // Supabase users won't have a Clerk userId (that's expected)
   // =================================================================
-  if (!isLoaded || !userId) {
+  if (!isLoaded) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
         <div className="text-center">

@@ -28,18 +28,20 @@ export async function POST(request: NextRequest) {
     const cookieAdapter = {
       get: (name: string) => cookieStore.get(name)?.value,
       set: (name: string, value: string, options: Record<string, unknown>) => {
-        const cookie = [
+        // Build cookie string - DON'T force HttpOnly (Supabase needs client-side access)
+        const cookieParts = [
           `${name}=${value}`,
           `Path=${options?.path ?? '/'}`,
-          'HttpOnly',
-          `SameSite=${options?.sameSite ?? 'Lax'}`,
-          options?.secure ? 'Secure' : '',
-          options?.maxAge ? `Max-Age=${options.maxAge}` : '',
-          options?.domain ? `Domain=${options.domain}` : ''
+          `SameSite=${options?.sameSite ?? 'Lax'}`
         ]
-          .filter(Boolean)
-          .join('; ')
-        responseHeaders.append('Set-Cookie', cookie)
+
+        // Only add these if explicitly set
+        if (options?.secure) cookieParts.push('Secure')
+        if (options?.httpOnly) cookieParts.push('HttpOnly')
+        if (options?.maxAge) cookieParts.push(`Max-Age=${options.maxAge}`)
+        if (options?.domain) cookieParts.push(`Domain=${options.domain}`)
+
+        responseHeaders.append('Set-Cookie', cookieParts.join('; '))
       },
       remove: (name: string, options: Record<string, unknown>) => {
         responseHeaders.append(
