@@ -1,0 +1,152 @@
+🚀 Starting PRODUCTION prepopulation...
+⚠️  Using PRODUCTION Clerk + Supabase credentials
+
+📊 Found 15 active users in production database
+
+
+🔍 Processing: emichaelray@gmail.com
+   Database Clerk ID: user_31VtkWmZ1hKvQ7XKK8EgGtTYUtx
+   Clerk user ID: user_31c1MwQTvbzmF8fMioNwFINxM7j
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up emichaelray@gmail.com in Supabase Auth...
+      ✓ Found existing Supabase Auth user → a2996e1a-8d21-4b26-924e-548fa9e82db4
+   ✅ Mapped existing → a2996e1a-8d21-4b26-924e-548fa9e82db4
+
+🔍 Processing: mray523@proton.me
+   Database Clerk ID: user_31cRURPn0EXFUf1JwtWzN5S7rKG
+   Clerk user ID: user_31cRURPn0EXFUf1JwtWzN5S7rKG
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up mray523@proton.me in Supabase Auth...
+      ✓ Found existing Supabase Auth user → 1bd4030e-7644-4dcc-8765-5fc605cc5f60
+   ✅ Mapped existing → 1bd4030e-7644-4dcc-8765-5fc605cc5f60
+
+🔍 Processing: ericwatt@proton.me
+   Database Clerk ID: user_31fBYSuRpSP7Mw0VyDMaThSZbnl
+   Clerk user ID: user_31fBYSuRpSP7Mw0VyDMaThSZbnl
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up ericwatt@proton.me in Supabase Auth...
+      ✓ Found existing Supabase Auth user → 53bdc8c1-304d-49a6-956f-902bdff5d9c8
+   ✅ Mapped existing → 53bdc8c1-304d-49a6-956f-902bdff5d9c8
+
+🔍 Processing: tim@runministries.org
+   Database Clerk ID: user_32T5onhGm5LtCBZZmOqLRFIlcs7
+   Clerk user ID: user_32T5onhGm5LtCBZZmOqLRFIlcs7
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up tim@runministries.org in Supabase Auth...
+      ✓ Found existing Supabase Auth user → 184fb844-2fde-4e12-a5ff-f50340244428
+   ✅ Mapped existing → 184fb844-2fde-4e12-a5ff-f50340244428
+
+🔍 Processing: jason.hubbard@ipcprayer.org
+   Database Clerk ID: user_32WO6XSzo9wn6PlcS2jMuILkJLz
+   Clerk user ID: user_32WO6XSzo9wn6PlcS2jMuILkJLz
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up jason.hubbard@ipcprayer.org in Supabase Auth...
+      ✓ Found existing Supabase Auth user → f4b5e822-6c57-469f-be45-9f0056628901
+   ✅ Mapped existing → f4b5e822-6c57-469f-be45-9f0056628901
+
+🔍 Processing: sbp@pm.me
+   Database Clerk ID: user_33DCwwnVg8CUu4nmVQkRDzLl67g
+   Clerk user ID: user_33DCwwnVg8CUu4nmVQkRDzLl67g
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up sbp@pm.me in Supabase Auth...
+      ✓ Found existing Supabase Auth user → 1964169d-8ff1-40e9-8037-bc1baba15e64
+   ✅ Mapped existing → 1964169d-8ff1-40e9-8037-bc1baba15e64
+
+🔍 Processing: drc@tlpmail.com
+   Database Clerk ID: user_33NO4Fgb2SmqD82d2fyfOWykXns
+   Clerk user ID: user_33NO4Fgb2SmqD82d2fyfOWykXns
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up drc@tlpmail.com in Supabase Auth...
+      ✓ Found existing Supabase Auth user → 82dd9540-815d-485d-8736-2ebd97559e60
+   ✅ Mapped existing → 82dd9540-815d-485d-8736-2ebd97559e60
+
+🔍 Processing: ericwatt@gmail.com
+   Database Clerk ID: user_33Z9q6RnFe7DaJMTFKBxSxh84n5
+   Clerk user ID: user_33Z9q6RnFe7DaJMTFKBxSxh84n5
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up ericwatt@gmail.com in Supabase Auth...
+      ✓ Found existing Supabase Auth user → 0eda4fd9-5f69-4125-ac63-3fa11db3f83a
+   ✅ Mapped existing → 0eda4fd9-5f69-4125-ac63-3fa11db3f83a
+
+🔍 Processing: christopher.fletcher@manna.church
+   Database Clerk ID: user_33ct9oKtrjsofwY9guF28MEvIaJ
+   Clerk user ID: user_33ct9oKtrjsofwY9guF28MEvIaJ
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up christopher.fletcher@manna.church in Supabase Auth...
+      ✓ Found existing Supabase Auth user → ac505b8e-2df8-4f75-8a56-a2dda26fb9ea
+   ✅ Mapped existing → ac505b8e-2df8-4f75-8a56-a2dda26fb9ea
+
+🔍 Processing: emichaelray+hecontributor@gmail.com
+   Database Clerk ID: user_33NbJIjML56LW4b8Xwd0jPKn5uv
+   Clerk user ID: user_33NbJIjML56LW4b8Xwd0jPKn5uv
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up emichaelray+hecontributor@gmail.com in Supabase Auth...
+      ✓ Found existing Supabase Auth user → a06e1ec8-ec5b-4c0d-9567-e0241e5dcb9c
+   ✅ Mapped existing → a06e1ec8-ec5b-4c0d-9567-e0241e5dcb9c
+
+🔍 Processing: kelly@runministries.org
+   Database Clerk ID: user_33hBM7wkLREyLGQGeHGsXI2kasZ
+   Clerk user ID: user_33hBM7wkLREyLGQGeHGsXI2kasZ
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up kelly@runministries.org in Supabase Auth...
+      ✓ Found existing Supabase Auth user → a2ecd08f-4e95-4544-99b4-5b466b3f748b
+   ✅ Mapped existing → a2ecd08f-4e95-4544-99b4-5b466b3f748b
+
+🔍 Processing: nick@runministries.org
+   Database Clerk ID: user_33fERMMYBDcm0uuuDijV6cHrL2H
+   Clerk user ID: user_33fERMMYBDcm0uuuDijV6cHrL2H
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up nick@runministries.org in Supabase Auth...
+      ✓ Found existing Supabase Auth user → 3dffefb5-7c93-4db8-9460-fae59499e4cc
+   ✅ Mapped existing → 3dffefb5-7c93-4db8-9460-fae59499e4cc
+
+🔍 Processing: katie@everydaympls.com
+   Database Clerk ID: user_33ckTV8xqEiEEZiXsAxg6rdzed4
+   Clerk user ID: user_33ckTV8xqEiEEZiXsAxg6rdzed4
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up katie@everydaympls.com in Supabase Auth...
+      ✓ Found existing Supabase Auth user → 12d9ce04-9dc8-4f61-948f-aee0cfec497f
+   ✅ Mapped existing → 12d9ce04-9dc8-4f61-948f-aee0cfec497f
+
+🔍 Processing: matt@bighousechurch.com
+   Database Clerk ID: user_33bPP6Q6P4qxAzRnAL76wj3HwsI
+   Clerk user ID: user_33bPP6Q6P4qxAzRnAL76wj3HwsI
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up matt@bighousechurch.com in Supabase Auth...
+      ✓ Found existing Supabase Auth user → aab0fdb5-feb2-41b6-abaa-68d67dc5cc9e
+   ✅ Mapped existing → aab0fdb5-feb2-41b6-abaa-68d67dc5cc9e
+
+🔍 Processing: michael.l.wiggins@gmail.com
+   Database Clerk ID: user_33cpM6KpTFruA4kIMEG6eKrs2d5
+   Clerk user ID: user_33cpM6KpTFruA4kIMEG6eKrs2d5
+   ⚠️  createUser error: "Database error checking email"
+   ℹ️  User already exists in Supabase Auth
+      🔍 Looking up michael.l.wiggins@gmail.com in Supabase Auth...
+      ✓ Found existing Supabase Auth user → 4fddda30-6769-4597-b99d-55bf1c16832f
+   ✅ Mapped existing → 4fddda30-6769-4597-b99d-55bf1c16832f
+
+============================================================
+📊 PREPOPULATION COMPLETE
+============================================================
+   ✅ New Supabase Auth accounts created: 0
+   ✅ Existing accounts mapped: 15
+   ❌ Errors: 0
+   📝 Total processed: 15
+============================================================
+
+✅ All production users are ready for dual-auth migration!
+   You can now deploy the dual-auth code to production.

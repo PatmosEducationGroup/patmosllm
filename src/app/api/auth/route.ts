@@ -1,29 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { getCurrentUser } from '@/lib/auth'
 import { logError } from '@/lib/logger'
 
 export async function GET(_request: NextRequest) {
   try {
-    const { userId } = await auth()
+    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
+    const user = await getCurrentUser()
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Not authenticated' },
         { status: 401 }
-      )
-    }
-
-    const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('id, email, name, role')
-      .eq('clerk_id', userId)
-      .single()
-
-    if (error || !user) {
-      return NextResponse.json(
-        { success: false, error: 'User not found in database' },
-        { status: 404 }
       )
     }
 

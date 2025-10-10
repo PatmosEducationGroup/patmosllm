@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
-import { supabaseAdmin } from '@/lib/supabase'
 import * as cheerio from 'cheerio'
 import puppeteer, { Browser } from 'puppeteer'
 import robotsParser from 'robots-parser'
@@ -1198,20 +1196,12 @@ async function discoverAllPages(
 
 export async function POST(_request: NextRequest) {
   try {
-    // Check authentication and admin permissions
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // PHASE 3: Use canUpload() helper which uses dual-read getCurrentUser()
+    const { canUpload } = await import('@/lib/auth')
+    const hasPermission = await canUpload()
 
-    const { data: user } = await supabaseAdmin
-      .from('users')
-      .select('role')
-      .eq('clerk_id', userId)
-      .single()
-
-    if (!user || !['SUPER_ADMIN', 'ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Forbidden - upload permission required' }, { status: 403 })
     }
 
     // Parse request body FIRST
@@ -1223,7 +1213,6 @@ export async function POST(_request: NextRequest) {
       url,
       urlsCount: urls?.length,
       resumeFromCheckpoint,
-      userId,
       operation: 'scrape_request'
     }, 'Scraping request received')
 
@@ -1252,7 +1241,6 @@ export async function POST(_request: NextRequest) {
           phase: 'url_validation',
           severity: 'low',
           url: normalizedUrl,
-          userId,
           errorContext: 'User provided invalid URL format'
         })
         return NextResponse.json({ error: 'Invalid URL format. Please use a valid domain like example.com or https://example.com' }, { status: 400 })
@@ -1318,7 +1306,6 @@ export async function POST(_request: NextRequest) {
             phase: 'batch_url_validation',
             severity: 'low',
             targetUrl,
-            userId,
             errorContext: 'User provided invalid URL in batch scrape request'
           })
           return NextResponse.json({ error: `Invalid URL format: ${targetUrl}` }, { status: 400 })

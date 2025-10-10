@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth, clerkClient } from '@clerk/nextjs/server'
+import { clerkClient } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import { sendInvitationEmail, generateInvitationToken } from '@/lib/email'
@@ -13,18 +13,7 @@ import { loggers, logError } from '@/lib/logger'
 export async function POST(_request: NextRequest) {
   try {
     // =================================================================
-    // AUTHENTICATION - Check if user is logged in
-    // =================================================================
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    // =================================================================
-    // AUTHORIZATION - Verify user has admin permissions
+    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
     // =================================================================
     const user = await getCurrentUser()
     if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
@@ -78,6 +67,9 @@ export async function POST(_request: NextRequest) {
     // =================================================================
     // DATABASE CREATION - Create invitation record in database
     // =================================================================
+    // Generate placeholder ID for invited user (before they complete signup)
+    const placeholderClerkId = `invited_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
     const { data: invitedUser, error: inviteError } = await supabaseAdmin
       .from('users')
       .insert({
@@ -87,7 +79,8 @@ export async function POST(_request: NextRequest) {
         invited_by: user.id,
         invitation_token: invitationToken,
         invitation_expires_at: expiresAt.toISOString(),
-        clerk_id: `invited_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        clerk_id: placeholderClerkId,
+        clerk_user_id: placeholderClerkId // Phase 3: Also set clerk_user_id to avoid NOT NULL constraint
       })
       .select()
       .single()
@@ -264,18 +257,7 @@ export async function POST(_request: NextRequest) {
 export async function GET(_request: NextRequest) {
   try {
     // =================================================================
-    // AUTHENTICATION - Check if user is logged in
-    // =================================================================
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    // =================================================================
-    // AUTHORIZATION - Verify user has admin permissions
+    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
     // =================================================================
     const user = await getCurrentUser()
     if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
@@ -359,18 +341,7 @@ export async function GET(_request: NextRequest) {
 export async function DELETE(_request: NextRequest) {
   try {
     // =================================================================
-    // AUTHENTICATION - Check if user is logged in
-    // =================================================================
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    // =================================================================
-    // AUTHORIZATION - Verify user has admin permissions
+    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
     // =================================================================
     const user = await getCurrentUser()
     if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {

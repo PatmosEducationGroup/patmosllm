@@ -6,18 +6,6 @@ import dotenv from 'dotenv'
 
 dotenv.config({ path: '.env.local' })
 
-// Main tables to backup (in dependency order)
-const TABLES_TO_BACKUP = [
-  'users',
-  'user_onboarding_status', 
-  'documents',
-  'chunks',
-  'ingest_jobs',
-  'chat_sessions',
-  'conversations',
-  'upload_sessions'
-]
-
 // Tables with large content that might need chunked backups
 const LARGE_CONTENT_TABLES = ['documents', 'chunks', 'conversations']
 
@@ -27,18 +15,103 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
+/**
+ * Dynamically discover all tables in the public schema
+ */
+async function discoverTables() {
+  console.log('🔍 Discovering all tables in public schema...')
+
+  const { data, error } = await supabaseAdmin.rpc('get_public_tables', {}, { count: 'exact' })
+
+  if (error) {
+    // Fallback: Query information_schema directly via a custom RPC or use predefined list
+    console.log('⚠️  RPC not available, using information_schema query...')
+
+    // We'll query the REST API for common tables and let errors guide us
+    // In practice, you'd create an RPC function like:
+    // CREATE OR REPLACE FUNCTION get_public_tables()
+    // RETURNS TABLE(table_name text) AS $$
+    // BEGIN
+    //   RETURN QUERY
+    //   SELECT tablename::text
+    //   FROM pg_tables
+    //   WHERE schemaname = 'public'
+    //   ORDER BY tablename;
+    // END;
+    // $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    // For now, let's try a different approach: test known tables and discover dynamically
+    return await discoverTablesManually()
+  }
+
+  const tables = data.map(row => row.table_name)
+  console.log(`✅ Found ${tables.length} tables`)
+  return tables
+}
+
+/**
+ * Manual table discovery by attempting to query each potential table
+ */
+async function discoverTablesManually() {
+  // Start with known tables from CLAUDE.md (17 tables)
+  const knownTables = [
+    'users',
+    'chunks',
+    'documents',
+    'upload_sessions',
+    'conversations',
+    'user_context',
+    'conversation_memory',
+    'topic_progression',
+    'question_patterns',
+    'user_onboarding_milestones',
+    'user_preferences',
+    'ingest_jobs',
+    'chat_sessions',
+    'data_export_requests',
+    'clerk_webhook_events',
+    'idempotency_keys',
+    'privacy_audit_log'
+  ]
+
+  const validTables = []
+
+  for (const tableName of knownTables) {
+    try {
+      const { error } = await supabaseAdmin
+        .from(tableName)
+        .select('*', { count: 'exact', head: true })
+
+      if (!error) {
+        validTables.push(tableName)
+      }
+    } catch (err) {
+      // Table doesn't exist or no access, skip it
+    }
+  }
+
+  console.log(`✅ Discovered ${validTables.length} accessible tables`)
+  return validTables
+}
+
 async function backupSupabase() {
   try {
     console.log('🗄️  Starting comprehensive Supabase database backup...')
     console.log(`🌐 Database URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL}`)
-    
+
+    // Dynamically discover all tables
+    const TABLES_TO_BACKUP = await discoverTablesManually()
+
+    console.log(`📋 Tables to backup: ${TABLES_TO_BACKUP.join(', ')}`)
+
     const backupData = {
       metadata: {
         timestamp: new Date().toISOString(),
         database_url: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        backup_version: '1.0',
+        backup_version: '2.0',
         tables_backed_up: [],
-        total_records: 0
+        total_records: 0,
+        auto_discovered: true
       },
       tables: {}
     }

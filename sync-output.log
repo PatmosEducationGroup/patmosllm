@@ -1,0 +1,91 @@
+🔄 Syncing Production Clerk IDs...
+⚠️  Using PRODUCTION keys
+
+📊 Found 15 active users in database
+
+
+🔍 Checking: emichaelray@gmail.com
+   DB Clerk ID: user_31VtkWmZ1hKvQ7XKK8EgGtTYUtx
+   Clerk has ID: user_31c1MwQTvbzmF8fMioNwFINxM7j
+   🔄 Updating: user_31VtkWmZ1hKvQ7XKK8EgGtTYUtx → user_31c1MwQTvbzmF8fMioNwFINxM7j
+   ❌ Update failed: duplicate key value violates unique constraint "users_clerk_id_key"
+
+🔍 Checking: mray523@proton.me
+   DB Clerk ID: user_31cRURPn0EXFUf1JwtWzN5S7rKG
+   Clerk has ID: user_31cRURPn0EXFUf1JwtWzN5S7rKG
+   ✅ Already correct
+
+🔍 Checking: ericwatt@proton.me
+   DB Clerk ID: user_31fBYSuRpSP7Mw0VyDMaThSZbnl
+   Clerk has ID: user_31fBYSuRpSP7Mw0VyDMaThSZbnl
+   ✅ Already correct
+
+🔍 Checking: tim@runministries.org
+   DB Clerk ID: user_32T5onhGm5LtCBZZmOqLRFIlcs7
+   Clerk has ID: user_32T5onhGm5LtCBZZmOqLRFIlcs7
+   ✅ Already correct
+
+🔍 Checking: jason.hubbard@ipcprayer.org
+   DB Clerk ID: user_32WO6XSzo9wn6PlcS2jMuILkJLz
+   Clerk has ID: user_32WO6XSzo9wn6PlcS2jMuILkJLz
+   ✅ Already correct
+
+🔍 Checking: sbp@pm.me
+   DB Clerk ID: user_33DCwwnVg8CUu4nmVQkRDzLl67g
+   Clerk has ID: user_33DCwwnVg8CUu4nmVQkRDzLl67g
+   ✅ Already correct
+
+🔍 Checking: drc@tlpmail.com
+   DB Clerk ID: user_33NO4Fgb2SmqD82d2fyfOWykXns
+   Clerk has ID: user_33NO4Fgb2SmqD82d2fyfOWykXns
+   ✅ Already correct
+
+🔍 Checking: ericwatt@gmail.com
+   DB Clerk ID: user_33Z9q6RnFe7DaJMTFKBxSxh84n5
+   Clerk has ID: user_33Z9q6RnFe7DaJMTFKBxSxh84n5
+   ✅ Already correct
+
+🔍 Checking: christopher.fletcher@manna.church
+   DB Clerk ID: user_33ct9oKtrjsofwY9guF28MEvIaJ
+   Clerk has ID: user_33ct9oKtrjsofwY9guF28MEvIaJ
+   ✅ Already correct
+
+🔍 Checking: emichaelray+hecontributor@gmail.com
+   DB Clerk ID: user_33NbJIjML56LW4b8Xwd0jPKn5uv
+   Clerk has ID: user_33NbJIjML56LW4b8Xwd0jPKn5uv
+   ✅ Already correct
+
+🔍 Checking: kelly@runministries.org
+   DB Clerk ID: user_33hBM7wkLREyLGQGeHGsXI2kasZ
+   Clerk has ID: user_33hBM7wkLREyLGQGeHGsXI2kasZ
+   ✅ Already correct
+
+🔍 Checking: nick@runministries.org
+   DB Clerk ID: user_33fERMMYBDcm0uuuDijV6cHrL2H
+   Clerk has ID: user_33fERMMYBDcm0uuuDijV6cHrL2H
+   ✅ Already correct
+
+🔍 Checking: katie@everydaympls.com
+   DB Clerk ID: user_33ckTV8xqEiEEZiXsAxg6rdzed4
+   Clerk has ID: user_33ckTV8xqEiEEZiXsAxg6rdzed4
+   ✅ Already correct
+
+🔍 Checking: matt@bighousechurch.com
+   DB Clerk ID: user_33bPP6Q6P4qxAzRnAL76wj3HwsI
+   Clerk has ID: user_33bPP6Q6P4qxAzRnAL76wj3HwsI
+   ✅ Already correct
+
+🔍 Checking: michael.l.wiggins@gmail.com
+   DB Clerk ID: user_33cpM6KpTFruA4kIMEG6eKrs2d5
+   Clerk has ID: user_33cpM6KpTFruA4kIMEG6eKrs2d5
+   ✅ Already correct
+
+============================================================
+📊 SYNC COMPLETE
+============================================================
+   ✅ Already correct: 14
+   🔄 Updated: 0
+   ❌ Not found in Clerk: 0
+   ⚠️  Errors: 1
+   📝 Total: 15
+============================================================

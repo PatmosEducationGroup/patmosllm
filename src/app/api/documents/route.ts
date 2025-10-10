@@ -1,26 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import {logger, loggers, logError} from '@/lib/logger'
 
 export async function GET(_request: NextRequest) {
   try {
-    // Check authentication
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    // Get current user
+    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(
-        { success: false, error: 'User not found in database' },
-        { status: 403 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       )
     }
 
@@ -108,21 +98,12 @@ return NextResponse.json(
 // Delete a document
 export async function DELETE(_request: NextRequest) {
   try {
-    // Check authentication
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    // Get current user and check permissions
+    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(
-        { success: false, error: 'User not found in database' },
-        { status: 403 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       )
     }
 
@@ -163,6 +144,21 @@ export async function DELETE(_request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Contributors can only delete their own documents' },
         { status: 403 }
+      )
+    }
+
+    // ADMIN OVERRIDE: Mark as non-library asset before deletion to bypass trigger
+    // This allows admins to delete any document, while the trigger still protects
+    // library assets from accidental cascading deletes when users delete their accounts
+    const { error: updateError } = await supabaseAdmin
+      .from('documents')
+      .update({ is_library_asset: false })
+      .eq('id', documentId)
+
+    if (updateError) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to prepare document for deletion' },
+        { status: 500 }
       )
     }
 

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logError } from '@/lib/logger'
-import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import { sanitizeInput } from '@/lib/input-sanitizer'
@@ -12,15 +11,8 @@ export async function GET(
 ) {
   try {
     const resolvedParams = await params
-// Then use resolvedParams.id instead of params.id
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
 
+    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
     const user = await getCurrentUser()
     if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json(
@@ -90,19 +82,11 @@ return NextResponse.json(
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-  
 ) {
   try {
     const resolvedParams = await params
-// Then use resolvedParams.id instead of params.id
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
 
+    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
     const user = await getCurrentUser()
     if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json(
