@@ -92,10 +92,10 @@ if (currentUser.role === 'ADMIN') {
       severity: 'critical',
       errorContext: 'Internal server error'
     })
-return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to update user role' 
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to update user role'
       },
       { status: 500 }
     )

@@ -173,9 +173,9 @@ export async function GET(
       severity: 'critical',
       errorContext: 'Internal server error'
     })
-return NextResponse.json(
-     { success: false, error: 'Failed to fetch user timeline' },
-     { status: 500 }
-   )
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch user timeline' },
+      { status: 500 }
+    )
   }
 }
