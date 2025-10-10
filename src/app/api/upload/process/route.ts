@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { extractTextFromFile } from '@/lib/fileProcessors'
 import { getCurrentUser } from '@/lib/auth'
@@ -146,7 +145,7 @@ export async function POST(_request: NextRequest) {
       filename: fileName.substring(0, 50),
       fileSize,
       mimeType,
-      userId
+      userId: user.id
     }, 'Starting text extraction from upload')
     const extraction = await extractTextFromFile(buffer, mimeType, fileName)
 
@@ -156,7 +155,7 @@ export async function POST(_request: NextRequest) {
         filename: fileName.substring(0, 50),
         mimeType,
         fileSize,
-        userId
+      userId: user.id
       })
       return NextResponse.json(
         { success: false, error: 'Failed to extract text from file' },
@@ -169,7 +168,7 @@ export async function POST(_request: NextRequest) {
       filename: fileName.substring(0, 50),
       wordCount: extraction.wordCount,
       pageCount: extraction.pageCount,
-      userId
+      userId: user.id
     }, `Extracted ${extraction.wordCount} words from file`)
 
     // Clean the extracted content to prevent database errors
@@ -180,7 +179,7 @@ export async function POST(_request: NextRequest) {
         operation: 'upload_process_content_cleaning_failed',
         filename: fileName.substring(0, 50),
         originalContentLength: extraction.content.length,
-        userId
+      userId: user.id
       })
       return NextResponse.json(
         { success: false, error: 'Document content could not be processed (contains unsupported characters)' },
@@ -195,7 +194,7 @@ export async function POST(_request: NextRequest) {
       title: cleanedTitle.substring(0, 50),
       wordCount: extraction.wordCount,
       fileSize,
-      userId
+      userId: user.id
     }, 'Saving document record to database')
 
     // Prepare document record with multimedia support
@@ -266,7 +265,7 @@ export async function POST(_request: NextRequest) {
       documentId: document.id,
       title: cleanedTitle.substring(0, 50),
       filename: fileName.substring(0, 50),
-      userId
+      userId: user.id
     }, 'Document saved successfully')
 
     // Start vector processing job
@@ -276,7 +275,7 @@ export async function POST(_request: NextRequest) {
         operation: 'upload_process_vector_processing_started',
         documentId: document.id,
         filename: fileName.substring(0, 50),
-        userId
+      userId: user.id
       }, 'Vector processing job started')
     } catch (ingestError) {
       // Don't fail the upload if vector processing fails
@@ -322,7 +321,7 @@ export async function POST(_request: NextRequest) {
       filename: fileName.substring(0, 50),
       wordCount: extraction.wordCount,
       fileSize,
-      userId
+      userId: user.id
     }, 'Successfully processed upload')
 
     return NextResponse.json({
