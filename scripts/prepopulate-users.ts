@@ -36,7 +36,7 @@ async function findSupabaseUserByEmail(email: string): Promise<string | null> {
     })
 
     if (error) {
-      console.error(`      ❌ RPC error:`, (err instanceof Error ? err.message : String(err)))
+      console.error(`      ❌ RPC error:`, error.message)
       return null
     }
 
