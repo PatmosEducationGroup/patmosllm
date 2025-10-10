@@ -115,11 +115,15 @@ export async function POST(request: NextRequest) {
         severity: 'high',
         clerk_user_id: clerkUserId,
         supabase_id: migrationRecord.supabase_id,
+        email,
         errorContext: 'Could not update Supabase Auth password',
-        error: updateError
+        error: updateError,
+        errorMessage: updateError.message,
+        errorCode: updateError.code,
+        errorStatus: updateError.status
       })
       return NextResponse.json(
-        { error: 'Failed to update password. Please try again.' },
+        { error: `Failed to update password: ${updateError.message || 'Unknown error'}` },
         { status: 500 }
       )
     }

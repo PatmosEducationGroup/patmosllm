@@ -37,7 +37,7 @@ export default function Page() {
         </div>
         <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-neutral-200/40">
           <SignIn
-            redirectUrl="/migrate-password"
+            forceRedirectUrl="/migrate-password"
             appearance={{
               elements: {
                 rootBox: "mx-auto",
