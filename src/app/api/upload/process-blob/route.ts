@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { extractTextFromFile } from '@/lib/fileProcessors'
 import { getCurrentUser } from '@/lib/auth'
@@ -129,7 +128,7 @@ export async function POST(_request: NextRequest) {
       operation: 'process_blob_propagation_wait',
       delayMs: 10000,
       filename: fileName.substring(0, 50),
-      userId
+      userId: user.id
     }, 'Waiting for Vercel Blob propagation')
     await new Promise(resolve => setTimeout(resolve, 10000)) // 10 second initial delay
 
@@ -142,7 +141,7 @@ export async function POST(_request: NextRequest) {
           totalAttempts: 5,
           blobUrl,
           filename: fileName.substring(0, 50),
-          userId
+      userId: user.id
         }, `Process blob download attempt ${attempt}/5`)
         response = await fetch(blobUrl)
 
@@ -151,7 +150,7 @@ export async function POST(_request: NextRequest) {
             operation: 'process_blob_download_success',
             attempt,
             filename: fileName.substring(0, 50),
-            userId
+      userId: user.id
           }, `Successfully downloaded blob on attempt ${attempt}`)
           break
         } else {
@@ -161,7 +160,7 @@ export async function POST(_request: NextRequest) {
             httpStatus: response.status,
             httpStatusText: response.statusText,
             filename: fileName.substring(0, 50),
-            userId
+      userId: user.id
           }, `Download attempt ${attempt} failed`)
           downloadError = `${response.status} ${response.statusText}`
 
@@ -172,7 +171,7 @@ export async function POST(_request: NextRequest) {
               operation: 'process_blob_retry_wait',
               delayMs: delay,
               attempt,
-              userId
+      userId: user.id
             }, `Waiting before retry`)
             await new Promise(resolve => setTimeout(resolve, delay))
           }
@@ -186,7 +185,7 @@ export async function POST(_request: NextRequest) {
           blobUrl,
           fileName,
           fileSize,
-          userId,
+          userId: user.id,
           attempt,
           phase: 'storage_download',
           severity: attempt === 5 ? 'critical' : 'medium'
@@ -205,7 +204,7 @@ export async function POST(_request: NextRequest) {
         downloadError,
         filename: fileName.substring(0, 50),
         blobUrl,
-        userId
+      userId: user.id
       })
       return NextResponse.json(
         { success: false, error: `Failed to download file from blob storage: ${downloadError}. The file may need time to propagate or there may be a permissions issue.` },
@@ -222,7 +221,7 @@ export async function POST(_request: NextRequest) {
       filename: fileName.substring(0, 50),
       fileSize,
       mimeType,
-      userId
+      userId: user.id
     }, 'Starting text extraction from blob')
     const extraction = await extractTextFromFile(buffer, mimeType, fileName)
 
@@ -232,7 +231,7 @@ export async function POST(_request: NextRequest) {
         filename: fileName.substring(0, 50),
         mimeType,
         fileSize,
-        userId
+      userId: user.id
       })
       return NextResponse.json(
         { success: false, error: 'Failed to extract text from file' },
@@ -245,7 +244,7 @@ export async function POST(_request: NextRequest) {
       filename: fileName.substring(0, 50),
       wordCount: extraction.wordCount,
       pageCount: extraction.pageCount,
-      userId
+      userId: user.id
     }, `Extracted ${extraction.wordCount} words from file`)
 
     // Clean the extracted content to prevent database errors
@@ -256,7 +255,7 @@ export async function POST(_request: NextRequest) {
         operation: 'process_blob_content_cleaning_failed',
         filename: fileName.substring(0, 50),
         originalContentLength: extraction.content.length,
-        userId
+      userId: user.id
       })
       return NextResponse.json(
         { success: false, error: 'Document content could not be processed (contains unsupported characters)' },
@@ -271,7 +270,7 @@ export async function POST(_request: NextRequest) {
       title: cleanTitle.substring(0, 50),
       wordCount: extraction.wordCount,
       fileSize,
-      userId
+      userId: user.id
     }, 'Saving document record to database')
 
     // Prepare document record with multimedia support
@@ -312,7 +311,7 @@ export async function POST(_request: NextRequest) {
         operation: 'process_blob_database_insert',
         fileName,
         fileSize,
-        userId,
+        userId: user.id,
         dbErrorCode: dbError.code,
         dbErrorHint: dbError.hint,
         phase: 'database_write',
@@ -330,7 +329,7 @@ export async function POST(_request: NextRequest) {
       documentId: document.id,
       title: cleanTitle.substring(0, 50),
       filename: fileName.substring(0, 50),
-      userId
+      userId: user.id
     }, 'Document saved successfully')
 
     // Start vector processing in the background
@@ -355,7 +354,7 @@ export async function POST(_request: NextRequest) {
         filename: fileName.substring(0, 50),
         wordCount: extraction.wordCount,
         fileSize,
-        userId
+      userId: user.id
       }, 'Successfully processed blob upload')
     } catch (ingestionError) {
       // Don't fail the upload if ingestion fails - it can be retried later
@@ -363,7 +362,7 @@ export async function POST(_request: NextRequest) {
         operation: 'process_blob_vector_processing',
         documentId: document.id,
         fileName,
-        userId,
+        userId: user.id,
         phase: 'post_upload_processing',
         severity: 'medium'
       })
