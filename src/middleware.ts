@@ -132,7 +132,7 @@ export const config = {
   matcher: [
     // Skip Next.js internals and all static files
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // API routes EXCEPT webhooks (webhooks must be completely excluded)
-    '/((?!api/webhooks)api|trpc)(.*)',
+    // Always run middleware on API routes (webhooks are excluded via early return in the middleware function)
+    '/(api|trpc)(.*)',
   ],
 }

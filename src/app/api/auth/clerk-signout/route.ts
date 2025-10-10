@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
+import { cookies } from 'next/headers'
 
 export async function POST(_request: NextRequest) {
   try {
@@ -17,12 +18,23 @@ export async function POST(_request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
-    // Sign out of Clerk by clearing session cookie
+    // Sign out of Clerk by clearing ALL Clerk-related cookies
     const response = NextResponse.json({ success: true })
+    const cookieStore = await cookies()
 
-    // Clear Clerk session cookies
-    response.cookies.delete('__session')
-    response.cookies.delete('__clerk_db_jwt')
+    // Clear all Clerk cookies (including __client, __session, __clerk_db_jwt, etc.)
+    const clerkCookiePatterns = ['__client', '__session', '__clerk']
+
+    cookieStore.getAll().forEach(cookie => {
+      if (clerkCookiePatterns.some(pattern => cookie.name.includes(pattern))) {
+        response.cookies.set(cookie.name, '', {
+          path: '/',
+          maxAge: 0,
+          httpOnly: true,
+          sameSite: 'lax'
+        })
+      }
+    })
 
     return response
   } catch (error) {

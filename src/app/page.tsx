@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useAuth, SignIn } from '@clerk/nextjs'
+import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
@@ -14,10 +14,8 @@ import {
   ArrowRight,
   Globe,
   Book,
-  Users,
-  X
+  Users
 } from 'lucide-react'
-import { Modal } from '@/components/ui/Modal'
 
 // All available question options with icons and descriptions
 const ALL_QUESTION_OPTIONS = [
@@ -117,8 +115,6 @@ const ALL_QUESTION_OPTIONS = [
 export default function LandingPage() {
   const { isLoaded, userId } = useAuth()
   const router = useRouter()
-  const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null)
-  const [showAuth, setShowAuth] = useState(false)
 
   // Randomly select 3 questions from the pool on each page load
   const selectedQuestions = useMemo(() => {
@@ -135,9 +131,9 @@ export default function LandingPage() {
       const encodedQuestion = encodeURIComponent(question)
       router.push(`/chat?question=${encodedQuestion}`)
     } else {
-      // User is not authenticated, store question and show auth
-      setSelectedQuestion(question)
-      setShowAuth(true)
+      // User is not authenticated, navigate to login page with question
+      const encodedQuestion = encodeURIComponent(question)
+      router.push(`/login?question=${encodedQuestion}`)
     }
   }
 
@@ -197,15 +193,16 @@ export default function LandingPage() {
                   </Link>
                 </div>
               ) : (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => setShowAuth(true)}
-                  className="min-h-[44px] px-6 font-medium shadow-sm hover:shadow-md active:scale-95"
-                >
-                  <span className="hidden sm:inline">Sign In</span>
-                  <span className="sm:hidden">Sign In</span>
-                </Button>
+                <Link href="/login">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="min-h-[44px] px-6 font-medium shadow-sm hover:shadow-md active:scale-95"
+                  >
+                    <span className="hidden sm:inline">Sign In</span>
+                    <span className="sm:hidden">Sign In</span>
+                  </Button>
+                </Link>
               )}
             </div>
           </div>
@@ -357,103 +354,22 @@ export default function LandingPage() {
                 <p className="text-neutral-600 mb-6 leading-relaxed">
                   Sign in to access the full library and start equipping yourself to live out and proclaim the good news of Jesus Christ.
                 </p>
-                <Button
-                  size="lg"
-                  onClick={() => setShowAuth(true)}
-                  className="shadow-lg hover:shadow-xl min-h-[52px] px-8 text-base font-semibold active:scale-95"
-                >
-                  <span className="flex items-center gap-2">
-                    Get Started
-                    <ArrowRight className="w-5 h-5" />
-                  </span>
-                </Button>
+                <Link href="/login">
+                  <Button
+                    size="lg"
+                    className="shadow-lg hover:shadow-xl min-h-[52px] px-8 text-base font-semibold active:scale-95"
+                  >
+                    <span className="flex items-center gap-2">
+                      Get Started
+                      <ArrowRight className="w-5 h-5" />
+                    </span>
+                  </Button>
+                </Link>
               </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* Enhanced Authentication Modal */}
-      <Modal
-        isOpen={showAuth && !userId}
-        onClose={() => {
-          setShowAuth(false)
-          setSelectedQuestion(null)
-        }}
-        title=""
-        size="md"
-        showCloseButton={false}
-      >
-        <div className="text-center mb-6">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-lg">
-              MT
-            </div>
-            <h3 className="text-xl font-bold text-neutral-800">
-              Sign in to Multiply Tools
-            </h3>
-          </div>
-          {selectedQuestion && (
-            <p className="text-sm text-neutral-600 bg-primary-50 border border-primary-200 rounded-lg p-3">
-              <span className="font-medium">Ready to explore:</span><br />
-              &ldquo;{selectedQuestion.length > 60 ? selectedQuestion.substring(0, 57) + '...' : selectedQuestion}&rdquo;
-            </p>
-          )}
-        </div>
-
-        <div className="flex justify-end mb-4">
-          <button
-            onClick={() => {
-              setShowAuth(false)
-              setSelectedQuestion(null)
-            }}
-            className="min-w-[44px] min-h-[44px] text-neutral-400 hover:text-neutral-600 transition-all duration-200 p-3 rounded-xl hover:bg-neutral-100 flex items-center justify-center active:scale-95"
-            aria-label="Close sign in modal"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Enhanced SignIn Component */}
-        <SignIn
-          appearance={{
-            elements: {
-              rootBox: "mx-auto w-full",
-              card: "bg-transparent shadow-none border-0 w-full",
-              headerTitle: "text-xl md:text-2xl font-bold text-neutral-800 mb-2 text-center",
-              headerSubtitle: "text-neutral-600 text-sm text-center mb-4",
-              socialButtonsBlockButton: "border border-neutral-200/60 hover:bg-neutral-50 rounded-xl transition-all duration-200 text-neutral-700 min-h-[48px] w-full font-medium shadow-sm hover:shadow-md active:scale-98",
-              socialButtonsBlockButtonText: "font-medium text-base",
-              socialButtonsProviderIcon: "w-5 h-5",
-              dividerLine: "bg-neutral-200",
-              dividerText: "text-neutral-500 text-sm",
-              formButtonPrimary: "bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-xl min-h-[48px] w-full active:scale-98",
-              formFieldInput: "border border-neutral-200/60 rounded-xl focus:border-primary-400 focus:ring-2 focus:ring-primary-200 transition-all duration-200 bg-white/80 backdrop-blur-sm min-h-[48px] px-4 text-base",
-              formFieldLabel: "text-neutral-700 font-medium text-sm mb-2",
-              footerActionLink: "text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200 text-center block py-2",
-              identityPreviewText: "text-neutral-600",
-              formResendCodeLink: "text-primary-600 hover:text-primary-700 font-medium min-h-[44px] flex items-center justify-center",
-              otpCodeFieldInput: "border border-neutral-200/60 rounded-xl focus:border-primary-400 focus:ring-2 focus:ring-primary-200 min-h-[48px] text-center text-lg font-medium",
-              formFieldAction: "min-h-[44px] flex items-center justify-center",
-              formFieldSuccessText: "text-green-600 text-sm text-center",
-              formFieldErrorText: "text-red-600 text-sm",
-              alertError: "bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm",
-              loadingIcon: "w-5 h-5"
-            },
-            variables: {
-              colorPrimary: "#6366f1",
-              colorBackground: "transparent",
-              colorInputBackground: "rgba(255, 255, 255, 0.8)",
-              colorInputText: "#374151",
-              borderRadius: "12px",
-              spacingUnit: "1rem",
-              fontFamily: "inherit"
-            }
-          }}
-          routing="hash"
-          afterSignInUrl={selectedQuestion ? `/chat?question=${encodeURIComponent(selectedQuestion)}` : "/chat"}
-        />
-      </Modal>
     </div>
   )
 }

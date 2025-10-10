@@ -69,6 +69,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Login failed' }, { status: 500 })
     }
 
+    // IMPORTANT: Clear any existing Clerk session cookies
+    // This ensures the user is fully migrated to Supabase Auth
+    const clerkCookies = [
+      '__client',
+      '__session',
+      '__clerk_db_jwt'
+    ]
+
+    clerkCookies.forEach(cookieName => {
+      cookieStore.getAll().forEach(cookie => {
+        if (cookie.name.includes(cookieName)) {
+          responseHeaders.append(
+            'Set-Cookie',
+            `${cookie.name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`
+          )
+        }
+      })
+    })
+
     return NextResponse.json(
       {
         success: true,
