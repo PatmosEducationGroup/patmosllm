@@ -13,12 +13,12 @@ export async function POST(_request: NextRequest) {
   }, 'Resend invitation endpoint called')
 
   try {
-    // Check authentication
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    if (!user) {
       loggers.security({
         operation: 'resend_invitation_auth_failed',
-        reason: 'no_user_id'
+        reason: 'no_user'
       }, 'Authentication failed')
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
@@ -27,13 +27,12 @@ export async function POST(_request: NextRequest) {
     }
 
     // Verify admin permissions
-    const user = await getCurrentUser()
-    if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       loggers.security({
         operation: 'resend_invitation_auth_failed',
-        userId,
-        userEmail: user?.email,
-        userRole: user?.role,
+        userId: user.id,
+        userEmail: user.email,
+        userRole: user.role,
         reason: 'insufficient_permissions'
       }, 'Admin access denied')
       return NextResponse.json(

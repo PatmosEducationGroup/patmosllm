@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { getCurrentUser } from '@/lib/auth'
 import { promises as fs } from 'fs'
 import path from 'path'
 import { logger } from '@/lib/logger'
@@ -21,9 +21,9 @@ export async function GET(
   { params }: { params: Promise<{ fileId: string }> }
 ) {
   try {
-    // Authenticate user
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    if (!user) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 

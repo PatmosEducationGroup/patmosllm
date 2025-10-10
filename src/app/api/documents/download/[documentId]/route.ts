@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logError } from '@/lib/logger'
-import { auth } from '@clerk/nextjs/server'
+import { getCurrentUser } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 
 /**
@@ -17,9 +17,9 @@ export async function GET(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
-    // Check authentication
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }

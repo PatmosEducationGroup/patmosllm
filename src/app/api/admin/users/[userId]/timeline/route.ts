@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import {loggers, logError} from '@/lib/logger'
@@ -9,16 +8,17 @@ export async function GET(
  context: { params: Promise<{ userId: string }> }
 ) {
  try {
-   const { userId: currentUserId } = await auth()
-   if (!currentUserId) {
+   // getCurrentUser() handles both Supabase and Clerk auth
+   const currentUser = await getCurrentUser()
+   if (!currentUser) {
      return NextResponse.json(
        { success: false, error: 'Authentication required' },
        { status: 401 }
      )
    }
 
-   const currentUser = await getCurrentUser()
-   if (!currentUser || !['ADMIN', 'SUPER_ADMIN'].includes(currentUser.role)) {
+   // Verify admin privileges
+   if (!['ADMIN', 'SUPER_ADMIN'].includes(currentUser.role)) {
      return NextResponse.json(
        { success: false, error: 'Admin privileges required' },
        { status: 403 }

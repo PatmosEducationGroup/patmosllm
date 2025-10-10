@@ -37,29 +37,27 @@ export async function POST(_request: NextRequest) {
       }, { status: 429 })
     }
 
-    // Check authentication
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    loggers.auth({
+      operation: 'process_blob_auth_check',
+      userId: user?.id,
+      role: user?.role,
+      hasUser: !!user
+    }, 'Process blob authentication check')
+
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    // Get current user
-    const user = await getCurrentUser()
-    loggers.auth({
-      operation: 'process_blob_auth_check',
-      userId,
-      role: user?.role,
-      hasUser: !!user
-    }, 'Process blob authentication check')
-
-    if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       loggers.security({
         operation: 'process_blob_permission_denied',
-        userId,
-        role: user?.role,
+        userId: user.id,
+        role: user.role,
         requiredRoles: ['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN']
       }, 'Permission denied for blob processing')
       return NextResponse.json(
@@ -119,7 +117,7 @@ export async function POST(_request: NextRequest) {
       blobUrl,
       filename: fileName.substring(0, 50),
       fileSize,
-      userId
+      userId: user.id
     }, 'Starting blob file processing')
 
     // Download file from Vercel Blob for processing with retry logic
@@ -337,11 +335,11 @@ export async function POST(_request: NextRequest) {
 
     // Start vector processing in the background
     try {
-      await processDocumentVectors(document.id, userId)
+      await processDocumentVectors(document.id, user.id)
 
       // Track first document upload milestone
       await trackOnboardingMilestone({
-        clerkUserId: userId,
+        clerkUserId: user.clerk_id,
         milestone: 'first_document_upload',
         metadata: {
           documentTitle: cleanTitle,

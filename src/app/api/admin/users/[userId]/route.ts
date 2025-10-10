@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logError } from '@/lib/logger'
-import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 
@@ -9,23 +8,22 @@ export async function PATCH(
   context: { params: Promise<{ userId: string }> }
 ) {
   try {
-    // Check authentication
-    const { userId: currentUserId } = await auth()
-    if (!currentUserId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const currentUser = await getCurrentUser()
+    if (!currentUser) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    // Get current user and verify admin privileges
-const currentUser = await getCurrentUser()
-if (!currentUser || !['ADMIN', 'SUPER_ADMIN'].includes(currentUser.role)) {
-  return NextResponse.json(
-    { success: false, error: 'Admin privileges required' },
-    { status: 403 }
-  )
-}
+    // Verify admin privileges
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(currentUser.role)) {
+      return NextResponse.json(
+        { success: false, error: 'Admin privileges required' },
+        { status: 403 }
+      )
+    }
 
 // Get the userId from params and request body
 const { userId } = await context.params

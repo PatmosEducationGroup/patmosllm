@@ -16,19 +16,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
+    // getCurrentUser() handles both Supabase and Clerk auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(
-        { success: false, error: 'User not found' },
-        { status: 403 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       )
     }
 
@@ -119,19 +112,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
+    // getCurrentUser() handles both Supabase and Clerk auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(
-        { success: false, error: 'User not found' },
-        { status: 403 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       )
     }
 
@@ -201,19 +187,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
+    // getCurrentUser() handles both Supabase and Clerk auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(
-        { success: false, error: 'User not found' },
-        { status: 403 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       )
     }
 

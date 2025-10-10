@@ -7,16 +7,16 @@ import { getCurrentUser } from '@/lib/auth'
 // GET - List documents based on user role
 export async function GET(_request: NextRequest) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    const user = await getCurrentUser()
-    if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json(
         { success: false, error: 'Admin or contributor access required' },
         { status: 403 }

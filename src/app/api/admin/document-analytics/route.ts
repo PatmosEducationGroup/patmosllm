@@ -6,13 +6,13 @@ import { getCurrentUser } from '@/lib/auth'
 
 export async function GET(_request: NextRequest) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
     }
 
-    const user = await getCurrentUser()
-    if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 })
     }
 

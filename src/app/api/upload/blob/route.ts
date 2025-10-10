@@ -39,18 +39,16 @@ export async function POST(_request: NextRequest) {
       }, { status: 429 })
     }
 
-    // Check authentication
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    // Get current user and check permissions
-    const user = await getCurrentUser()
-    if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json(
         { success: false, error: 'Only administrators and contributors can upload files' },
         { status: 403 }
@@ -109,7 +107,7 @@ export async function POST(_request: NextRequest) {
       filename: file.name.substring(0, 50),
       fileSize: file.size,
       fileType: file.type,
-      userId
+      userId: user.id
     }, 'Starting Vercel Blob upload')
 
     // Check if Vercel Blob token is configured
@@ -404,11 +402,11 @@ export async function POST(_request: NextRequest) {
 
     // Start vector processing in the background
     try {
-      await processDocumentVectors(document.id, userId)
+      await processDocumentVectors(document.id, user.id)
 
       // Track first document upload milestone
       await trackOnboardingMilestone({
-        clerkUserId: userId,
+        clerkUserId: user.clerk_id,
         milestone: 'first_document_upload',
         metadata: {
           documentTitle: cleanTitle,

@@ -2,15 +2,15 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { logError } from '@/lib/logger'
-import { auth } from '@clerk/nextjs/server'
+import { getCurrentUser } from '@/lib/auth'
 import { trackOnboardingMilestone, MilestoneType } from '@/lib/onboardingTracker'
 
 export async function POST(_request: NextRequest) {
   try {
-    // Fix 1: Add await to auth() call
-    const { userId } = await auth()
-    
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -63,7 +63,7 @@ return NextResponse.json(
 
     // Track the milestone with enhanced metadata
     const success = await trackOnboardingMilestone({
-      clerkUserId: userId,
+      clerkUserId: user.clerk_id, // Use clerk_id from user record
       milestone,
       metadata: {
         ...metadata,
@@ -87,10 +87,10 @@ return NextResponse.json(
       )
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       milestone,
-      userId,
+      userId: user.id, // Return database user ID
       tracked_at: new Date().toISOString()
     })
 

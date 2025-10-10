@@ -158,31 +158,20 @@ export async function POST(_request: NextRequest) {
     }
 
     // =================================================================
-    // AUTHENTICATION - Verify user is logged in with Clerk
+    // AUTHENTICATION - getCurrentUser() handles both Supabase and Clerk auth
     // =================================================================
-    const { userId } = await auth()
-    if (!userId) {
+    const user = await getCurrentUser()
+    if (!user) {
       return new Response(
         JSON.stringify({ success: false, error: 'Authentication required' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       )
     }
 
-    // =================================================================
-    // USER VERIFICATION - Check user exists in our database
-    // =================================================================
-    const user = await getCurrentUser()
-    if (!user) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'User not found in database' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
-      )
-    }
-
     // Capture user details for use in async operations
     const currentUserId = user.id
     const userEmail = user.email
-    const clerkUserId = userId // userId is guaranteed non-null at this point
+    const clerkUserId = user.clerk_id // Use clerk_id from user record
 
     // =================================================================
     // INPUT VALIDATION - Get and sanitize the user's question

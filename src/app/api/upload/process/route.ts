@@ -38,29 +38,27 @@ export async function POST(_request: NextRequest) {
       }, { status: 429 })
     }
 
-    // Check authentication
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    loggers.auth({
+      operation: 'upload_process_auth_check',
+      userId: user?.id,
+      role: user?.role,
+      hasUser: !!user
+    }, 'Upload process authentication check')
+
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    // Get current user
-    const user = await getCurrentUser()
-    loggers.auth({
-      operation: 'upload_process_auth_check',
-      userId,
-      role: user?.role,
-      hasUser: !!user
-    }, 'Upload process authentication check')
-
-    if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
       loggers.security({
         operation: 'upload_process_permission_denied',
-        userId,
-        role: user?.role,
+        userId: user.id,
+        role: user.role,
         requiredRoles: ['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN']
       }, 'Permission denied for upload processing')
       return NextResponse.json(
@@ -114,7 +112,7 @@ export async function POST(_request: NextRequest) {
       storagePath,
       filename: fileName.substring(0, 50),
       fileSize,
-      userId
+      userId: user.id
     }, 'Starting upload file processing')
 
     // Download file from Supabase Storage for processing
@@ -295,7 +293,7 @@ export async function POST(_request: NextRequest) {
     // Track onboarding milestone AFTER successful upload
     try {
       await trackOnboardingMilestone({
-        clerkUserId: userId, // userId is guaranteed to be string here
+        clerkUserId: user.clerk_id,
         milestone: 'first_document_upload',
         metadata: {
           document_name: fileName,
@@ -311,7 +309,7 @@ export async function POST(_request: NextRequest) {
       logError(milestoneError instanceof Error ? milestoneError : new Error('Onboarding milestone tracking failed'), {
         operation: 'onboarding_milestone_tracking',
         documentId: document.id,
-        userId,
+        userId: user.id,
         phase: 'post_upload_processing',
         severity: 'low' // Low because it's just tracking, doesn't affect core functionality
       })

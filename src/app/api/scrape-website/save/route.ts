@@ -49,15 +49,13 @@ interface BatchProcessResult {
 
 export async function POST(_request: NextRequest) {
   try {
-    // Check authentication
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    // Get current user
-    const user = await getCurrentUser()
-    if (!user || !['SUPER_ADMIN', 'ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
+    if (!['SUPER_ADMIN', 'ADMIN', 'CONTRIBUTOR'].includes(user.role)) {
       return NextResponse.json({ error: 'Upload access denied' }, { status: 403 })
     }
 
@@ -227,7 +225,7 @@ export async function POST(_request: NextRequest) {
     if (result.processed > 0) {
       try {
         await trackOnboardingMilestone({
-          clerkUserId: userId,
+          clerkUserId: user.clerk_id,
           milestone: 'first_document_upload',
           metadata: {
             batch_scraped: true,
@@ -240,7 +238,7 @@ export async function POST(_request: NextRequest) {
         // Non-critical: Milestone tracking failed but documents saved successfully
         logError(milestoneError instanceof Error ? milestoneError : new Error('Milestone tracking failed'), {
           operation: 'track_onboarding_milestone',
-          clerkUserId: userId,
+          clerkUserId: user.clerk_id,
           milestone: 'first_document_upload',
           pagesProcessed: result.processed,
           phase: 'onboarding_tracking',

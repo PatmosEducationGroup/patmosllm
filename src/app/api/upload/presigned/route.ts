@@ -21,23 +21,21 @@ export async function POST(_request: NextRequest) {
       }, { status: 429 })
     }
 
-    // Authentication
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-
-  const user = await getCurrentUser()
-if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
-  return NextResponse.json(
-    { success: false, error: 'Only administrators and contributors can upload files' },
-    { status: 403 }
-  )
-}
+    if (!['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
+      return NextResponse.json(
+        { success: false, error: 'Only administrators and contributors can upload files' },
+        { status: 403 }
+      )
+    }
 
     const { fileName, fileSize, mimeType } = await _request.json()
 

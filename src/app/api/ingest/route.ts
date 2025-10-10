@@ -8,21 +8,21 @@ import { processDocumentVectors } from '@/lib/ingest'
 // GET - Load ingest jobs for admin interface
 export async function GET(_request: NextRequest) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-const user = await getCurrentUser()
-if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
-  return NextResponse.json(
-    { success: false, error: 'Admin access required' },
-    { status: 403 }
-  )
-}
+    if (!['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
+      return NextResponse.json(
+        { success: false, error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
 
     // Get all ingest jobs
     const { data: jobs, error } = await supabaseAdmin
@@ -62,23 +62,22 @@ return NextResponse.json(
 // POST - Start new ingest job
 export async function POST(_request: NextRequest) {
   try {
-    // Check authentication
-    const { userId } = await auth()
-    if (!userId) {
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    // Get current user and check permissions
-const user = await getCurrentUser()
-if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
-  return NextResponse.json(
-    { success: false, error: 'Admin access required' },
-    { status: 403 }
-  )
-}
+    // Check permissions
+    if (!['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
+      return NextResponse.json(
+        { success: false, error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
 
     // Get document ID from request
     const { documentId } = await _request.json()
@@ -91,7 +90,7 @@ if (!user || !['ADMIN', 'CONTRIBUTOR', 'SUPER_ADMIN'].includes(user.role)) {
 
     // Use the shared batched processing function
     try {
-      const result = await processDocumentVectors(documentId, userId)
+      const result = await processDocumentVectors(documentId, user.id)
       return NextResponse.json(result)
     } catch (processingError) {
       return NextResponse.json(

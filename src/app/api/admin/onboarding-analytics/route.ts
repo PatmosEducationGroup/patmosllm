@@ -7,15 +7,14 @@ import { logError } from '@/lib/logger'
 export async function GET(_request: NextRequest) {
   try {
     // =================================================================
-    // AUTHENTICATION - Verify user is logged in and has admin access
+    // AUTHENTICATION - getCurrentUser() handles both Supabase and Clerk auth
     // =================================================================
-    const { userId } = await auth()
-    if (!userId) {
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
     }
 
-    const user = await getCurrentUser()
-    if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 })
     }
 

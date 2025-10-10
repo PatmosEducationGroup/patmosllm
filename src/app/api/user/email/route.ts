@@ -5,29 +5,24 @@
  * Used by the migration page to pre-fill the email field
  */
 
-import { auth, clerkClient } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { getCurrentUser } from '@/lib/auth'
 
 export async function GET() {
   try {
-    const { userId } = await auth()
+    // getCurrentUser() handles both Supabase and Clerk auth
+    const user = await getCurrentUser()
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const client = await clerkClient()
-    const user = await client.users.getUser(userId)
-
-    const primaryEmail = user.emailAddresses.find(
-      (e) => e.id === user.primaryEmailAddressId
-    )?.emailAddress
-
-    if (!primaryEmail) {
+    // User email is available directly from the database
+    if (!user.email) {
       return NextResponse.json({ error: 'No email found' }, { status: 404 })
     }
 
-    return NextResponse.json({ email: primaryEmail })
+    return NextResponse.json({ email: user.email })
   } catch (error) {
     console.error('Error fetching user email:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

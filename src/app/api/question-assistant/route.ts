@@ -22,14 +22,10 @@ export async function POST(_request: NextRequest) {
       )
     }
 
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
+    // getCurrentUser() handles both Supabase and Clerk auth
     const user = await getCurrentUser()
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 403 })
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
     // =================================================================
@@ -147,14 +143,10 @@ export async function POST(_request: NextRequest) {
 
 export async function GET(_request: NextRequest) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
+    // getCurrentUser() handles both Supabase and Clerk auth
     const user = await getCurrentUser()
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 403 })
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
     const url = new URL(_request.url)
