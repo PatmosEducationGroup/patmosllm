@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -115,12 +115,25 @@ const ALL_QUESTION_OPTIONS = [
 export default function LandingPage() {
   const { isLoaded, userId } = useAuth()
   const router = useRouter()
+  const [canAdmin, setCanAdmin] = useState(false)
 
   // Randomly select 3 questions from the pool on each page load
   const selectedQuestions = useMemo(() => {
     const shuffled = [...ALL_QUESTION_OPTIONS].sort(() => 0.5 - Math.random())
     return shuffled.slice(0, 3)
   }, [])
+
+  // Check if user has admin access
+  useEffect(() => {
+    if (userId) {
+      fetch('/api/user/can-admin')
+        .then((res) => res.json())
+        .then((data) => setCanAdmin(data.canAdmin))
+        .catch(() => setCanAdmin(false))
+    } else {
+      setCanAdmin(false)
+    }
+  }, [userId])
 
   // Handle question button clicks
   const handleQuestionClick = (question: string) => {
@@ -184,13 +197,15 @@ export default function LandingPage() {
                     <span className="hidden sm:inline">Go to Chat</span>
                     <span className="sm:hidden">Chat</span>
                   </Link>
-                  <Link
-                    href="/admin"
-                    className="min-h-[44px] px-3 md:px-4 py-2 text-sm font-medium text-neutral-600 hover:text-primary-600 transition-all duration-200 rounded-lg hover:bg-primary-50 flex items-center"
-                  >
-                    <span className="hidden sm:inline">Admin</span>
-                    <span className="sm:hidden">⚙️</span>
-                  </Link>
+                  {canAdmin && (
+                    <Link
+                      href="/admin"
+                      className="min-h-[44px] px-3 md:px-4 py-2 text-sm font-medium text-neutral-600 hover:text-primary-600 transition-all duration-200 rounded-lg hover:bg-primary-50 flex items-center"
+                    >
+                      <span className="hidden sm:inline">Admin</span>
+                      <span className="sm:hidden">⚙️</span>
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <Link href="/login">

@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { logError } from '@/lib/logger'
 import { useAuth, UserButton } from '@clerk/nextjs'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import {
@@ -102,9 +102,9 @@ function ChatPageContent() {
   // AUTHENTICATION HOOKS - Handle user authentication state
   // =================================================================
   const { isLoaded, userId } = useAuth()
-  const router = useRouter()
   const searchParams = useSearchParams()
   const { success: showSuccessToast, error: showErrorToast } = useToastActions()
+  const [canAdmin, setCanAdmin] = useState(false)
   
   // =================================================================
   // CHAT STATE MANAGEMENT - Core chat functionality state
@@ -224,6 +224,20 @@ function ChatPageContent() {
   useEffect(() => {
     if (userId) {
       loadSessions()
+    }
+  }, [userId])
+
+  // =================================================================
+  // ADMIN ACCESS CHECK - Check if user has admin privileges
+  // =================================================================
+  useEffect(() => {
+    if (userId) {
+      fetch('/api/user/can-admin')
+        .then((res) => res.json())
+        .then((data) => setCanAdmin(data.canAdmin))
+        .catch(() => setCanAdmin(false))
+    } else {
+      setCanAdmin(false)
     }
   }, [userId])
 
@@ -1083,19 +1097,21 @@ setError('Failed to create chat session. Please try again.')
                 </div>
                 <UserButton />
               </div>
-              <div className="flex items-center gap-2">
+              <div className={`flex items-center gap-2 ${canAdmin ? '' : 'justify-center'}`}>
                 <button
                   onClick={() => setShowFeedbackModal(true)}
-                  className="flex-1 bg-gradient-to-r from-primary-400 to-primary-600 text-white px-3 py-3 rounded-lg text-xs font-medium border-none cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 min-h-[44px]"
+                  className={`${canAdmin ? 'flex-1' : 'w-full'} bg-gradient-to-r from-primary-400 to-primary-600 text-white px-3 py-3 rounded-lg text-xs font-medium border-none cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 min-h-[44px]`}
                 >
                   Feedback
                 </button>
-                <Link
-                  href="/admin"
-                  className="flex-1 text-xs text-neutral-600 bg-neutral-100 hover:bg-neutral-200 px-3 py-3 rounded-lg no-underline font-medium text-center transition-colors duration-200 min-h-[44px] flex items-center justify-center"
-                >
-                  Admin Tools
-                </Link>
+                {canAdmin && (
+                  <Link
+                    href="/admin"
+                    className="flex-1 text-xs text-neutral-600 bg-neutral-100 hover:bg-neutral-200 px-3 py-3 rounded-lg no-underline font-medium text-center transition-colors duration-200 min-h-[44px] flex items-center justify-center"
+                  >
+                    Admin Tools
+                  </Link>
+                )}
               </div>
             </div>
           </div>
