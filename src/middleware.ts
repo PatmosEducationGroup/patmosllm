@@ -55,15 +55,46 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
       }
     )
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
     // If Supabase user exists, allow access (migrated user)
-    if (user) {
+    if (supabaseUser) {
       // User authenticated via Supabase - allow access
       // Response headers will be added below
     } else {
-      // STEP 2: No Supabase session - fall back to Clerk
-      await auth.protect()
+      // STEP 2: No Supabase session - check Clerk
+      const { userId } = await auth()
+
+      if (userId) {
+        // User has Clerk session - check if they need to migrate
+        // Get user email from Clerk to check migration status
+        const { clerkClient } = await import('@clerk/nextjs/server')
+        const client = await clerkClient()
+        const clerkUser = await client.users.getUser(userId)
+        const email = clerkUser.primaryEmailAddress?.emailAddress?.toLowerCase()
+
+        if (email) {
+          // Check migration status
+          const { data: migrationStatus } = await supabase
+            .from('user_migration')
+            .select('migrated')
+            .eq('email', email)
+            .maybeSingle()
+
+          // If user is NOT migrated, force them to migrate-password page
+          if (migrationStatus && !migrationStatus.migrated) {
+            // Allow access to migrate-password page itself
+            if (!req.nextUrl.pathname.startsWith('/migrate-password')) {
+              return NextResponse.redirect(new URL('/migrate-password', req.url))
+            }
+          }
+        }
+
+        // User has valid Clerk session, allow access
+      } else {
+        // No Clerk or Supabase session - require auth
+        await auth.protect()
+      }
     }
   }
 
