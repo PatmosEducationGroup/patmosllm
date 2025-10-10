@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logError } from '@/lib/logger'
-import { auth } from '@clerk/nextjs/server'
 import { getCurrentUser } from '@/lib/auth'
 import { userContextManager } from '@/lib/userContextManager'
 import { withSupabaseAdmin } from '@/lib/supabase'

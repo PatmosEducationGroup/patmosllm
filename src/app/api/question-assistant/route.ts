@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { getCurrentUser } from '@/lib/auth'
 import { questionQualityAssistant } from '@/lib/question-quality-assistant'
 import { chatRateLimit } from '@/lib/rate-limiter'

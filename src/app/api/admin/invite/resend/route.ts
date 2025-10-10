@@ -1,6 +1,5 @@
 // src/app/api/admin/invite/resend/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import { sendInvitationEmail } from '@/lib/email'

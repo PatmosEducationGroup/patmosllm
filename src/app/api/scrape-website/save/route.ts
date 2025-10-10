@@ -1,6 +1,5 @@
 // src/app/api/scrape-website/save/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import { sanitizeInput } from '@/lib/input-sanitizer'

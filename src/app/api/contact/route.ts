@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { getCurrentUser } from '@/lib/auth'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 import { Resend } from 'resend'

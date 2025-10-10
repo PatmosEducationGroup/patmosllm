@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { withSupabaseAdmin } from '@/lib/supabase'
 import { createEmbedding } from '@/lib/openai'
 import { intelligentSearch } from '@/lib/hybrid-search'

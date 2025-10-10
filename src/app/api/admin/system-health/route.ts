@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logError } from '@/lib/logger'
-import { auth } from '@clerk/nextjs/server'
 import { withSupabaseAdmin } from '@/lib/supabase'
 import { advancedCache } from '@/lib/advanced-cache'
 import { testConnection as testPineconeConnection } from '@/lib/pinecone'
