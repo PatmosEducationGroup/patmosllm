@@ -1,3 +1,5 @@
+import PrivacyContactForm from '@/components/PrivacyContactForm'
+
 export const metadata = {
   title: 'Terms of Service | MultiplyTools',
   description: 'Terms of Service for MultiplyTools - Currently under legal review',
@@ -48,15 +50,13 @@ export default function TermsOfServicePage() {
             </ul>
           </section>
 
-          {/* Contact */}
+          {/* Contact Form */}
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Questions?</h2>
-            <p className="text-gray-700">
-              If you have questions about our terms or service usage, please contact us at{' '}
-              <a href="mailto:support@multiplytools.app" className="text-blue-600 hover:underline">
-                support@multiplytools.app
-              </a>
+            <p className="text-gray-700 mb-4">
+              If you have questions about our terms or service usage, please use the form below to contact us.
             </p>
+            <PrivacyContactForm />
           </section>
 
           {/* Privacy Policy Link */}
