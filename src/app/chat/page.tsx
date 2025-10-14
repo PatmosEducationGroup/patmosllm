@@ -220,26 +220,26 @@ function ChatPageContent() {
 
   // =================================================================
   // SESSION LOADING EFFECT - Load user's chat sessions on mount
+  // NOTE: Works for both Clerk and Supabase users
   // =================================================================
   useEffect(() => {
-    if (userId) {
+    if (isLoaded) {
       loadSessions()
     }
-  }, [userId])
+  }, [isLoaded])
 
   // =================================================================
   // ADMIN ACCESS CHECK - Check if user has admin privileges
+  // NOTE: Works for both Clerk and Supabase users
   // =================================================================
   useEffect(() => {
-    if (userId) {
+    if (isLoaded) {
       fetch('/api/user/can-admin')
         .then((res) => res.json())
         .then((data) => setCanAdmin(data.canAdmin))
         .catch(() => setCanAdmin(false))
-    } else {
-      setCanAdmin(false)
     }
-  }, [userId])
+  }, [isLoaded])
 
   // =================================================================
   // PREFILLED QUESTION EFFECT - Handle question from landing page
@@ -356,7 +356,7 @@ function ChatPageContent() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          to: 'patmoseducationgroup@gmail.com',
+          to: 'admin@multiplytools.app',
           contactPerson: 'Multiply Tools Team',
           documentTitle: 'Beta Testing Feedback',
           senderName: feedbackForm.name,
@@ -1084,7 +1084,7 @@ setError('Failed to create chat session. Please try again.')
             </div>
 
             {/* Sidebar Footer */}
-            <div className="border-t border-neutral-200 p-4">
+            <div className="px-4 py-4 md:py-6">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-sm">
@@ -1438,10 +1438,11 @@ setError('Failed to create chat session. Please try again.')
             </div>
           </div>
 
-          {/* Modern Input Area */}
+          {/* Combined Input and Footer Area */}
           <div className="bg-white border-t border-neutral-200 flex justify-center">
-            <div className="w-full max-w-4xl px-4 md:px-6 py-4 md:py-6">
-              <div className="max-w-4xl w-full">
+            <div className="w-full max-w-4xl px-4 md:px-6">
+              {/* Input Section */}
+              <div className="py-4 md:py-6">
                 <textarea
                   value={input}
                   onChange={(e) => {
@@ -1463,6 +1464,27 @@ setError('Failed to create chat session. Please try again.')
                   className="w-full p-4 md:p-6 bg-neutral-50 border border-neutral-300 rounded-2xl resize-none outline-none text-sm md:text-base text-neutral-900 min-h-12 md:min-h-14 max-h-50 transition-all duration-200 focus:ring-2 focus:ring-primary-400/50 focus:border-primary-400"
                   style={{ overflow: 'hidden' }}
                 />
+              </div>
+
+              {/* Footer Section */}
+              <div className="py-3">
+                <div className="flex items-center justify-center gap-4 text-xs text-neutral-500">
+                  <Link
+                    href="/privacy"
+                    className="hover:text-primary-600 transition-colors no-underline"
+                  >
+                    Privacy
+                  </Link>
+                  <span>•</span>
+                  <Link
+                    href="/terms"
+                    className="hover:text-primary-600 transition-colors no-underline"
+                  >
+                    Terms
+                  </Link>
+                  <span>•</span>
+                  <span>© {new Date().getFullYear()} Multiply Tools</span>
+                </div>
               </div>
             </div>
           </div>

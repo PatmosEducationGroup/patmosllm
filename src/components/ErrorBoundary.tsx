@@ -194,10 +194,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                 <p className="text-sm text-gray-600">
                   If this problem persists, please contact support at{' '}
                   <a
-                    href="mailto:patmoseducationgroup@gmail.com"
+                    href="mailto:admin@multiplytools.app"
                     className="text-primary-600 hover:text-primary-700 font-medium underline"
                   >
-                    patmoseducationgroup@gmail.com
+                    admin@multiplytools.app
                   </a>
                 </p>
               </div>

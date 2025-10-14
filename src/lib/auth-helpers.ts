@@ -7,7 +7,6 @@
 import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import type { NextRequest } from 'next/server'
 
 /**
  * Get authenticated user ID from either Clerk or Supabase

@@ -2,6 +2,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import Footer from '@/components/Footer'
 import './globals.css'
 
 const inter = Inter({ 
@@ -36,7 +37,6 @@ export default function RootLayout({
       publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       signInUrl="/sign-in"
       signInFallbackRedirectUrl="/chat"
-      afterSignInUrl="/migrate-password"
     >
       <html lang="en">
         <head>
@@ -45,6 +45,7 @@ export default function RootLayout({
         <body className={inter.className}>
           <ErrorBoundary>
             {children}
+            <Footer />
             <Analytics />
           </ErrorBoundary>
         </body>
