@@ -104,6 +104,10 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('X-XSS-Protection', '1; mode=block')
   response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
+
+  // GDPR Phase 3: Cross-Origin security headers (prevent data leakage)
+  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
+  response.headers.set('Cross-Origin-Embedder-Policy', 'require-corp')
   
   // Content Security Policy - Updated for Cloudflare Turnstile & Vercel Analytics
   const cspDirectives = [

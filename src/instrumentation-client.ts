@@ -28,12 +28,23 @@ Sentry.init({
     }),
   ],
 
-  // Filter out known noise
+  // Filter out known noise and apply privacy filters
   beforeSend(event) {
+    // GDPR Phase 4: Exclude chat routes from session replay (privacy protection)
+    // Still capture errors, just no video replay of user typing sensitive info
+    if (event.request?.url?.includes('/chat')) {
+      // If this event includes session replay data, drop it
+      if (event.contexts?.replay) {
+        return null;
+      }
+      // Allow error events through (without replay)
+    }
+
     // Filter out ResizeObserver errors (browser noise)
     if (event.exception?.values?.[0]?.value?.includes('ResizeObserver')) {
       return null;
     }
+
     return event;
   },
 });
