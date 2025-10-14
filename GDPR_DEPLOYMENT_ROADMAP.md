@@ -292,16 +292,41 @@ git push
 
 ## CURRENT STATUS
 
-**Completed**:
-- ✅ Phase 1 (partial): Privacy Policy page created
-- ⏸️ Phase 1 (remaining): Terms of Service page
+**Completed Phases**:
+- ✅ **Phase 1**: Legal Pages (Privacy Policy + Terms of Service) - Deployed
+  - Commit: `d0784bd` - "feat: Add Privacy Policy and Terms of Service pages (Phase 1/9)"
+  - Date: October 2024
+
+- ✅ **Phase 2**: Footer Component - Deployed
+  - Commit: `974a3f2` - "feat: Complete Phase 2 GDPR compliance + config updates"
+  - Date: October 2024
+  - Added Footer.tsx, FeedbackModal.tsx, /api/feedback, /api/support routes
+
+- ✅ **Phase 3**: Security Headers + IP Truncation - Deployed
+  - Commit: `04693cb` - "feat: Complete Phase 3 & 4 GDPR compliance (security + privacy)"
+  - Date: October 2024
+  - Added COOP/COEP headers, IP truncation function (192.168.x.x)
+
+- ✅ **Phase 4**: Sentry Chat Filtering - Deployed
+  - Commit: `04693cb` - "feat: Complete Phase 3 & 4 GDPR compliance (security + privacy)"
+  - Date: October 2024
+  - Excluded /chat routes from Sentry session replay
+
+**In Progress**:
+- 🔄 **Phase 5**: Database Migration (consent tracking columns) - NEXT
+
+**Remaining Phases**:
+- ⏸️ Phase 6: Cookie Consent Banner (2-3 hours)
+- ⏸️ Phase 7: Invitation Acceptance Page (6-8 hours)
+- ⏸️ Phase 8: Privacy Settings Portal (8-12 hours)
+- ⏸️ Phase 9: Documentation & Polish (2 hours)
 
 **Next Steps**:
-1. Finish Phase 1 (create Terms of Service page)
-2. Test both pages locally
-3. Deploy Phase 1
-4. Verify Phase 1 in production
-5. Move to Phase 2 (Footer)
+1. **Phase 5**: Run database migration in Supabase SQL Editor
+2. Test: Verify columns added to users table
+3. Test: Confirm existing users unaffected
+4. Document: Create scripts/add-consent-columns.sql
+5. Move to Phase 6 (Cookie Banner)
 
 ---
 
@@ -348,18 +373,30 @@ ALTER TABLE users DROP COLUMN IF EXISTS terms_accepted_at;
 
 ## NEXT IMMEDIATE ACTION
 
-**Right now**: Finish Phase 1 by creating Terms of Service page, then test and deploy.
+**Right now**: Phase 5 - Database Migration (add consent tracking columns)
 
-**Command**:
-```bash
-# After creating terms page:
-npm run dev
-# Visit http://localhost:3000/privacy and /terms
-# Verify they look good
-npm run build
-# If build succeeds:
-git add src/app/privacy src/app/terms
-git commit -m "feat: Add Privacy Policy and Terms of Service pages (Phase 1/9)"
-git push
-# Deploy to Vercel, verify in production
-```
+**Steps**:
+1. Create migration script: `scripts/add-consent-columns.sql`
+2. Open Supabase SQL Editor: https://supabase.com/dashboard
+3. Run the ALTER TABLE commands (see Phase 5 section above)
+4. Verify columns added with SELECT query
+5. Test: Visit app, ensure no errors
+6. Commit migration script:
+   ```bash
+   git add scripts/add-consent-columns.sql
+   git commit -m "feat: Add database migration for consent tracking (Phase 5/9)"
+   git push
+   ```
+
+**Time**: 30 minutes
+**Risk**: Medium (database changes, but non-breaking)
+
+---
+
+## PROGRESS SUMMARY
+
+**Completed**: 4/9 phases (44%)
+**Time Spent**: ~2 hours
+**Time Remaining**: ~18-23 hours across Phases 5-9
+
+**Next Milestone**: Complete Phase 5 (Database Migration), then tackle Cookie Consent Banner (Phase 6)
