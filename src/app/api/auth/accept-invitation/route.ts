@@ -181,10 +181,12 @@ export async function POST(request: NextRequest) {
     // =================================================================
     await trackOnboardingMilestone({
       clerkUserId: newUser.id,
-      milestone: 'invitation_accepted',
+      milestone: 'invited', // Use existing milestone type
       metadata: {
         invitation_token: token,
         role: invitation.role,
+        invitation_accepted: true,
+        acceptance_timestamp: new Date().toISOString(),
         consents_captured: {
           age_confirmed: consents.age_confirmed,
           terms_accepted: consents.terms_accepted,

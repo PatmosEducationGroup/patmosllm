@@ -101,7 +101,7 @@ function ChatPageContent() {
   // =================================================================
   // AUTHENTICATION HOOKS - Handle user authentication state
   // =================================================================
-  const { isLoaded, userId } = useAuth()
+  const { isLoaded, userId: _userId } = useAuth()
   const searchParams = useSearchParams()
   const { success: showSuccessToast, error: showErrorToast } = useToastActions()
   const [canAdmin, setCanAdmin] = useState(false)
