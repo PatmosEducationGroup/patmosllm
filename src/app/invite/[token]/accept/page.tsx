@@ -153,8 +153,8 @@ export default function AcceptInvitationPage() {
           localStorage.setItem('cookie_consent_timestamp', new Date().toISOString())
         }
 
-        // Success! Redirect to login
-        router.push('/sign-in?message=Account created successfully. Please sign in.')
+        // Success! Redirect to Supabase login (not Clerk)
+        router.push('/login?message=Account created successfully. Please sign in.')
       } else {
         setError(data.error || 'Failed to create account')
       }
@@ -392,7 +392,7 @@ export default function AcceptInvitationPage() {
               {/* Footer */}
               <p className="text-xs text-center text-neutral-500">
                 Already have an account?{' '}
-                <Link href="/sign-in" className="text-primary-600 hover:text-primary-700 underline">
+                <Link href="/login" className="text-primary-600 hover:text-primary-700 underline">
                   Sign in
                 </Link>
               </p>
