@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Fragment } from 'react'
-import { useAuth } from '@clerk/nextjs'
+// Clerk hooks removed - now using session-based auth
 import AdminNavbar from '@/components/AdminNavbar'
 import {
   AlertCircle,
@@ -44,7 +44,6 @@ interface Stats {
 }
 
 export default function QuestionQualityPage() {
-  const { getToken } = useAuth()
   const [questions, setQuestions] = useState<QuestionQuality[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -61,7 +60,6 @@ export default function QuestionQualityPage() {
       setLoading(true)
       setError(null)
 
-      const token = await getToken()
       const params = new URLSearchParams({
         minSatisfaction: minSatisfaction.toString(),
         clarificationOnly: clarificationOnly.toString(),
@@ -69,9 +67,10 @@ export default function QuestionQualityPage() {
         limit: '100'
       })
 
+      // Session-based auth - uses cookies automatically
       const response = await fetch(`/api/admin/question-quality?${params}`, {
         headers: {
-          Authorization: `Bearer ${token}`
+          'Content-Type': 'application/json'
         }
       })
 

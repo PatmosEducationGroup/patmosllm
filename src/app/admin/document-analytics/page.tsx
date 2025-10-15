@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { logError } from '@/lib/logger'
-import { useAuth } from '@clerk/nextjs'
+// Clerk hooks removed - now using session-based auth
 import AdminNavbar from '@/components/AdminNavbar'
 import { Modal } from '@/components/ui/Modal'
 import {
@@ -50,7 +50,6 @@ interface DocumentAnalytics {
 }
 
 export default function DocumentAnalyticsPage() {
-  const { getToken } = useAuth()
   const [analytics, setAnalytics] = useState<DocumentAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -59,11 +58,10 @@ export default function DocumentAnalyticsPage() {
   const fetchAnalytics = useCallback(async () => {
     try {
       setLoading(true)
-      const token = await getToken()
 
+      // Session-based auth - uses cookies automatically
       const response = await fetch('/api/admin/document-analytics', {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       })
@@ -90,7 +88,7 @@ setError('Failed to load analytics')
   } finally {
       setLoading(false)
     }
-  }, [getToken, setLoading, setAnalytics, setError])
+  }, [])
 
   useEffect(() => {
     fetchAnalytics()

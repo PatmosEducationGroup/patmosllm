@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { logError } from '@/lib/logger'
-import { useAuth } from '@clerk/nextjs'
+// Clerk hooks removed - now using session-based auth
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
 import {
@@ -15,7 +15,10 @@ import {
   Activity,
   Copy,
   Check,
-  Send
+  Send,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react'
 import { Select } from '@/components/ui/Select'
 import { Input } from '@/components/ui/Input'
@@ -70,7 +73,6 @@ interface UserTimeline {
 }
 
 export default function AdminUsersPage() {
-  const { isLoaded, userId, getToken } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [currentUser, setCurrentUser] = useState<UserData | null>(null)
@@ -84,13 +86,16 @@ export default function AdminUsersPage() {
 
   // Form state
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteName, setInviteName] = useState('')
   const [inviteRole, setInviteRole] = useState('USER')
   const [sendEmail, setSendEmail] = useState(true)
   const [generatedInviteUrl, setGeneratedInviteUrl] = useState<string | null>(null)
   const [resending, setResending] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null)
+
+  // Sort state
+  const [sortColumn, setSortColumn] = useState<'email' | 'role' | 'status' | 'invitedBy' | 'createdAt'>('createdAt')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
   // Timeline modal state
   const [timelineUser, setTimelineUser] = useState<User | null>(null)
@@ -101,33 +106,32 @@ export default function AdminUsersPage() {
 
   // Check authentication and permissions
   useEffect(() => {
-    if (isLoaded && !userId) {
-      router.push('/sign-in')
-    } else if (isLoaded && userId) {
-      fetchUserData()
-    }
+    // PHASE 3: Support dual authentication (Supabase + Clerk)
+    // Let the API handle auth check instead of client-side Clerk check
+    fetchUserData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, userId, router])
+  }, [])
 
   const fetchUserData = async () => {
     try {
-      const token = await getToken()
-      
-      const userResponse = await fetch('/api/auth', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      
+      // Call API without Bearer token - it uses session cookies automatically
+      const userResponse = await fetch('/api/auth')
+
+      if (userResponse.status === 401) {
+        // Not authenticated - redirect to login
+        router.push('/login')
+        return
+      }
+
       if (userResponse.status === 404) {
         setAccessDenied(true)
         setError('Access denied: Your account has not been properly set up.')
         setLoading(false)
         return
       }
-      
+
       const userData = await userResponse.json()
-      
+
       if (!userData.success) {
         setAccessDenied(true)
         setError('Access denied: Unable to verify your permissions.')
@@ -161,13 +165,41 @@ setAccessDenied(true)
 
   const loadUsers = async () => {
     try {
-      const response = await fetch('/api/admin/invite')
-      const data = await response.json()
-      
-      if (data.success) {
-        setUsers(data.users)
-      } else {
-        setError(data.error)
+      // Fetch both users and pending invitations
+      const [usersResponse, invitationsResponse] = await Promise.all([
+        fetch('/api/admin/invite'),
+        fetch('/api/admin/invitations')
+      ])
+
+      const usersData = await usersResponse.json()
+      const invitationsData = await invitationsResponse.json()
+
+      // Handle active users
+      const activeUsers = usersData.success ? usersData.users : []
+
+      // Handle pending invitations
+      let pendingInvites: User[] = []
+      if (invitationsData.success && invitationsData.invitations) {
+        pendingInvites = invitationsData.invitations
+          .filter((inv: { isPending: boolean }) => inv.isPending)
+          .map((inv: { id: string; email: string; role: string; token: string; createdAt: string; invitedBy: string }) => ({
+            id: inv.id,
+            email: inv.email,
+            role: inv.role,
+            invitation_token: inv.token,
+            createdAt: inv.createdAt,
+            isActive: false,
+            invitedBy: inv.invitedBy,
+            name: undefined
+          }))
+      }
+
+      // Combine both lists
+      setUsers([...activeUsers, ...pendingInvites])
+
+      // Show error if both API calls failed
+      if (!usersData.success && !invitationsData.success) {
+        setError(usersData.error || invitationsData.error || 'Failed to load data')
       }
     } catch (error) {
     logError(error instanceof Error ? error : new Error('Operation failed'), {
@@ -185,11 +217,9 @@ setError('Failed to load users')
   const fetchUserTimeline = async (userId: string) => {
     try {
       setLoadingTimeline(true)
-      const token = await getToken()
-      
+
       const response = await fetch(`/api/admin/users/${userId}/timeline`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       })
@@ -286,19 +316,24 @@ setError('Failed to update user role')
     setError(null)
 
     try {
-      const response = await fetch('/api/admin/invite', {
+      // Route to correct endpoint based on user status
+      const endpoint = userToDelete.isActive ? '/api/admin/invite' : '/api/admin/invitations'
+      const bodyKey = userToDelete.isActive ? 'userId' : 'invitationId'
+
+      const response = await fetch(endpoint, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ userId: userToDelete.id })
+        body: JSON.stringify({ [bodyKey]: userToDelete.id })
       })
 
       const data = await response.json()
 
       if (data.success) {
         setUsers(users.filter(user => user.id !== userToDelete.id))
-        // Toast notification would be added here
+        // Reload users to ensure fresh data
+        await loadUsers()
       } else {
         setError(data.error)
       }
@@ -309,7 +344,7 @@ setError('Failed to update user role')
       severity: 'critical',
       errorContext: 'Operation failed'
     })
-setError('Failed to delete user')
+setError(userToDelete.isActive ? 'Failed to delete user' : 'Failed to retract invitation')
   } finally {
       setDeleting(null)
       setShowDeleteModal(false)
@@ -326,14 +361,14 @@ setError('Failed to delete user')
     setGeneratedInviteUrl(null)
 
     try {
-      const response = await fetch('/api/admin/invite', {
+      // Phase 7: Use new Supabase invitation system
+      const response = await fetch('/api/admin/invitations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           email: inviteEmail.trim(),
-          name: inviteName.trim() || undefined,
           role: inviteRole,
           sendEmail: sendEmail
         })
@@ -347,10 +382,9 @@ setError('Failed to delete user')
           setGeneratedInviteUrl(data.invitationUrl)
         }
 
-        // Only reset form if email was sent, otherwise keep it open to show the URL
+        // Don't close form if email wasn't sent (show the link)
         if (sendEmail) {
           setInviteEmail('')
-          setInviteName('')
           setInviteRole('USER')
           setSendEmail(true)
           setShowInviteForm(false)
@@ -383,12 +417,8 @@ setError('Failed to invite user')
 
   const copyExistingInviteUrl = (user: User) => {
     if (user.invitation_token) {
-      let inviteUrl = `${window.location.origin}/invite/${user.invitation_token}`
-
-      // Add Clerk ticket if available (required for Restricted mode)
-      if (user.clerk_ticket) {
-        inviteUrl += `?__clerk_ticket=${user.clerk_ticket}`
-      }
+      // Phase 7: Use Supabase invitation URL
+      const inviteUrl = `${window.location.origin}/invite/${user.invitation_token}/accept`
 
       navigator.clipboard.writeText(inviteUrl)
       setCopiedUserId(user.id)
@@ -399,7 +429,6 @@ setError('Failed to invite user')
   const closeInviteForm = () => {
     setShowInviteForm(false)
     setInviteEmail('')
-    setInviteName('')
     setInviteRole('USER')
     setSendEmail(true)
     setGeneratedInviteUrl(null)
@@ -449,6 +478,54 @@ setError('Failed to resend invitation')
     })
   }
 
+  const handleSort = (column: 'email' | 'role' | 'status' | 'invitedBy' | 'createdAt') => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      // Set new column and default to ascending
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const getSortedUsers = () => {
+    const sorted = [...users].sort((a, b) => {
+      let comparison = 0
+
+      switch (sortColumn) {
+        case 'email':
+          comparison = a.email.localeCompare(b.email)
+          break
+        case 'role':
+          comparison = a.role.localeCompare(b.role)
+          break
+        case 'status':
+          comparison = (a.isActive === b.isActive) ? 0 : a.isActive ? -1 : 1
+          break
+        case 'invitedBy':
+          comparison = a.invitedBy.localeCompare(b.invitedBy)
+          break
+        case 'createdAt':
+          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          break
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+
+    return sorted
+  }
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown size={14} style={{ opacity: 0.3 }} />
+    }
+    return sortDirection === 'asc'
+      ? <ArrowUp size={14} style={{ color: '#2563eb' }} />
+      : <ArrowDown size={14} style={{ color: '#2563eb' }} />
+  }
+
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'SUPER_ADMIN':
@@ -462,7 +539,7 @@ setError('Failed to resend invitation')
     }
   }
 
-  if (!isLoaded || !userId) {
+  if (loading) {
     return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading...</div>
   }
 
@@ -571,46 +648,36 @@ setError('Failed to resend invitation')
                     size="sm"
                   />
                 </div>
-                <div>
-                  <Input
-                    label="Name (Optional)"
-                    type="text"
-                    value={inviteName}
-                    onChange={(e) => setInviteName(e.target.value)}
-                    placeholder="Full Name"
+                <div style={{ maxWidth: '200px' }}>
+                  <Select
+                    label="Role"
+                    value={inviteRole}
+                    onValueChange={setInviteRole}
+                    options={[
+                      { value: 'USER', label: 'User (Chat only)' },
+                      { value: 'CONTRIBUTOR', label: 'Contributor (Chat + Upload)' },
+                      { value: 'ADMIN', label: 'Admin (Full access)' }
+                    ]}
                     size="sm"
                   />
                 </div>
               </div>
-              
-              <div style={{ maxWidth: '200px' }}>
-                <Select
-                  label="Role"
-                  value={inviteRole}
-                  onValueChange={setInviteRole}
-                  options={[
-                    { value: 'USER', label: 'User (Chat only)' },
-                    { value: 'CONTRIBUTOR', label: 'Contributor (Chat + Upload)' },
-                    { value: 'ADMIN', label: 'Admin (Full access)' },
-                    { value: 'SUPER_ADMIN', label: 'Super Admin (Full access)' }
-                  ]}
-                  size="sm"
-                />
-              </div>
 
               <div>
                 <Checkbox
-                  id="send-email"
+                  id="send-email-invite"
                   label="Send invitation email automatically"
                   checked={sendEmail}
                   onCheckedChange={(checked) => setSendEmail(checked as boolean)}
                 />
                 <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', marginLeft: '1.5rem' }}>
-                  {sendEmail ? 'User will receive an email with the invitation link' : 'You\'ll need to copy and share the invitation link manually'}
+                  {sendEmail
+                    ? 'User will receive an email with the invitation link'
+                    : 'You\'ll get a link to copy and share manually'}
                 </p>
               </div>
 
-              {generatedInviteUrl && !sendEmail && (
+              {generatedInviteUrl && (
                 <div style={{
                   backgroundColor: '#f0fdf4',
                   border: '1px solid #86efac',
@@ -689,9 +756,9 @@ setError('Failed to resend invitation')
                     fontWeight: '500'
                   }}
                 >
-                  {inviting ? 'Creating Invitation...' : (sendEmail ? 'Send Invitation' : 'Generate Link')}
+                  {inviting ? 'Creating...' : (sendEmail ? 'Send Invitation' : 'Generate Link')}
                 </button>
-                {generatedInviteUrl && !sendEmail && (
+                {generatedInviteUrl && (
                   <button
                     type="button"
                     onClick={closeInviteForm}
@@ -731,20 +798,95 @@ setError('Failed to resend invitation')
               <table style={{ width: '100%' }}>
                 <thead style={{ backgroundColor: '#f9fafb' }}>
                   <tr>
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
-                      User
+                    <th
+                      onClick={() => handleSort('email')}
+                      style={{
+                        padding: '0.75rem 1.5rem',
+                        textAlign: 'left',
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                        color: '#6b7280',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        User
+                        <SortIcon column="email" />
+                      </div>
                     </th>
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
-                      Role
+                    <th
+                      onClick={() => handleSort('role')}
+                      style={{
+                        padding: '0.75rem 1.5rem',
+                        textAlign: 'left',
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                        color: '#6b7280',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Role
+                        <SortIcon column="role" />
+                      </div>
                     </th>
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
-                      Status
+                    <th
+                      onClick={() => handleSort('status')}
+                      style={{
+                        padding: '0.75rem 1.5rem',
+                        textAlign: 'left',
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                        color: '#6b7280',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Status
+                        <SortIcon column="status" />
+                      </div>
                     </th>
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
-                      Invited By
+                    <th
+                      onClick={() => handleSort('invitedBy')}
+                      style={{
+                        padding: '0.75rem 1.5rem',
+                        textAlign: 'left',
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                        color: '#6b7280',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Invited By
+                        <SortIcon column="invitedBy" />
+                      </div>
                     </th>
-                    <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
-                      Created
+                    <th
+                      onClick={() => handleSort('createdAt')}
+                      style={{
+                        padding: '0.75rem 1.5rem',
+                        textAlign: 'left',
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                        color: '#6b7280',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Created
+                        <SortIcon column="createdAt" />
+                      </div>
                     </th>
                     <th style={{ padding: '0.75rem 1.5rem', textAlign: 'left', fontSize: '0.75rem', fontWeight: '500', color: '#6b7280', textTransform: 'uppercase' }}>
                       Actions
@@ -752,7 +894,7 @@ setError('Failed to resend invitation')
                   </tr>
                 </thead>
                 <tbody style={{ backgroundColor: 'white' }}>
-                  {users.map((user) => (
+                  {getSortedUsers().map((user) => (
                     <tr key={user.id} style={{ borderTop: '1px solid #e5e7eb' }}>
                       <td style={{ padding: '1rem 1.5rem' }}>
                         <div>

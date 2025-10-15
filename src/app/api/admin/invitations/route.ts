@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     // =================================================================
     // INPUT VALIDATION - Get and validate invitation details
     // =================================================================
-    const { email, role = 'USER' } = await request.json()
+    const { email, role = 'USER', sendEmail = true } = await request.json()
 
     if (!email || !email.includes('@')) {
       return NextResponse.json(
@@ -109,70 +109,82 @@ export async function POST(request: NextRequest) {
     }
 
     // =================================================================
-    // SUPABASE AUTH INVITATION - Send invitation email via Supabase
+    // SUPABASE AUTH INVITATION - Conditionally send email
     // =================================================================
-    try {
-      const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}/accept`
+    if (sendEmail) {
+      try {
+        const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}/accept`
 
-      const { data: authInvite, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-        email.toLowerCase(),
-        {
-          redirectTo: redirectUrl,
-          data: {
-            invitation_token: invitationToken,
-            role: role,
-            invited_by_email: user.email,
-            invited_by_name: user.name || user.email
+        const { data: authInvite, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+          email.toLowerCase(),
+          {
+            redirectTo: redirectUrl,
+            data: {
+              invitation_token: invitationToken,
+              role: role,
+              invited_by_email: user.email,
+              invited_by_name: user.name || user.email
+            }
           }
-        }
-      )
+        )
 
-      if (inviteError) {
-        // Clean up invitation token if Supabase invite fails
+        if (inviteError) {
+          // Clean up invitation token if Supabase invite fails
+          await supabaseAdmin
+            .from('invitation_tokens')
+            .delete()
+            .eq('id', invitation.id)
+
+          logError(inviteError, {
+            operation: 'supabase_invite_user',
+            adminUserId: user.id,
+            inviteeEmail: email.toLowerCase()
+          })
+
+          return NextResponse.json(
+            { success: false, error: 'Failed to send invitation email' },
+            { status: 500 }
+          )
+        }
+
+        loggers.security({
+          operation: 'supabase_invitation_sent',
+          adminUserId: user.id,
+          adminEmail: user.email,
+          inviteeEmail: email.toLowerCase(),
+          inviteeRole: role,
+          invitationToken,
+          authUserId: authInvite.user?.id
+        }, 'Supabase invitation sent successfully')
+
+      } catch (supabaseError) {
+        // Clean up invitation token if there's an error
         await supabaseAdmin
           .from('invitation_tokens')
           .delete()
           .eq('id', invitation.id)
 
-        logError(inviteError, {
+        logError(supabaseError instanceof Error ? supabaseError : new Error('Supabase invite failed'), {
           operation: 'supabase_invite_user',
           adminUserId: user.id,
           inviteeEmail: email.toLowerCase()
         })
 
         return NextResponse.json(
-          { success: false, error: 'Failed to send invitation email' },
+          { success: false, error: 'Failed to send invitation' },
           { status: 500 }
         )
       }
-
+    } else {
       loggers.security({
-        operation: 'supabase_invitation_sent',
+        operation: 'supabase_invitation_created',
         adminUserId: user.id,
         adminEmail: user.email,
         inviteeEmail: email.toLowerCase(),
         inviteeRole: role,
         invitationToken,
-        authUserId: authInvite.user?.id
-      }, 'Supabase invitation sent successfully')
-
-    } catch (supabaseError) {
-      // Clean up invitation token if there's an error
-      await supabaseAdmin
-        .from('invitation_tokens')
-        .delete()
-        .eq('id', invitation.id)
-
-      logError(supabaseError instanceof Error ? supabaseError : new Error('Supabase invite failed'), {
-        operation: 'supabase_invite_user',
-        adminUserId: user.id,
-        inviteeEmail: email.toLowerCase()
-      })
-
-      return NextResponse.json(
-        { success: false, error: 'Failed to send invitation' },
-        { status: 500 }
-      )
+        emailSent: false
+      }, 'Invitation created without email')
     }
 
     // =================================================================
@@ -182,9 +194,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Invitation sent to ${email}. They will receive an email with a secure setup link.`,
+      message: sendEmail
+        ? `Invitation sent to ${email}. They will receive an email with a secure setup link.`
+        : `Invitation created for ${email}. Copy the link below to share manually.`,
       invitationToken: invitationToken,
       invitationUrl: invitationUrl,
+      emailSent: sendEmail,
       invitation: {
         id: invitation.id,
         email: invitation.email,
@@ -236,6 +251,7 @@ export async function GET(_request: NextRequest) {
         id,
         email,
         role,
+        token,
         expires_at,
         accepted_at,
         created_at,
@@ -259,11 +275,13 @@ export async function GET(_request: NextRequest) {
       id: inv.id,
       email: inv.email,
       role: inv.role,
+      token: inv.token,
       expiresAt: inv.expires_at,
       acceptedAt: inv.accepted_at,
       createdAt: inv.created_at,
       isExpired: new Date(inv.expires_at) < now,
       isAccepted: !!inv.accepted_at,
+      isPending: !inv.accepted_at && new Date(inv.expires_at) >= now,
       invitedBy: (inv.inviter as { email?: string; name?: string })?.email || 'Unknown'
     }))
 
@@ -333,6 +351,36 @@ export async function DELETE(request: NextRequest) {
         { success: false, error: 'Invitation not found' },
         { status: 404 }
       )
+    }
+
+    // =================================================================
+    // CLEANUP AUTH USER - Delete Supabase Auth user if exists
+    // =================================================================
+    try {
+      // Find auth user by email (they may not have completed signup)
+      const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+      const authUser = authUsers?.users?.find(u => u.email === deletedInvitation.email)
+
+      if (authUser) {
+        // Only delete if user hasn't accepted invitation yet (no last_sign_in_at)
+        if (!authUser.last_sign_in_at) {
+          await supabaseAdmin.auth.admin.deleteUser(authUser.id)
+          loggers.security({
+            operation: 'admin_cleanup_auth_user',
+            adminUserId: user.id,
+            authUserId: authUser.id,
+            email: deletedInvitation.email
+          }, 'Cleaned up Supabase Auth user for revoked invitation')
+        }
+      }
+    } catch (authError) {
+      // Log but don't fail - invitation token is already deleted
+      logError(authError instanceof Error ? authError : new Error('Auth cleanup failed'), {
+        operation: 'cleanup_auth_user_on_revoke',
+        invitationId,
+        email: deletedInvitation.email,
+        severity: 'low'
+      })
     }
 
     loggers.security({

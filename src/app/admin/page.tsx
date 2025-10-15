@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { logError } from '@/lib/logger'
-import { useAuth, useUser } from '@clerk/nextjs'
+// Clerk hooks removed - now using session-based auth
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
 import { validateFile } from '@/lib/clientValidation'
@@ -67,8 +67,6 @@ interface ScrapedPage {
 }
 
 function AdminPageContent() {
-  const { isLoaded, userId, getToken } = useAuth()
-  useUser() // Keep the hook call for proper loading state
   const router = useRouter()
   const { addToast } = useToast()
   const [documents, setDocuments] = useState<Document[]>([])
@@ -210,32 +208,31 @@ function AdminPageContent() {
 
   // Check authentication and permissions
   useEffect(() => {
-    if (isLoaded && !userId) {
-      router.push('/sign-in')
-    } else if (isLoaded && userId) {
-      fetchUserData()
-    }
-  }, [isLoaded, userId, router]) // eslint-disable-line react-hooks/exhaustive-deps
+    // PHASE 3: Support dual authentication (Supabase + Clerk)
+    // Let the API handle auth check instead of client-side Clerk check
+    fetchUserData()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchUserData = async () => {
     try {
-      const token = await getToken()
-      
-      const userResponse = await fetch('/api/auth', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      
+      // Call API without Bearer token - it uses session cookies automatically
+      const userResponse = await fetch('/api/auth')
+
+      if (userResponse.status === 401) {
+        // Not authenticated - redirect to login
+        router.push('/login')
+        return
+      }
+
       if (userResponse.status === 404) {
         setAccessDenied(true)
         setError('Access denied: Your account has not been properly set up.')
         setLoading(false)
         return
       }
-      
+
       const userData = await userResponse.json()
-      
+
       if (!userData.success) {
         setAccessDenied(true)
         setError('Access denied: Unable to verify your permissions.')
@@ -270,14 +267,7 @@ setAccessDenied(true)
 
   const loadDocuments = async () => {
     try {
-      const token = await getToken()
-      
-      const response = await fetch('/api/admin/documents', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      
+      const response = await fetch('/api/admin/documents')
       const data = await response.json()
       
       if (data.success) {
@@ -331,12 +321,10 @@ setError('Failed to load documents')
     setError(null)
     
     try {
-      const token = await getToken()
       const response = await fetch(`/api/admin/documents/${editingDoc.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           title: editingDoc.title,
@@ -381,12 +369,10 @@ setError('Failed to save document changes')
       // Add to reingesting set
       setReingestingDocs(prev => new Set(prev).add(documentId))
 
-      const token = await getToken()
       const response = await fetch('/api/ingest', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           documentId: documentId
@@ -443,12 +429,10 @@ addToast({
     }
     
     try {
-      const token = await getToken()
       const response = await fetch('/api/scrape-website', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+        headers: {
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           url: normalizedUrl,
@@ -508,12 +492,10 @@ setScrapingMessage('Failed to discover website pages')
     setScrapingMessage(null)
 
     try {
-      const token = await getToken()
       const response = await fetch('/api/scrape-website', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           action: 'scrape',
@@ -568,16 +550,10 @@ setScrapingMessage('Failed to scrape website pages')
     setScrapingMessage(null)
     
     try {
-      const token = await getToken()
-      if (!token) {
-        throw new Error('Authentication required')
-      }
-
       const response = await fetch('/api/scrape-website/save', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           scrapedPages: selectedContent
@@ -977,9 +953,6 @@ if (attempt === maxRetries) throw error
   }
 
   const uploadSingleFile = async (file: File, queueIndex: number) => {
-    const token = await getToken()
-    if (!token) throw new Error('Authentication required')
-
     const maxSupabaseSize = 50 * 1024 * 1024 // 50MB
     const useBlob = file.size > maxSupabaseSize
 
@@ -1000,9 +973,6 @@ if (attempt === maxRetries) throw error
       // Upload to Vercel Blob and process in one call with retry logic
       const blobResponse = await retryWithBackoff(() => fetch('/api/upload/blob', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
         body: formData
       }))
 
@@ -1019,8 +989,7 @@ if (attempt === maxRetries) throw error
       const presignedResponse = await retryWithBackoff(() => fetch('/api/upload/presigned', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           fileName: file.name,
@@ -1059,8 +1028,7 @@ if (attempt === maxRetries) throw error
       const processResponse = await retryWithBackoff(() => fetch('/api/upload/process', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           storagePath: presignedData.storagePath,
@@ -1193,7 +1161,8 @@ setError('Failed to delete document')
     }
   }
 
-  if (!isLoaded || !userId) {
+  // Show loading state while fetching user data
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
         <div className="text-center">

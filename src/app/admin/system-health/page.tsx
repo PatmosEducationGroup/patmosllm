@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { logError } from '@/lib/logger'
-import { useAuth } from '@clerk/nextjs'
+// Clerk hooks removed - now using session-based auth
 import AdminNavbar from '@/components/AdminNavbar'
 import {
   Database,
@@ -94,21 +94,19 @@ interface SystemHealth {
 }
 
 export default function SystemHealthPage() {
-  const { getToken } = useAuth()
   const [health, setHealth] = useState<SystemHealth | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string>('')
   const [showDetailsModal, setShowDetailsModal] = useState(false)
 
-  const fetchHealth = async () => {
+  const fetchHealth = useCallback(async () => {
     try {
       setLoading(true)
-      const token = await getToken()
-      
+
+      // Session-based auth - uses cookies automatically
       const response = await fetch('/api/admin/system-health', {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       })
@@ -133,16 +131,15 @@ setError('Failed to load system health')
   } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchHealth()
-    
+
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchHealth, 30000)
     return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [fetchHealth])
 
   const formatBytes = (bytes: number) => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB']

@@ -2,50 +2,58 @@
 
 import { useEffect, useState } from 'react'
 import { logError } from '@/lib/logger'
-import { useUser } from '@clerk/nextjs'
+// Clerk hooks removed - now using session-based auth
 import { useRouter } from 'next/navigation'
 import AdminNavbar from '@/components/AdminNavbar'
 import OnboardingAnalyticsDashboard from '@/components/OnboardingAnalyticsDashboard'
 
 export default function OnboardingAnalyticsPage() {
-  const { user, isLoaded } = useUser()
   const router = useRouter()
   const [isAuthorized, setIsAuthorized] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const checkAuth = async () => {
-      if (!isLoaded) return
-      
-      if (!user) {
-        router.push('/sign-in')
-        return
-      }
-
       try {
+        // Session-based auth - uses cookies automatically
         const response = await fetch('/api/auth')
-        const data = await response.json()
-        
-        if (!['ADMIN', 'SUPER_ADMIN'].includes(data.user?.role)) {
-          router.push('/')
+
+        if (response.status === 401) {
+          // Not authenticated - redirect to login
+          router.push('/login')
           return
         }
-        
+
+        const data = await response.json()
+
+        if (!data.success) {
+          router.push('/login')
+          return
+        }
+
+        if (!['ADMIN', 'SUPER_ADMIN'].includes(data.user?.role)) {
+          router.push('/chat')
+          return
+        }
+
         setIsAuthorized(true)
       } catch (error) {
-    logError(error instanceof Error ? error : new Error('Operation failed'), {
-      operation: 'API route',
-      phase: 'request_handling',
-      severity: 'medium',
-      errorContext: 'Operation failed'
-    })
-router.push('/')
-  }
+        logError(error instanceof Error ? error : new Error('Operation failed'), {
+          operation: 'API route',
+          phase: 'request_handling',
+          severity: 'medium',
+          errorContext: 'Operation failed'
+        })
+        router.push('/chat')
+      } finally {
+        setLoading(false)
+      }
     }
 
     checkAuth()
-  }, [isLoaded, user, router])
+  }, [router])
 
-  if (!isLoaded || !isAuthorized) {
+  if (loading || !isAuthorized) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

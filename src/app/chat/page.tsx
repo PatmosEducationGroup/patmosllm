@@ -5,7 +5,8 @@
 // =================================================================
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { logError } from '@/lib/logger'
-import { useAuth, UserButton } from '@clerk/nextjs'
+import { UserButton } from '@clerk/nextjs'
+// Clerk useAuth removed - now using session-based auth
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
@@ -99,12 +100,12 @@ interface Conversation {
 // =================================================================
 function ChatPageContent() {
   // =================================================================
-  // AUTHENTICATION HOOKS - Handle user authentication state
+  // AUTHENTICATION STATE - Session-based auth (Supabase + Clerk)
   // =================================================================
-  const { isLoaded, userId: _userId } = useAuth()
   const searchParams = useSearchParams()
   const { success: showSuccessToast, error: showErrorToast } = useToastActions()
   const [canAdmin, setCanAdmin] = useState(false)
+  const [isAuthChecking, setIsAuthChecking] = useState(true)
   
   // =================================================================
   // CHAT STATE MANAGEMENT - Core chat functionality state
@@ -211,35 +212,27 @@ function ChatPageContent() {
   }
 
   // =================================================================
-  // AUTHENTICATION EFFECT - Redirect unauthenticated users
-  // NOTE: Middleware handles actual auth, this is just UX
-  // Users with Supabase sessions won't have userId but are authenticated
-  // =================================================================
-  // REMOVED: Client-side redirect interferes with Supabase Auth
-  // The middleware handles all authentication - if user reaches this page, they're authenticated
-
-  // =================================================================
-  // SESSION LOADING EFFECT - Load user's chat sessions on mount
-  // NOTE: Works for both Clerk and Supabase users
+  // AUTHENTICATION & INITIALIZATION EFFECT
+  // Session-based auth - works for both Supabase and Clerk users
   // =================================================================
   useEffect(() => {
-    if (isLoaded) {
-      loadSessions()
+    const initialize = async () => {
+      try {
+        // Load sessions and check admin access in parallel
+        await Promise.all([
+          loadSessions(),
+          fetch('/api/user/can-admin')
+            .then((res) => res.json())
+            .then((data) => setCanAdmin(data.canAdmin))
+            .catch(() => setCanAdmin(false))
+        ])
+      } finally {
+        setIsAuthChecking(false)
+      }
     }
-  }, [isLoaded])
 
-  // =================================================================
-  // ADMIN ACCESS CHECK - Check if user has admin privileges
-  // NOTE: Works for both Clerk and Supabase users
-  // =================================================================
-  useEffect(() => {
-    if (isLoaded) {
-      fetch('/api/user/can-admin')
-        .then((res) => res.json())
-        .then((data) => setCanAdmin(data.canAdmin))
-        .catch(() => setCanAdmin(false))
-    }
-  }, [isLoaded])
+    initialize()
+  }, [])
 
   // =================================================================
   // PREFILLED QUESTION EFFECT - Handle question from landing page
@@ -914,11 +907,9 @@ setError('Failed to create chat session. Please try again.')
   }
 
   // =================================================================
-  // LOADING STATE - Show loading spinner while checking Clerk state
-  // NOTE: We still show loading while Clerk initializes, even though
-  // Supabase users won't have a Clerk userId (that's expected)
+  // LOADING STATE - Show loading spinner while initializing
   // =================================================================
-  if (!isLoaded) {
+  if (isAuthChecking) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
         <div className="text-center">

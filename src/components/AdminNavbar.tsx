@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { UserButton, useAuth } from '@clerk/nextjs'
+import { UserButton } from '@clerk/nextjs'
+// Clerk useAuth removed - now using session-based auth
 import { useState, useEffect } from 'react'
 import {
   MessageCircle,
@@ -20,7 +21,6 @@ interface AdminNavbarProps {
 
 export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps) {
   const pathname = usePathname()
-  const { getToken } = useAuth()
   const [userRole, setUserRole] = useState<string>(propUserRole || 'USER')
 
   useEffect(() => {
@@ -33,10 +33,10 @@ export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps
     // Otherwise, fetch user role from API
     const fetchUserRole = async () => {
       try {
-        const token = await getToken()
+        // Session-based auth - uses cookies automatically
         const response = await fetch('/api/auth', {
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
           }
         })
 
@@ -53,7 +53,7 @@ export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps
     }
 
     fetchUserRole()
-  }, [propUserRole, getToken])
+  }, [propUserRole])
 
   const allNavItems = [
     { href: '/chat', label: 'Chat', icon: MessageCircle, roles: ['USER', 'CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'] },
