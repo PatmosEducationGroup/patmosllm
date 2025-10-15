@@ -658,19 +658,32 @@ git push
   - Fixed 400 errors by disabling session tracking without consent
   - Production tested and verified
 
-**In Progress**:
-- 🔄 **Phase 7**: Supabase Invite-Only Migration (18-25 hours) - NEXT
+- ✅ **Phase 7**: Supabase Invite-Only Migration - Deployed
+  - Commits: `bb2c9f6`, `fdaf624`, etc.
+  - Date: October 15, 2025
+  - **Completed**:
+    - ✅ Admin auth fixes for all pages (removed Clerk-only hooks)
+    - ✅ Session-based authentication (removed Bearer tokens)
+    - ✅ Optional email sending for invitations (checkbox to skip email)
+    - ✅ Copy invitation link functionality for pending users
+    - ✅ Sortable user table (by user, role, status, invited by, created)
+    - ✅ Pending invitations display integrated with active users
+    - ✅ Smart invitation retraction (routes to correct API based on status)
+    - ✅ Supabase Auth cleanup on invitation revocation
+    - ✅ Database migrations (invitation_tokens, GDPR consent columns)
+    - ✅ Invitation acceptance API with consent capture
+    - ✅ Login flow recognition for Supabase-only users
+  - **Production Status**: Fully deployed and tested
 
 **Remaining Phases**:
-- ⏸️ Phase 8: Privacy Settings Portal (8-12 hours)
+- ⏸️ Phase 8: Privacy Settings Portal (8-12 hours) - **NEXT**
 - ⏸️ Phase 9: Documentation & Polish (2 hours)
 
 **Next Steps**:
-1. **Phase 7**: Execute security SQL script (`scripts/fix-supabase-linter-warnings.sql`)
-2. Verify Supabase Auth settings (disable email signups)
-3. Build invitation acceptance API + UI with consent capture
-4. Test complete invitation flow: invite → accept → login
-5. Move to Phase 8 (Privacy Portal)
+1. **Phase 8**: Create /settings/privacy page for data export/deletion
+2. Build privacy settings UI with export/delete functionality
+3. Implement data export API and automated deletion cron
+4. Move to Phase 9 (Documentation)
 
 ---
 
@@ -739,16 +752,16 @@ ALTER TABLE users DROP COLUMN IF EXISTS terms_accepted_at;
 
 ## PROGRESS SUMMARY
 
-**Completed**: 6/9 phases (67%)
-**Time Spent**: ~6-8 hours (Phases 1-6)
-**Time Remaining**: ~28-39 hours across Phases 7-9
+**Completed**: 7/9 phases (78%)
+**Time Spent**: ~12-15 hours (Phases 1-7)
+**Time Remaining**: ~10-14 hours across Phases 8-9
 
 **Phase Breakdown**:
 - ✅ Phase 1-4: Legal pages, footer, security headers, Sentry filtering (2 hours)
 - ✅ Phase 5: Database migration - consent tracking columns (1 hour)
 - ✅ Phase 6: Cookie consent banner with Sentry integration (3-4 hours)
-- ⏳ Phase 7: Supabase invite-only migration (18-25 hours) - **NEXT**
-- ⏸️ Phase 8: Privacy settings portal (8-12 hours)
+- ✅ Phase 7: Supabase invite-only migration + admin auth fixes (6-7 hours)
+- ⏸️ Phase 8: Privacy settings portal (8-12 hours) - **NEXT**
 - ⏸️ Phase 9: Documentation & polish (2 hours)
 
-**Next Milestone**: Complete Phase 7 (Supabase Invite-Only Migration) - Start with pre-flight security SQL script execution
+**Next Milestone**: Complete Phase 8 (Privacy Settings Portal) - Build data export/deletion functionality with user-facing UI
