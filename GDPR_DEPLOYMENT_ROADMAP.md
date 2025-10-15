@@ -564,12 +564,81 @@ After deployment:
 
 ## PHASE 8: Privacy Settings Portal (DEPLOY EIGHTH - COMPLEX)
 
-**What**: Create /settings/privacy page for data export, deletion, opt-out
-**Time**: 8-12 hours (includes API routes and cron jobs)
-**Risk**: High (data deletion functionality, email integration)
+**What**: Create settings portal for data export, deletion, email preferences, and profile management
+**Time**: 12-16 hours (includes API routes, UI, and database migrations)
+**Risk**: Medium-High (user data modification, email integration)
 
-### Files to Create:
-- `/app/settings/privacy/page.tsx` - Privacy settings UI
+### Phase 8A: Profile & Email Preferences (✅ COMPLETED)
+
+**Completed**: October 2024
+
+**Files Created**:
+- ✅ `/app/settings/layout.tsx` - Settings navigation sidebar (profile, email, stats, data request, cookies, delete)
+- ✅ `/app/settings/page.tsx` - Settings home page
+- ✅ `/app/settings/profile/page.tsx` - Profile information update (name, email, password)
+- ✅ `/app/settings/email-preferences/page.tsx` - Email notification preferences UI
+- ✅ `/app/api/user/profile/route.ts` - GET user profile
+- ✅ `/app/api/user/update-profile/route.ts` - POST profile updates (name, email)
+- ✅ `/app/api/user/update-password/route.ts` - POST password changes
+- ✅ `/app/api/user/email-preferences/route.ts` - GET/POST email preferences
+- ✅ `/scripts/add-preferences-column.sql` - Database migration for preferences JSONB column
+
+**Features Implemented**:
+- ✅ Profile information management (name, email updates)
+- ✅ Password change with current password verification
+- ✅ Email preferences with 4 granular controls:
+  - Product Updates (default: ON)
+  - Activity Summaries (default: ON)
+  - Tips and Best Practices (default: OFF)
+  - Security Alerts (default: ON, highly recommended)
+- ✅ GDPR-compliant audit logging (all changes logged to `privacy_audit_log`)
+- ✅ Schema-compliant with `auth_user_id` denormalization
+- ✅ Real-time preference persistence to `user_preferences.preferences` JSONB field
+- ✅ Toast notifications for user feedback
+- ✅ Error handling with detailed logging
+
+**Database Changes**:
+```sql
+-- Added to user_preferences table
+ALTER TABLE user_preferences
+ADD COLUMN preferences JSONB DEFAULT '{}'::jsonb;
+
+-- Email preferences stored as:
+preferences->emailPreferences {
+  productUpdates: boolean,
+  activitySummaries: boolean,
+  tipsAndTricks: boolean,
+  securityAlerts: boolean
+}
+```
+
+**Privacy Audit Actions**:
+- `PROFILE_UPDATED` - Logged when name or email is changed
+- `PASSWORD_CHANGED` - Logged when password is updated
+- `EMAIL_PREFERENCES_UPDATED` - Logged when notification preferences change
+
+**Verification**:
+- ✅ Visit `/settings` - settings home loads
+- ✅ Visit `/settings/profile` - profile page displays name/email
+- ✅ Update name/email - changes persist, audit log created
+- ✅ Change password - updates successfully, old password verified
+- ✅ Visit `/settings/email-preferences` - 4 toggles display
+- ✅ Toggle preferences and save - persists to database
+- ✅ Refresh page - preferences load from database correctly
+- ✅ Check `privacy_audit_log` - all actions logged with metadata
+- ✅ Mobile responsive - works on all screen sizes
+
+---
+
+### Phase 8B: Data Export & Account Deletion (⏸️ PENDING)
+
+**What**: GDPR Article 20 data portability and Article 17 right to erasure
+**Time**: 6-8 hours
+**Risk**: High (permanent data deletion, email integration)
+
+**Files to Create**:
+- `/app/settings/data-request/page.tsx` - Data export request UI
+- `/app/settings/delete-account/page.tsx` - Account deletion UI
 - `/app/api/privacy/export/route.ts` - Export API
 - `/app/api/privacy/delete/route.ts` - Deletion API
 - `/app/api/privacy/cancel-deletion/route.ts` - Cancel deletion API
@@ -580,20 +649,21 @@ After deployment:
 npm run build
 npm run lint
 git add src/app/settings src/app/api/privacy src/app/api/cron
-git commit -m "Add privacy settings portal with export/delete functionality"
+git commit -m "feat: Add data export and account deletion (Phase 8B/9)"
 git push
 ```
 
 **Verification**:
-- [ ] Visit `/settings/privacy`
+- [ ] Visit `/settings/data-request`
 - [ ] "Export My Data" button creates export request
 - [ ] Receive export email with download link
-- [ ] Download link works (JSON file)
-- [ ] "Delete My Account" button sets deleted_at
+- [ ] Download link works (JSON file with all user data)
+- [ ] Visit `/settings/delete-account`
+- [ ] "Delete My Account" button sets deleted_at (30-day grace period)
 - [ ] Receive deletion confirmation email
-- [ ] Can cancel deletion by logging in
-- [ ] Analytics opt-out works (stops Sentry/Vercel)
+- [ ] Can cancel deletion by logging in during grace period
 - [ ] Cron job runs (manually trigger to test)
+- [ ] After 30 days, account permanently deleted
 
 ---
 
@@ -678,15 +748,28 @@ git push
   - **Production Status**: Fully deployed and tested
   - **Email Configuration**: Supabase invitation email template configured with gradient design, example questions, and inviter personalization
 
+- ✅ **Phase 8A**: Profile & Email Preferences - Deployed
+  - Date: October 15, 2025
+  - **Completed**:
+    - ✅ Settings navigation layout with sidebar
+    - ✅ Profile settings page (name, email, password changes)
+    - ✅ Email preferences page with 4 granular controls
+    - ✅ Database migration: added `preferences` JSONB column
+    - ✅ Privacy audit logging for all user data modifications
+    - ✅ GET/POST API routes for profile and email preferences
+    - ✅ Full GDPR compliance with `auth_user_id` denormalization
+  - **Production Status**: Fully deployed and tested
+
 **Remaining Phases**:
-- ⏸️ Phase 8: Privacy Settings Portal (8-12 hours) - **NEXT**
+- ⏸️ Phase 8B: Data Export & Account Deletion (6-8 hours) - **NEXT**
 - ⏸️ Phase 9: Documentation & Polish (2 hours)
 
 **Next Steps**:
-1. **Phase 8**: Create /settings/privacy page for data export/deletion
-2. Build privacy settings UI with export/delete functionality
-3. Implement data export API and automated deletion cron
-4. Move to Phase 9 (Documentation)
+1. **Phase 8B**: Create data export and account deletion functionality
+2. Build `/settings/data-request` page for GDPR Article 20 (data portability)
+3. Build `/settings/delete-account` page for GDPR Article 17 (right to erasure)
+4. Implement export API, deletion API, and automated deletion cron job
+5. Move to Phase 9 (Documentation)
 
 ---
 
@@ -755,16 +838,17 @@ ALTER TABLE users DROP COLUMN IF EXISTS terms_accepted_at;
 
 ## PROGRESS SUMMARY
 
-**Completed**: 7/9 phases (78%)
-**Time Spent**: ~12-15 hours (Phases 1-7)
-**Time Remaining**: ~10-14 hours across Phases 8-9
+**Completed**: 7.5/9 phases (83%)
+**Time Spent**: ~18-21 hours (Phases 1-8A)
+**Time Remaining**: ~8-10 hours across Phases 8B-9
 
 **Phase Breakdown**:
 - ✅ Phase 1-4: Legal pages, footer, security headers, Sentry filtering (2 hours)
 - ✅ Phase 5: Database migration - consent tracking columns (1 hour)
 - ✅ Phase 6: Cookie consent banner with Sentry integration (3-4 hours)
 - ✅ Phase 7: Supabase invite-only migration + admin auth fixes (6-7 hours)
-- ⏸️ Phase 8: Privacy settings portal (8-12 hours) - **NEXT**
+- ✅ Phase 8A: Profile settings + email preferences (6-7 hours)
+- ⏸️ Phase 8B: Data export & account deletion (6-8 hours) - **NEXT**
 - ⏸️ Phase 9: Documentation & polish (2 hours)
 
-**Next Milestone**: Complete Phase 8 (Privacy Settings Portal) - Build data export/deletion functionality with user-facing UI
+**Next Milestone**: Complete Phase 8B (Data Export & Account Deletion) - Implement GDPR Article 20 (data portability) and Article 17 (right to erasure)

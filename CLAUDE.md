@@ -43,32 +43,181 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 - **Storage**: Vercel Blob (>50MB), Supabase Storage (<50MB)
 - **Processing**: OCR, multimedia extraction, 25+ file formats
 
-### Database Schema (17 Tables)
+### Database Schema
 
-**Core Data (Large):**
-- `chunks` (24 MB) - Vector search segments with embeddings
-- `documents` (15 MB) - Metadata & content storage
-- `upload_sessions` (944 kB) - File upload tracking and management
-- `conversations` (560 kB) - Chat history and message threads
+**Architecture Note**: All tables use `auth_user_id` (references `auth.users.id` from Supabase Auth) denormalized for Row-Level Security (RLS) and query performance. Migration from Clerk to Supabase Auth in progress.
 
-**Memory System:**
-- `user_context` (392 kB) - Topic familiarity & preferences (JSONB)
-- `conversation_memory` (264 kB) - Conversation analysis & satisfaction tracking
-- `topic_progression` (72 kB) - Learning progression & expertise tracking
-- `question_patterns` (56 kB) - Global query pattern analysis
+#### Core Tables
 
-**User Management:**
-- `users` (256 kB) - Role-based access (ADMIN/CONTRIBUTOR/USER)
-- `user_onboarding_milestones` (136 kB) - Onboarding progress tracking
-- `user_preferences` (32 kB) - User settings and preferences
+**users** - User accounts and authentication
+- `id` (uuid, PK) - Primary user identifier
+- `auth_user_id` (uuid) - References `auth.users.id` - replacing `clerk_id` as primary identifier
+- `clerk_id` (text, nullable) - Legacy Clerk user ID (nullable for Supabase-only users created via invitations)
+- `clerk_user_id` (text, nullable) - Clerk user ID (nullable for Supabase-only users)
+- `email` (text, unique)
+- `name` (text, nullable) - User's display name
+- `role` (text) - ADMIN, CONTRIBUTOR, or USER
+- `deleted_at` (timestamptz, nullable) - Soft delete timestamp (NULL = active, non-NULL = deleted)
+- `invitation_token` (uuid, nullable) - Token for invite-only registration
+- `invitation_expires_at` (timestamptz, nullable)
+- `invitation_sent_at` (timestamptz, nullable)
+- GDPR Consent Fields:
+  - `terms_accepted_at` (timestamptz) - When user accepted Terms of Service
+  - `privacy_accepted_at` (timestamptz) - When user accepted Privacy Policy
+  - `cookies_accepted_at` (timestamptz, nullable) - When user accepted Cookie Policy
+  - `consent_version` (text) - Version of T&C/Privacy Policy user agreed to (e.g., "1.0")
+  - `age_confirmed` (boolean) - User confirmed 13+ years old (COPPA compliance)
 
-**System/Utility:**
-- `ingest_jobs` (208 kB) - Document processing job queue
-- `chat_sessions` (112 kB) - Session management and state
-- `data_export_requests` (48 kB) - GDPR data export tracking
-- `clerk_webhook_events` (40 kB) - Clerk authentication event log
-- `idempotency_keys` (32 kB) - Duplicate request prevention
-- `privacy_audit_log` (32 kB) - Privacy compliance audit trail
+**conversations** - Chat history and message threads
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → users)
+- `auth_user_id` (uuid) - Denormalized `auth.users.id` for RLS and query performance
+- `title` (text)
+- `messages` (jsonb) - Array of message objects
+- `created_at`, `updated_at` (timestamptz)
+
+**documents** - Document metadata and content storage
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → users)
+- `title` (text)
+- `content` (text) - Extracted text content
+- `file_name` (text)
+- `file_type` (text)
+- `file_size` (bigint)
+- `storage_path` (text) - Blob/Supabase storage path
+- `metadata` (jsonb) - File-specific metadata: chapters (EPUB), duration (audio/video), dimensions (images), etc.
+- `chunk_count` (integer) - Number of chunks created
+- `created_at`, `updated_at` (timestamptz)
+
+**chunks** - Vector search segments with embeddings
+- `id` (uuid, PK)
+- `document_id` (uuid, FK → documents)
+- `content` (text) - Chunk text content
+- `embedding` (vector) - Not stored in Postgres (lives in Pinecone)
+- `metadata` (jsonb) - Chunk-specific metadata
+- `created_at` (timestamptz)
+
+**chat_sessions** - Session management and state
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → users)
+- `auth_user_id` (uuid) - Denormalized `auth.users.id` for RLS
+- `conversation_id` (uuid, FK → conversations)
+- `active` (boolean)
+- `created_at`, `updated_at` (timestamptz)
+
+**upload_sessions** - File upload tracking and management
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → users)
+- `auth_user_id` (uuid) - Denormalized `auth.users.id` for upload tracking
+- `status` (text) - pending, processing, completed, failed
+- `file_count` (integer)
+- `created_at`, `updated_at` (timestamptz)
+
+#### Memory & Learning System
+
+**user_context** - Topic familiarity and preferences (JSONB-based)
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → users)
+- `auth_user_id` (uuid) - Denormalized `auth.users.id` for user preferences
+- `context_data` (jsonb) - User's topic knowledge, interests, learning style
+- `created_at`, `updated_at` (timestamptz)
+
+**conversation_memory** - Conversation analysis and satisfaction tracking
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → users)
+- `auth_user_id` (uuid) - Denormalized `auth.users.id` for memory tracking
+- `conversation_id` (uuid, FK → conversations)
+- `memory_data` (jsonb) - Conversation insights, user satisfaction, topics discussed
+- `created_at` (timestamptz)
+
+**topic_progression** - Learning progression and expertise tracking
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → users)
+- `auth_user_id` (uuid) - Denormalized `auth.users.id` for learning progression
+- `topic` (text)
+- `level` (text) - beginner, intermediate, advanced
+- `interactions` (integer) - Number of questions on this topic
+- `created_at`, `updated_at` (timestamptz)
+
+**user_preferences** - User settings and preferences
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → users)
+- `auth_user_id` (uuid, nullable) - Denormalized `auth.users.id` for user settings
+- Cookie Consent Fields:
+  - `analytics_enabled` (boolean) - User allows analytics tracking (default: true)
+  - `essential_cookies_only` (boolean) - User opted for essential cookies only (default: false)
+  - `consent_timestamp` (timestamptz, nullable) - When cookie consent was given
+  - `consent_ip_address` (inet, nullable) - IP address when consent was captured
+  - `consent_policy_version` (varchar(20), nullable) - Cookie policy version accepted
+  - `consent_user_agent` (text, nullable) - Browser user agent at consent time
+- `preferences` (jsonb) - Email preferences, UI settings, notification preferences
+  - Structure: `{ emailPreferences: { productUpdates, activitySummaries, tipsAndTricks, securityAlerts } }`
+- `created_at`, `updated_at` (timestamptz)
+
+**user_onboarding_milestones** - Onboarding progress tracking
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → users)
+- `auth_user_id` (uuid) - Denormalized `auth.users.id` for onboarding tracking
+- `milestone` (text)
+- `completed` (boolean)
+- `completed_at` (timestamptz, nullable)
+- `created_at` (timestamptz)
+
+#### GDPR & Privacy Compliance
+
+**data_export_requests** - GDPR data export tracking (Article 20 - Right to Data Portability)
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → users)
+- `auth_user_id` (uuid) - Denormalized `auth.users.id` for GDPR exports
+- `status` (text) - pending, completed, failed
+- `export_url` (text, nullable) - Temporary download link
+- `created_at` (timestamptz)
+
+**privacy_audit_log** - Privacy compliance audit trail
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → users)
+- `auth_user_id` (uuid) - Denormalized `auth.users.id` for audit trail
+- `action` (text) - Actions include:
+  - `DATA_EXPORT_REQUESTED` - User requested GDPR data export
+  - `ACCOUNT_DELETED` - User account deletion initiated
+  - `CONSENT_UPDATED` - Cookie or privacy consent updated
+  - `EMAIL_PREFERENCES_UPDATED` - Email notification preferences changed
+  - `PROFILE_UPDATED` - User profile information changed
+  - `PASSWORD_CHANGED` - User password changed
+- `metadata` (jsonb) - Action-specific details
+- `ip_address` (text, nullable) - Truncated IP (last octet removed: 192.168.x.x)
+- `created_at` (timestamptz)
+
+#### System Tables
+
+**ingest_jobs** - Document processing job queue
+- `id` (uuid, PK)
+- `document_id` (uuid, FK → documents)
+- `status` (text) - pending, processing, completed, failed
+- `error_message` (text, nullable)
+- `created_at`, `updated_at` (timestamptz)
+
+**clerk_webhook_events** - Clerk authentication event log
+- `id` (uuid, PK)
+- `event_type` (text)
+- `payload` (jsonb)
+- `processed` (boolean)
+- `created_at` (timestamptz)
+
+**idempotency_keys** - Duplicate request prevention
+- `id` (uuid, PK)
+- `key` (text, unique)
+- `auth_user_id` (uuid) - Denormalized `auth.users.id` for request deduplication
+- `response` (jsonb, nullable)
+- `created_at` (timestamptz)
+- `expires_at` (timestamptz)
+
+#### Key Indexes
+- All tables have indexes on `user_id` and `auth_user_id` for RLS performance
+- `users.email` - Unique index for login
+- `users.invitation_token` - Index for invite validation
+- `conversations.user_id, created_at` - Composite index for chat history queries
+- `documents.user_id, created_at` - Composite index for document lists
 
 ### Core Data Flow
 1. **Upload**: File → Process → Chunk → Embed → Pinecone
@@ -81,6 +230,10 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 - `/api/admin/*` - System administration
 - `/api/documents/download/[documentId]` - Secure document downloads
 - `/api/download/[fileId]` - Generated document downloads (PDF/PPTX/XLSX)
+- `/api/user/profile` - GET user profile information
+- `/api/user/update-profile` - POST profile updates (name, email)
+- `/api/user/update-password` - POST password changes
+- `/api/user/email-preferences` - GET/POST email notification preferences
 
 ### Environment Variables
 ```bash
@@ -123,6 +276,8 @@ RESEND_API_KEY
 - **100% document ingestion** success rate (462/462 documents, 7,956+ chunks)
 
 ### Recent Completions
+- ✅ Email preferences: Granular email notification controls (Product Updates, Activity Summaries, Tips & Tricks, Security Alerts) with GDPR-compliant audit logging (Oct 2024)
+- ✅ Profile settings: Functional name/email update and password change features with privacy audit trail (Oct 2024)
 - ✅ TypeScript migration: Converted all 5 critical JS files to TypeScript (Oct 2024)
 - ✅ Testing infrastructure: Vitest, Testing Library, CI/CD, Husky hooks, 121 tests (Oct 2024)
 - ✅ Security hardening: Environment variable validation (Zod), request size limits, auth race fix (Oct 2024)
@@ -284,6 +439,35 @@ RESEND_API_KEY
 ---
 
 ## Recent Implementation History
+
+### Profile Settings & Email Preferences (October 2024)
+- **Settings Portal**: Complete settings navigation with sidebar layout
+  - Profile settings page for name/email updates and password changes
+  - Email preferences page with 4 granular notification controls
+  - Responsive mobile-first design with consistent UI
+- **Email Preferences System**: Granular email notification controls
+  - Product Updates (default: ON) - New features and improvements
+  - Activity Summaries (default: ON) - Weekly usage insights
+  - Tips & Best Practices (default: OFF) - Educational content
+  - Security Alerts (default: ON) - Critical account notifications
+  - Stored in `user_preferences.preferences` JSONB field
+- **Profile Management**: Functional name, email, and password updates
+  - Name and email updates with real-time validation
+  - Password changes with current password verification (min 8 chars)
+  - Success/error toast notifications for user feedback
+- **GDPR Compliance**: Full audit trail for all user data modifications
+  - `PROFILE_UPDATED` - Logged when name or email changes
+  - `PASSWORD_CHANGED` - Logged when password updates
+  - `EMAIL_PREFERENCES_UPDATED` - Logged when notification preferences change
+  - All changes logged to `privacy_audit_log` with metadata
+- **Database Migration**: Added `preferences` JSONB column to `user_preferences` table
+  - Default: `'{}'::jsonb` (empty object)
+  - Schema-compliant with `auth_user_id` denormalization for RLS
+- **API Routes**: RESTful endpoints for profile and preferences
+  - GET `/api/user/profile` - Fetch current user profile
+  - POST `/api/user/update-profile` - Update name and email
+  - POST `/api/user/update-password` - Change password with verification
+  - GET/POST `/api/user/email-preferences` - Load/save email preferences
 
 ### TypeScript Migration & Testing Infrastructure (October 2024)
 - **TypeScript Conversion**: All 5 critical JavaScript files converted to TypeScript with full type safety
