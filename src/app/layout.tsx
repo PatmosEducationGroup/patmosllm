@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import Footer from '@/components/Footer'
+import CookieConsentBanner from '@/components/CookieConsentBanner'
 import './globals.css'
 
 const inter = Inter({ 
@@ -46,6 +47,7 @@ export default function RootLayout({
           <ErrorBoundary>
             {children}
             <Footer />
+            <CookieConsentBanner />
             <Analytics />
           </ErrorBoundary>
         </body>
