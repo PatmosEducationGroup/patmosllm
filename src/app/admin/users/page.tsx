@@ -439,18 +439,30 @@ setError('Failed to invite user')
     setError(null)
 
     try {
-      const response = await fetch('/api/admin/invite/resend', {
+      // Find the user to get their role
+      const user = users.find(u => u.id === userId)
+
+      if (!user) {
+        setError('User not found')
+        return
+      }
+
+      // Resend Supabase invitation by calling inviteUserByEmail again
+      const response = await fetch('/api/admin/invitations/resend', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ userId })
+        body: JSON.stringify({
+          invitationId: userId,
+          email: userEmail,
+          role: user.role
+        })
       })
 
       const data = await response.json()
 
       if (data.success) {
-        // TODO: Add success toast
         console.log(`Invitation resent to ${userEmail}`)
       } else {
         setError(data.error)
