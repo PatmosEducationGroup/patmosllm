@@ -35,8 +35,8 @@ const consent = getUserConsent();
 Sentry.init({
   dsn: "https://4b7829b1cbffe814c37c1c5422842c6e@o4510156074647552.ingest.us.sentry.io/4510156079628288",
 
-  // Adjust this value in production, or use tracesSampler for greater control
-  tracesSampleRate: 1,
+  // GDPR: Disable performance traces if no consent
+  tracesSampleRate: consent.errorTracking ? 1 : 0,
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
@@ -48,17 +48,35 @@ Sentry.init({
   // in development and sample at a lower rate in production
   replaysSessionSampleRate: consent.errorTracking ? 0.1 : 0,
 
-  // You can remove this option if you're not planning to use the Sentry Session Replay feature:
-  integrations: consent.errorTracking ? [
-    Sentry.replayIntegration({
-      // Additional Replay configuration goes in here, for example:
-      maskAllText: true,
-      blockAllMedia: true,
-    }),
-  ] : [],
+  // GDPR: Filter out BrowserSession integration when no consent, add replay integration when consent given
+  integrations: (defaultIntegrations) => {
+    // Filter out BrowserSession when no consent (stops session tracking)
+    const filtered = consent.errorTracking
+      ? defaultIntegrations
+      : defaultIntegrations.filter(
+          (integration) => integration.name !== 'BrowserSession'
+        );
+
+    // Add replay integration if consent given
+    return consent.errorTracking
+      ? [
+          ...filtered,
+          Sentry.replayIntegration({
+            // Additional Replay configuration goes in here, for example:
+            maskAllText: true,
+            blockAllMedia: true,
+          }),
+        ]
+      : filtered;
+  },
 
   // Filter out known noise and apply privacy filters
   beforeSend(event) {
+    // GDPR: Block all events if user hasn't consented (safety check)
+    if (!consent.errorTracking) {
+      return null;
+    }
+
     // GDPR Phase 4: Exclude chat routes from session replay (privacy protection)
     // Still capture errors, just no video replay of user typing sensitive info
     if (event.request?.url?.includes('/chat')) {
