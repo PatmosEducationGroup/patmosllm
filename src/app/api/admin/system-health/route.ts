@@ -45,7 +45,7 @@ export async function GET(_request: NextRequest) {
 
     // Calculate statistics from pooled database results
     const totalUsers = dbStats.usersResult.data?.length || 0
-    const activeUsers = dbStats.usersResult.data?.filter(u => !u.clerk_id.startsWith('invited_')).length || 0
+    const activeUsers = dbStats.usersResult.data?.filter(u => !u.clerk_id || !u.clerk_id.startsWith('invited_')).length || 0
     const pendingUsers = totalUsers - activeUsers
 
     const totalDocuments = dbStats.documentsResult.data?.length || 0

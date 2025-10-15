@@ -129,8 +129,8 @@ export async function syncUserWithDatabase(clerkUser: {
         .eq('email', email?.toLowerCase())
         .single()
 
-      if (invitedUser && invitedUser.clerk_id.startsWith('invited_')) {
-        // Update invited user with real Clerk ID
+      if (invitedUser && invitedUser.clerk_id && invitedUser.clerk_id.startsWith('invited_')) {
+        // Update invited user with real Clerk ID (only for old Clerk invitations)
         const { data: activatedUser, error } = await supabaseAdmin
           .from('users')
           .update({

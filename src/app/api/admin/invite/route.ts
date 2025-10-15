@@ -303,7 +303,7 @@ export async function GET(_request: NextRequest) {
       name: user.name,
       role: user.role,
       createdAt: user.created_at,
-      isActive: !user.clerk_id.startsWith('invited_'), // Check if user has completed signup
+      isActive: !user.clerk_id || !user.clerk_id.startsWith('invited_'), // Active if: NULL (Supabase) or not pending
       invitedBy: (user.inviter as { email?: string })?.email || 'System',
       invitation_token: user.invitation_token,
       clerk_ticket: user.clerk_ticket
@@ -392,7 +392,7 @@ export async function DELETE(_request: NextRequest) {
     // =================================================================
     // USER STATUS CHECK - Determine if pending invitation vs active user
     // =================================================================
-    const isPendingInvitation = targetUser.clerk_id.startsWith('invited_')
+    const isPendingInvitation = targetUser.clerk_id && targetUser.clerk_id.startsWith('invited_')
 
     // =================================================================
     // SOFT DELETE - Mark user as deleted (preserves data for audit trail)

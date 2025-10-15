@@ -87,8 +87,8 @@ export async function POST(_request: NextRequest) {
       targetEmail: targetUser.email
     }, 'Target user found')
 
-    // Check if this is a pending invitation
-    const isPendingInvitation = targetUser.clerk_id.startsWith('invited_')
+    // Check if this is a pending invitation (old Clerk system)
+    const isPendingInvitation = targetUser.clerk_id && targetUser.clerk_id.startsWith('invited_')
 
     if (!isPendingInvitation) {
       loggers.security({
