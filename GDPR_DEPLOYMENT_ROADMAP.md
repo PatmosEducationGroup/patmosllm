@@ -197,36 +197,368 @@ git push
 
 ---
 
-## PHASE 7: Invitation Acceptance Page (DEPLOY SEVENTH - COMPLEX)
+## PHASE 7: Supabase Invite-Only Migration (DEPLOY SEVENTH - COMPLEX)
 
-**What**: Create consent capture page for invitation acceptance
-**Time**: 6-8 hours (includes testing invitation flow)
-**Risk**: High (changes invitation flow, auth integration)
+**What**: Migrate from Clerk invitations to Supabase Auth invite-only system with GDPR consent capture
+**Time**: 18-25 hours (development: 10-14h, testing: 6-8h, deployment: 2-3h)
+**Risk**: High (replaces entire invitation system, auth migration dependency)
 
-### Files to Create/Modify:
-- `/app/invite/[token]/accept/page.tsx` - New acceptance page
-- Modify `/app/invite/[token]/page.tsx` - Redirect to acceptance
-- Backend logic to store consent
+### Context & Architecture
 
-### Deploy & Verify:
+**Current System (Clerk-based)**:
+- Admin creates invitation → generates Clerk invitation + `clerk_ticket`
+- User signs up via Clerk's `<SignUp>` component with restricted mode
+- Invitation linked to Clerk account after signup
+- **Problem**: Can't capture consent during Clerk signup (no control over UI)
+
+**New System (Supabase-based)**:
+- Admin creates invitation → creates `auth.users` shell with admin API
+- User accepts invitation → sets password + captures consent checkboxes
+- Password updated via `admin.updateUserById()` → user can login immediately
+- **Benefit**: Full control over consent capture UI, invite-only mode enforced
+
+**Key Validation**: This pattern is **already proven in production**:
+- Webhook handler creates Supabase users with `admin.createUser()` (line 124 in `webhooks/clerk/route.ts`)
+- Prepopulation script created 15 users using this exact pattern
+- Migration flow uses `admin.updateUserById()` to set passwords (line 97 in `auth-migration.ts`)
+- Login via `signInWithPassword()` works immediately after password update
+
+---
+
+### PRE-FLIGHT CHECKLIST (CRITICAL - Do First)
+
+#### 1. Execute Security SQL Script (15 minutes)
+**File**: `scripts/fix-supabase-linter-warnings.sql`
+**Action**: Run in Supabase SQL Editor
+**Why**: Fixes 18 functions with SQL injection risk, enables RLS policies
+**Status**: 🚨 **BLOCKING** - Must complete before implementation
+
+#### 2. Verify Supabase Auth Settings (5 minutes)
+**In Supabase Dashboard → Authentication → Settings**:
+- [ ] "Enable email signups" = **OFF** (blocks public signups)
+- [ ] "Enable email login" = **ON** (allows invited users to login)
+- [ ] Confirm admin API bypasses signup restrictions
+
+#### 3. Test Admin API in Development (15 minutes)
+```typescript
+// Verify this works with "email signups disabled"
+const { data } = await supabaseAdmin.auth.admin.createUser({
+  email: 'test@example.com',
+  email_confirm: true,  // Bypass verification
+  password: 'TestPass123!',
+  user_metadata: { invitation_pending: true }
+})
+
+// Then try immediate login
+const { data: session } = await supabase.auth.signInWithPassword({
+  email: 'test@example.com',
+  password: 'TestPass123!'
+})
+// ✅ Should work even with signups disabled
+```
+
+---
+
+### PHASE 7A: Database Schema (1 hour)
+
+**Add consent tracking for invitations**:
+```sql
+-- Add to existing users table
+ALTER TABLE public.users
+ADD COLUMN IF NOT EXISTS invitation_accepted_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS invitation_consent_captured BOOLEAN DEFAULT FALSE;
+
+-- consent_events table already exists from Phase 5
+-- Will reuse for invitation acceptance logging
+```
+
+---
+
+### PHASE 7B: Invitation Acceptance API (6-8 hours)
+
+#### Create `/src/app/api/invite/[token]/accept/route.ts`
+
+**Flow**:
+1. Validate invitation token (check expiration, uniqueness)
+2. Verify all consent checkboxes are checked
+3. Check if `auth.users` entry exists for this email:
+   - **If NO**: Create with `admin.createUser()` (new pattern)
+   - **If YES**: Update password with `admin.updateUserById()` (existing pattern)
+4. Update `public.users`:
+   - Link `auth_user_id`
+   - Clear `invitation_token` and `invitation_expires_at`
+   - Set `invitation_accepted_at`, `invitation_consent_captured`
+5. Log consent to `privacy_audit_log` and `consent_events`
+6. Auto-login user with `signInWithPassword()`
+7. Return success → redirect to app
+
+**Key Code Pattern (Proven Working)**:
+```typescript
+// This exact pattern is used in production (webhook handler)
+const { data: authUser, error } = await supabaseAdmin.auth.admin.createUser({
+  email: invitation.email,
+  email_confirm: true,  // ✅ Admin vouching for user
+  password: userPassword,
+  user_metadata: {
+    invitation_accepted: true,
+    invited_by: invitation.invited_by,
+    consent_captured: true,
+    consent_timestamp: new Date().toISOString()
+  }
+})
+
+// Link to public.users
+await supabaseAdmin
+  .from('users')
+  .update({
+    auth_user_id: authUser.user.id,
+    invitation_token: null,
+    invitation_expires_at: null,
+    invitation_accepted_at: new Date().toISOString()
+  })
+  .eq('invitation_token', token)
+
+// Auto-login (works immediately - proven in migration flow)
+const { data: session } = await supabase.auth.signInWithPassword({
+  email: invitation.email,
+  password: userPassword
+})
+```
+
+---
+
+### PHASE 7C: Invitation Acceptance UI (3-4 hours)
+
+#### Create `/src/app/invite/[token]/accept/page.tsx`
+
+**Components**:
+- Password input with strength indicator
+- Confirm password input
+- **3 Required Consent Checkboxes**:
+  - [ ] I agree to the Terms of Service
+  - [ ] I agree to the Privacy Policy
+  - [ ] I consent to data processing as described in the Privacy Policy
+- Submit button (disabled until all checked + passwords match)
+- Error display area
+- Loading state during API call
+
+**Design**: Match existing UI (CookieConsentBanner style)
+
+**Validation**:
+- All 3 checkboxes MUST be checked (GDPR requirement - no pre-checked boxes)
+- Password minimum 8 characters
+- Passwords must match
+- Client-side + server-side validation
+
+---
+
+### PHASE 7D: Update Invitation Flow (2-3 hours)
+
+#### Modify `/src/app/invite/[token]/page.tsx`
+
+**Current**: Renders Clerk `<SignUp />` component
+**New**: Redirect to `/invite/[token]/accept` page
+
+```typescript
+// Simple redirect to acceptance page
+'use client'
+
+export default function InvitePage({ params }: { params: { token: string } }) {
+  useEffect(() => {
+    window.location.href = `/invite/${params.token}/accept`
+  }, [params.token])
+
+  return <div className="min-h-screen flex items-center justify-center">
+    <p>Redirecting to invitation acceptance...</p>
+  </div>
+}
+```
+
+#### Keep `/src/app/api/invite/[token]/route.ts`
+- GET endpoint for token validation already works
+- No changes needed (validates expiration, returns invitation details)
+
+---
+
+### PHASE 7E: Update Admin Invitation Creation (Optional - Future Phase)
+
+**Note**: This is for Phase 5+ of the Clerk → Supabase migration. For now, admin invitations can continue creating placeholder records in `public.users`. The acceptance flow will create the `auth.users` entry.
+
+**Future Enhancement** (when Clerk is fully removed):
+```typescript
+// POST /api/admin/invite - Create auth.users shell immediately
+const { data: authUser } = await supabaseAdmin.auth.admin.createUser({
+  email,
+  email_confirm: true,
+  password: crypto.randomUUID() + crypto.randomUUID(), // Temporary
+  user_metadata: {
+    invitation_pending: true,
+    invited_by: admin.id,
+    invitation_token: token
+  }
+})
+
+// Then link to public.users
+await supabaseAdmin.from('users').insert({
+  auth_user_id: authUser.user.id,
+  email,
+  invitation_token: token,
+  // ...
+})
+```
+
+---
+
+### Testing Strategy (6-8 hours)
+
+#### Unit Tests (`/tests/api/invite-supabase.test.ts`):
+- [ ] Token validation (expired, invalid, already used)
+- [ ] Consent checkbox validation (all required)
+- [ ] Password validation (strength, match)
+- [ ] Email normalization
+
+#### Integration Tests:
+- [ ] Complete flow: admin creates → user accepts → user logs in
+- [ ] Expired invitation shows error page
+- [ ] Invalid token shows 404
+- [ ] Missing consent prevents submission
+- [ ] Duplicate acceptance prevented
+- [ ] Consent logged to `privacy_audit_log`
+
+#### Manual Testing Checklist:
+1. [ ] Admin creates invitation via `/admin` page
+2. [ ] Check email received (correct link format)
+3. [ ] Click invitation link → redirected to acceptance page
+4. [ ] Try submitting without all checkboxes → shows error
+5. [ ] Try mismatched passwords → shows error
+6. [ ] Check all boxes + matching passwords → submission succeeds
+7. [ ] Verify account created in `auth.users` and `public.users`
+8. [ ] Verify consent logged in `privacy_audit_log`
+9. [ ] User can immediately log in with new password
+10. [ ] Check expired invitation (manually set expiry) → shows error
+
+#### Production Smoke Test:
+1. [ ] Create test invitation in production
+2. [ ] Use temporary email service (mailinator.com)
+3. [ ] Complete entire acceptance flow
+4. [ ] Verify login works
+5. [ ] Check Supabase dashboard for user creation
+6. [ ] Delete test account
+
+---
+
+### Deployment Strategy
+
+#### Week 1 (Development):
+- **Day 1**: Execute security SQL, verify Supabase settings, test admin API
+- **Day 2-3**: Build acceptance API (Phase 7B)
+- **Day 3-4**: Build acceptance UI (Phase 7C)
+- **Day 5**: Update invitation flow (Phase 7D), write tests
+
+#### Week 2 (Testing & QA):
+- **Day 1-2**: Integration testing, fix bugs
+- **Day 3**: Manual testing, edge cases
+- **Day 4**: Deploy to staging, full E2E test
+- **Day 5**: Legal review of consent language, prepare for production
+
+#### Week 3 (Production Rollout):
+- **Day 1**: Deploy to production (Clerk flow remains as fallback)
+- **Day 2-3**: Monitor for errors, test with 2-3 real invitations
+- **Day 4-5**: Validate metrics, confirm 100% consent capture
+
+---
+
+### Rollout & Rollback
+
+**Deploy & Verify**:
 ```bash
+# After all testing passes
 npm run build
 npm run lint
-git add src/app/invite
-git commit -m "Add invitation acceptance page with consent capture"
+git add src/app/invite src/app/api/invite scripts/
+git commit -m "feat: Implement Supabase invite-only system with consent capture (Phase 7/9)"
 git push
 ```
 
-**Verification**:
-- [ ] Admin sends invitation
-- [ ] User clicks invitation link
-- [ ] Sees acceptance page (not direct Clerk signup)
-- [ ] Age checkbox required
-- [ ] Terms/Privacy checkbox required
-- [ ] Cookie preference required
-- [ ] Consent stored in database after acceptance
-- [ ] Redirects to Supabase signup (not Clerk)
-- [ ] User can log in after setup
+**Rollback Plan** (if critical issues):
+1. Revert commit: `git revert HEAD && git push`
+2. Existing Clerk invitation flow automatically takes over
+3. Users with pending Supabase invitations can still accept (backward compatible)
+
+---
+
+### Success Criteria
+
+- ✅ Admin can create invitations (existing functionality preserved)
+- ✅ User receives invitation email with correct link
+- ✅ User sees acceptance page with password + consent form
+- ✅ All 3 consent checkboxes required (GDPR compliant)
+- ✅ User account created in Supabase Auth (`auth.users`)
+- ✅ User can login immediately after acceptance
+- ✅ Consent logged in `privacy_audit_log` table
+- ✅ 100% consent capture for new signups
+- ✅ Public email signups blocked (invite-only mode)
+- ✅ Zero errors in production monitoring
+- ✅ Existing Clerk invitations still work (backward compatible)
+
+---
+
+### Verification Checklist
+
+After deployment:
+- [ ] Visit production `/admin` page → create test invitation
+- [ ] Check email delivered (invitation link correct)
+- [ ] Click link → redirected to acceptance page (not Clerk)
+- [ ] Complete acceptance with password + all consents
+- [ ] Verify account created in Supabase dashboard (auth.users)
+- [ ] Log in immediately with new credentials → success
+- [ ] Check `privacy_audit_log` → consent recorded
+- [ ] Try creating account via public signup URL → blocked
+- [ ] Check Sentry → no invitation-related errors
+- [ ] Delete test account
+
+---
+
+### Risk Assessment
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Security SQL not executed | LOW | 🚨 CRITICAL | Pre-flight checklist blocks progress |
+| Admin API fails with signups disabled | VERY LOW | HIGH | Pattern proven with 15 prod users |
+| Password update fails | LOW | HIGH | Pattern proven in migration flow |
+| Login fails after acceptance | VERY LOW | HIGH | `signInWithPassword` tested in prod |
+| Consent not captured | LOW | HIGH | Required checkboxes enforce capture |
+| Invitation email not sent | MEDIUM | MEDIUM | Test with real email in staging |
+| Race condition (concurrent accepts) | LOW | MEDIUM | Token uniqueness constraint prevents |
+
+---
+
+### Estimated Effort
+
+- **Pre-flight checks**: 35 minutes
+- **Database schema**: 1 hour
+- **Acceptance API**: 6-8 hours
+- **Acceptance UI**: 3-4 hours
+- **Flow updates**: 2-3 hours
+- **Testing**: 6-8 hours
+- **Deployment & QA**: 2-3 hours
+- **Total**: 18-25 hours (2.5-3 days full-time)
+
+---
+
+### Confidence Level: HIGH (85%)
+
+**Why HIGH confidence**:
+- ✅ Pattern proven in production (webhook creates 15+ users)
+- ✅ All APIs already in use (`admin.createUser`, `updateUserById`, `signInWithPassword`)
+- ✅ Supabase explicitly designed for invite-only with admin API
+- ✅ No breaking changes to existing invitation system
+- ✅ Backward compatible with Clerk invitations
+
+**Remaining 15% uncertainty**:
+- Security SQL script execution required
+- Integration testing in production environment
+- Edge cases in consent capture validation
 
 ---
 
@@ -312,21 +644,33 @@ git push
   - Date: October 2024
   - Excluded /chat routes from Sentry session replay
 
+- ✅ **Phase 5**: Database Migration - Deployed
+  - Commit: (multiple) - "feat: Complete GDPR Phase 5 & 6"
+  - Date: October 15, 2025
+  - Added 8 consent tracking columns to users table
+  - Created scripts/add-consent-columns.sql migration
+
+- ✅ **Phase 6**: Cookie Consent Banner - Deployed
+  - Commits: `c4063b7`, `7f175d3`, `378b4c9`, `fb046e0`
+  - Date: October 15, 2025
+  - Created CookieConsentBanner.tsx with modal for granular control
+  - Integrated with Sentry (respects consent before tracking)
+  - Fixed 400 errors by disabling session tracking without consent
+  - Production tested and verified
+
 **In Progress**:
-- 🔄 **Phase 5**: Database Migration (consent tracking columns) - NEXT
+- 🔄 **Phase 7**: Supabase Invite-Only Migration (18-25 hours) - NEXT
 
 **Remaining Phases**:
-- ⏸️ Phase 6: Cookie Consent Banner (2-3 hours)
-- ⏸️ Phase 7: Invitation Acceptance Page (6-8 hours)
 - ⏸️ Phase 8: Privacy Settings Portal (8-12 hours)
 - ⏸️ Phase 9: Documentation & Polish (2 hours)
 
 **Next Steps**:
-1. **Phase 5**: Run database migration in Supabase SQL Editor
-2. Test: Verify columns added to users table
-3. Test: Confirm existing users unaffected
-4. Document: Create scripts/add-consent-columns.sql
-5. Move to Phase 6 (Cookie Banner)
+1. **Phase 7**: Execute security SQL script (`scripts/fix-supabase-linter-warnings.sql`)
+2. Verify Supabase Auth settings (disable email signups)
+3. Build invitation acceptance API + UI with consent capture
+4. Test complete invitation flow: invite → accept → login
+5. Move to Phase 8 (Privacy Portal)
 
 ---
 
@@ -395,8 +739,16 @@ ALTER TABLE users DROP COLUMN IF EXISTS terms_accepted_at;
 
 ## PROGRESS SUMMARY
 
-**Completed**: 4/9 phases (44%)
-**Time Spent**: ~2 hours
-**Time Remaining**: ~18-23 hours across Phases 5-9
+**Completed**: 6/9 phases (67%)
+**Time Spent**: ~6-8 hours (Phases 1-6)
+**Time Remaining**: ~28-39 hours across Phases 7-9
 
-**Next Milestone**: Complete Phase 5 (Database Migration), then tackle Cookie Consent Banner (Phase 6)
+**Phase Breakdown**:
+- ✅ Phase 1-4: Legal pages, footer, security headers, Sentry filtering (2 hours)
+- ✅ Phase 5: Database migration - consent tracking columns (1 hour)
+- ✅ Phase 6: Cookie consent banner with Sentry integration (3-4 hours)
+- ⏳ Phase 7: Supabase invite-only migration (18-25 hours) - **NEXT**
+- ⏸️ Phase 8: Privacy settings portal (8-12 hours)
+- ⏸️ Phase 9: Documentation & polish (2 hours)
+
+**Next Milestone**: Complete Phase 7 (Supabase Invite-Only Migration) - Start with pre-flight security SQL script execution
