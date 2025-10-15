@@ -66,6 +66,16 @@
 
 ## 🟢 Medium Priority
 
+### Security & Monitoring
+- [ ] **Fix Sentry CSP Error** (Production Issue)
+  - **Issue**: Sentry tracing bundle blocked by Content Security Policy
+  - **Error**: `Refused to load 'https://browser.sentry-cdn.com/8.0.0/bundle.tracing.min.js'`
+  - **Impact**: Sentry performance tracing not working, losing monitoring data
+  - **Location**: `src/middleware.ts` - CSP configuration
+  - **Fix**: Add `https://browser.sentry-cdn.com` to `script-src` CSP directive
+  - **Estimated Time**: 15-30 minutes
+  - **Priority**: MEDIUM - App works fine, but losing valuable monitoring data
+
 ### Performance & Scalability
 - [ ] **Add Bundle Size Monitoring**
   - **Tool**: Install `@next/bundle-analyzer`

@@ -73,62 +73,98 @@ export async function POST(request: NextRequest) {
     }
 
     // =================================================================
-    // CHECK DUPLICATE USER - Ensure user doesn't already exist
+    // CHECK IF AUTH USER EXISTS - Handle Supabase email invitation flow
     // =================================================================
-    const { data: existingUser } = await supabaseAdmin
-      .from('users')
-      .select('id, email')
-      .eq('email', invitation.email.toLowerCase())
-      .single()
+    // When admin sends invitation via admin.inviteUserByEmail(), clicking the
+    // email link automatically creates the user in auth.users. We need to handle
+    // both cases: user already exists (clicked email) or doesn't exist (direct token)
 
-    if (existingUser) {
-      return NextResponse.json(
-        { success: false, error: 'User with this email already exists' },
-        { status: 400 }
+    let authUserId: string
+
+    // Try to find existing auth user by email
+    const { data: existingAuthUsers } = await supabaseAdmin.auth.admin.listUsers()
+    const existingAuthUser = existingAuthUsers?.users?.find(
+      u => u.email?.toLowerCase() === invitation.email.toLowerCase()
+    )
+
+    if (existingAuthUser) {
+      // User already exists in auth.users (clicked email invitation link)
+      // Just update their password
+      authUserId = existingAuthUser.id
+
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        authUserId,
+        {
+          password: password,
+          email_confirm: true,
+          user_metadata: {
+            role: invitation.role,
+            invited_by: invitation.invited_by,
+            invitation_accepted_at: new Date().toISOString()
+          }
+        }
       )
-    }
 
-    // =================================================================
-    // CREATE SUPABASE AUTH USER - Admin API bypasses email confirmation
-    // =================================================================
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: invitation.email.toLowerCase(),
-      password: password,
-      email_confirm: true, // Auto-confirm email since admin invited
-      user_metadata: {
-        role: invitation.role,
-        invited_by: invitation.invited_by,
-        invitation_accepted_at: new Date().toISOString()
+      if (updateError) {
+        logError(updateError, {
+          operation: 'update_auth_user_password',
+          email: invitation.email,
+          authUserId
+        })
+        return NextResponse.json(
+          { success: false, error: 'Failed to set password. Please try again.' },
+          { status: 500 }
+        )
       }
-    })
 
-    if (authError || !authUser.user) {
-      logError(authError || new Error('Failed to create auth user'), {
-        operation: 'create_supabase_auth_user',
+      loggers.security({
+        operation: 'auth_user_password_set',
         email: invitation.email,
-        role: invitation.role
+        authUserId
+      }, 'Password set for existing auth user')
+
+    } else {
+      // User doesn't exist yet - create new auth user
+      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: invitation.email.toLowerCase(),
+        password: password,
+        email_confirm: true,
+        user_metadata: {
+          role: invitation.role,
+          invited_by: invitation.invited_by,
+          invitation_accepted_at: new Date().toISOString()
+        }
       })
 
-      return NextResponse.json(
-        { success: false, error: 'Failed to create account. Please try again.' },
-        { status: 500 }
-      )
+      if (authError || !authUser.user) {
+        logError(authError || new Error('Failed to create auth user'), {
+          operation: 'create_supabase_auth_user',
+          email: invitation.email,
+          role: invitation.role
+        })
+        return NextResponse.json(
+          { success: false, error: 'Failed to create account. Please try again.' },
+          { status: 500 }
+        )
+      }
+
+      authUserId = authUser.user.id
+
+      loggers.security({
+        operation: 'supabase_auth_user_created',
+        email: invitation.email,
+        role: invitation.role,
+        authUserId
+      }, 'Supabase Auth user created successfully')
     }
 
-    loggers.security({
-      operation: 'supabase_auth_user_created',
-      email: invitation.email,
-      role: invitation.role,
-      authUserId: authUser.user.id
-    }, 'Supabase Auth user created successfully')
-
     // =================================================================
-    // CREATE USER RECORD - Store in public.users table with GDPR consent
+    // CREATE/UPDATE USER RECORD - Store in public.users table with GDPR consent
     // =================================================================
     const { data: newUser, error: userError } = await supabaseAdmin
       .from('users')
-      .insert({
-        id: authUser.user.id, // Use Supabase Auth UUID as primary key
+      .upsert({
+        id: authUserId, // Use Supabase Auth UUID as primary key
         email: invitation.email.toLowerCase(),
         role: invitation.role,
         invited_by: invitation.invited_by,
@@ -139,13 +175,17 @@ export async function POST(request: NextRequest) {
         privacy_accepted_at: consents.privacy_accepted ? consents.consent_timestamp : null,
         cookies_accepted_at: consents.cookies_accepted ? consents.consent_timestamp : null,
         consent_version: '1.0' // Track which version of T&C/Privacy they agreed to
+      }, {
+        onConflict: 'id'
       })
       .select()
       .single()
 
     if (userError || !newUser) {
-      // Rollback: Delete auth user if database insert fails
-      await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
+      // Rollback: Delete auth user if database insert fails (only if we just created them)
+      if (!existingAuthUser) {
+        await supabaseAdmin.auth.admin.deleteUser(authUserId)
+      }
 
       logError(userError || new Error('Failed to create user record'), {
         operation: 'create_user_record',
