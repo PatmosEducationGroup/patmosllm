@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
       logError(userError || new Error('Failed to create user record'), {
         operation: 'create_user_record',
         email: invitation.email,
-        authUserId: authUser.user.id
+        authUserId
       })
 
       return NextResponse.json(
