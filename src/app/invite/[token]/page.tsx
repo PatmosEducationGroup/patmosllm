@@ -43,9 +43,25 @@ export default function InvitePage() {
 
   const validateInvitation = async () => {
     try {
+      // =====================================================================
+      // PHASE 7: Check if this is a Supabase invitation (new system)
+      // =====================================================================
+      const supabaseResponse = await fetch(`/api/invite/${token}/validate`)
+      if (supabaseResponse.ok) {
+        const supabaseData = await supabaseResponse.json()
+        if (supabaseData.success) {
+          // This is a Supabase invitation - redirect to new acceptance flow
+          router.push(`/invite/${token}/accept`)
+          return
+        }
+      }
+
+      // =====================================================================
+      // FALLBACK: Check if this is a Clerk invitation (legacy system)
+      // =====================================================================
       const response = await fetch(`/api/invite/${token}`)
       const data = await response.json()
-      
+
       if (data.success) {
         setInvitation(data.invitation)
       } else {
