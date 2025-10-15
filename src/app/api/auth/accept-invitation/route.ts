@@ -165,6 +165,7 @@ export async function POST(request: NextRequest) {
       .from('users')
       .upsert({
         id: authUserId, // Use Supabase Auth UUID as primary key
+        auth_user_id: authUserId, // CRITICAL: Set auth_user_id for getCurrentUser() lookup
         email: invitation.email.toLowerCase(),
         role: invitation.role,
         invited_by: invitation.invited_by,
