@@ -40,15 +40,35 @@ export async function POST(request: NextRequest) {
       migrationData = data
     }
 
-    // If no record found, user hasn't been prepopulated (shouldn't happen)
+    // If no migration record, check if this is a Supabase-only user (Phase 7)
     if (!migrationData) {
+      // Check if user exists in users table with auth_user_id (Supabase-only)
+      const normalizedEmail = email ? email.toLowerCase().trim() : null
+      if (normalizedEmail) {
+        const { data: supabaseUser } = await supabaseAdmin
+          .from('users')
+          .select('id, auth_user_id')
+          .eq('email', normalizedEmail)
+          .is('deleted_at', null)
+          .maybeSingle()
+
+        if (supabaseUser && supabaseUser.auth_user_id) {
+          // This is a Supabase-only user (Phase 7 invitation)
+          return NextResponse.json({
+            migrated: true, // Treat as "migrated" (already using Supabase)
+            exists: true
+          })
+        }
+      }
+
+      // No record in migration table or users table
       return NextResponse.json({
         migrated: false,
         exists: false
       })
     }
 
-    // Return migration status
+    // Return migration status (Clerk user)
     return NextResponse.json({
       migrated: migrationData.migrated,
       exists: true
