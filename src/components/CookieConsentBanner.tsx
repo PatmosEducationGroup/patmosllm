@@ -75,19 +75,11 @@ export default function CookieConsentBanner() {
   }
 
   const enableAnalytics = () => {
-    // Enable Sentry
-    if (
-      typeof window !== 'undefined' &&
-      'Sentry' in window &&
-      window.Sentry &&
-      typeof window.Sentry === 'object'
-    ) {
-      // Sentry will already be initialized, this just ensures it's active
-      const sentry = window.Sentry as { init?: (config: { enabled: boolean }) => void }
-      sentry.init?.({ enabled: true })
-    }
+    // Note: Actual Sentry/Analytics initialization should check localStorage
+    // on app startup. We just store the preference here.
+    // The instrumentation files will read this and configure accordingly.
 
-    // Enable Vercel Analytics if present
+    // Optional: Signal to Vercel Analytics if already loaded
     if (
       typeof window !== 'undefined' &&
       'va' in window &&
@@ -100,20 +92,10 @@ export default function CookieConsentBanner() {
   }
 
   const disableAnalytics = () => {
-    // Disable Sentry session replay
-    if (
-      typeof window !== 'undefined' &&
-      'Sentry' in window &&
-      window.Sentry &&
-      typeof window.Sentry === 'object'
-    ) {
-      const sentry = window.Sentry as {
-        getCurrentScope?: () => { setUser: (user: null) => void } | undefined
-      }
-      sentry.getCurrentScope?.()?.setUser(null)
-    }
+    // Note: Actual Sentry/Analytics should check localStorage on app startup
+    // We just store the preference here for next page load
 
-    // Signal to Vercel Analytics that user opted out
+    // Optional: Signal to Vercel Analytics if already loaded
     if (
       typeof window !== 'undefined' &&
       'va' in window &&
