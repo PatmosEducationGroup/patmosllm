@@ -121,13 +121,35 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // All other routes are public by default (clerkMiddleware behavior)
   if (isProtectedRoute(req)) {
     // STEP 1: Check for Supabase session (migrated users)
-    // If Supabase user exists, allow access (migrated user)
     if (supabaseUser) {
+      // User has Supabase session - but check if they have clerk_id (unmigrated Clerk user)
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('clerk_id, email')
+        .eq('auth_user_id', supabaseUser.id)
+        .maybeSingle()
+
+      // If user has clerk_id, check migration status
+      if (userData?.clerk_id && userData.clerk_id.startsWith('user_')) {
+        const { data: migrationStatus } = await supabaseAdmin
+          .from('user_migration')
+          .select('migrated')
+          .eq('email', userData.email)
+          .maybeSingle()
+
+        // If NOT migrated, force to migration page
+        if (migrationStatus && !migrationStatus.migrated) {
+          if (!req.nextUrl.pathname.startsWith('/migrate-password')) {
+            console.log('[MIDDLEWARE] User has clerk_id but not migrated - redirecting to /migrate-password')
+            return NextResponse.redirect(new URL('/migrate-password', req.url))
+          }
+        }
+      }
       // User authenticated via Supabase - allow access
-      // Response headers will be added below
     } else {
       // STEP 2: No Supabase session - check Clerk
       const { userId } = await auth()
+      console.log('[MIDDLEWARE] Clerk userId:', userId)
 
       if (userId) {
         // User has Clerk session - check if they need to migrate
@@ -137,6 +159,8 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
         const clerkUser = await client.users.getUser(userId)
         const email = clerkUser.primaryEmailAddress?.emailAddress?.toLowerCase()
 
+        console.log('[MIDDLEWARE] Clerk user email:', email)
+
         if (email) {
           // Check migration status (use admin client to bypass RLS)
           const { data: migrationStatus } = await supabaseAdmin
@@ -145,10 +169,13 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
             .eq('email', email)
             .maybeSingle()
 
+          console.log('[MIDDLEWARE] Migration status:', migrationStatus)
+
           // If user is NOT migrated, force them to migrate-password page
           if (migrationStatus && !migrationStatus.migrated) {
             // Allow access to migrate-password page itself
             if (!req.nextUrl.pathname.startsWith('/migrate-password')) {
+              console.log('[MIDDLEWARE] REDIRECTING unmigrated Clerk user to /migrate-password')
               return NextResponse.redirect(new URL('/migrate-password', req.url))
             }
           }

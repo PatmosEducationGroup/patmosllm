@@ -11,11 +11,12 @@ import { loggers, logError } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
-    const { clerkUserId, password } = await request.json()
+    const { clerkUserId, email, password } = await request.json()
 
-    if (!clerkUserId || !password) {
+    // Must provide either clerkUserId OR email
+    if ((!clerkUserId && !email) || !password) {
       return NextResponse.json(
-        { error: 'Clerk user ID and password required' },
+        { error: 'Either Clerk user ID or email is required, along with password' },
         { status: 400 }
       )
     }
@@ -49,112 +50,186 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    loggers.auth(
-      { clerk_user_id: clerkUserId },
-      'Completing migration - setting new password'
-    )
-
-    // Get user from Clerk to get email
-    const { clerkClient } = await import('@clerk/nextjs/server')
-    const client = await clerkClient()
-    const user = await client.users.getUser(clerkUserId)
-
-    if (!user.primaryEmailAddress?.emailAddress) {
-      return NextResponse.json(
-        { error: 'User has no primary email' },
-        { status: 400 }
+    // OPTION 1: Clerk session-based flow (backward compatibility)
+    if (clerkUserId) {
+      loggers.auth(
+        { clerk_user_id: clerkUserId },
+        'Completing migration via Clerk ID - setting new password'
       )
-    }
 
-    const email = user.primaryEmailAddress.emailAddress.toLowerCase().trim()
+      // Get user from Clerk to get email
+      const { clerkClient } = await import('@clerk/nextjs/server')
+      const client = await clerkClient()
+      const user = await client.users.getUser(clerkUserId)
 
-    // Get migration record
-    const { data: migrationRecord } = await supabaseAdmin
-      .from('user_migration')
-      .select('supabase_id, migrated')
-      .eq('clerk_id', clerkUserId)
-      .maybeSingle()
+      if (!user.primaryEmailAddress?.emailAddress) {
+        return NextResponse.json(
+          { error: 'User has no primary email' },
+          { status: 400 }
+        )
+      }
 
-    if (!migrationRecord) {
-      logError(new Error('Migration record not found'), {
-        operation: 'complete_migration',
-        phase: 'record_lookup',
-        severity: 'high',
-        clerk_user_id: clerkUserId,
-        errorContext: 'User not in migration table'
-      })
-      return NextResponse.json(
-        { error: 'Migration record not found. Please contact support.' },
-        { status: 404 }
+      const userEmail = user.primaryEmailAddress.emailAddress.toLowerCase().trim()
+
+      // Get migration record
+      const { data: migrationRecord } = await supabaseAdmin
+        .from('user_migration')
+        .select('supabase_id, migrated')
+        .eq('clerk_id', clerkUserId)
+        .maybeSingle()
+
+      if (!migrationRecord) {
+        logError(new Error('Migration record not found'), {
+          operation: 'complete_migration',
+          phase: 'record_lookup',
+          severity: 'high',
+          clerk_user_id: clerkUserId,
+          errorContext: 'User not in migration table'
+        })
+        return NextResponse.json(
+          { error: 'Migration record not found. Please contact support.' },
+          { status: 404 }
+        )
+      }
+
+      if (migrationRecord.migrated) {
+        // Already migrated, just return success
+        loggers.auth({ clerk_user_id: clerkUserId }, 'User already migrated')
+        return NextResponse.json({ success: true })
+      }
+
+      // Update Supabase Auth password
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        migrationRecord.supabase_id,
+        {
+          password,
+          user_metadata: {
+            migrated: true,
+            migration_completed_at: new Date().toISOString()
+          }
+        }
       )
-    }
 
-    if (migrationRecord.migrated) {
-      // Already migrated, just return success
-      loggers.auth({ clerk_user_id: clerkUserId }, 'User already migrated')
+      if (updateError) {
+        logError(new Error('Failed to update Supabase password'), {
+          operation: 'complete_migration',
+          phase: 'password_update',
+          severity: 'high',
+          clerk_user_id: clerkUserId,
+          supabase_id: migrationRecord.supabase_id,
+          email: userEmail,
+          errorContext: 'Could not update Supabase Auth password',
+          error: updateError
+        })
+        return NextResponse.json(
+          { error: `Failed to update password: ${updateError.message || 'Unknown error'}` },
+          { status: 500 }
+        )
+      }
+
+      // Mark as migrated in migration table
+      await supabaseAdmin
+        .from('user_migration')
+        .update({
+          migrated: true,
+          migrated_at: new Date().toISOString()
+        })
+        .eq('clerk_id', clerkUserId)
+
+      loggers.auth(
+        { clerk_user_id: clerkUserId, email: userEmail, supabase_id: migrationRecord.supabase_id },
+        'Migration completed successfully (Clerk flow)'
+      )
+
       return NextResponse.json({ success: true })
     }
 
-    // Update Supabase Auth password
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      migrationRecord.supabase_id,
-      {
-        password,
-        user_metadata: {
-          ...user,
-          migrated: true,
-          migration_completed_at: new Date().toISOString()
-        }
-      }
-    )
+    // OPTION 2: Email-based flow (for forced migration without Clerk session)
+    if (email) {
+      const normalizedEmail = email.toLowerCase().trim()
 
-    if (updateError) {
-      logError(new Error('Failed to update Supabase password'), {
-        operation: 'complete_migration',
-        phase: 'password_update',
-        severity: 'high',
-        clerk_user_id: clerkUserId,
-        supabase_id: migrationRecord.supabase_id,
-        email,
-        errorContext: 'Could not update Supabase Auth password',
-        error: updateError,
-        errorMessage: updateError.message,
-        errorCode: updateError.code,
-        errorStatus: updateError.status
-      })
-      return NextResponse.json(
-        { error: `Failed to update password: ${updateError.message || 'Unknown error'}` },
-        { status: 500 }
+      loggers.auth(
+        { email: normalizedEmail },
+        'Completing migration via email - setting new password'
       )
+
+      // Get migration record by email
+      const { data: migrationRecord } = await supabaseAdmin
+        .from('user_migration')
+        .select('supabase_id, clerk_id, migrated')
+        .eq('email', normalizedEmail)
+        .maybeSingle()
+
+      if (!migrationRecord) {
+        logError(new Error('Migration record not found'), {
+          operation: 'complete_migration',
+          phase: 'record_lookup',
+          severity: 'high',
+          email: normalizedEmail,
+          errorContext: 'User not in migration table'
+        })
+        return NextResponse.json(
+          { error: 'Migration record not found. Please contact support.' },
+          { status: 404 }
+        )
+      }
+
+      if (migrationRecord.migrated) {
+        // Already migrated, just return success
+        loggers.auth({ email: normalizedEmail }, 'User already migrated')
+        return NextResponse.json({ success: true })
+      }
+
+      // Update Supabase Auth password
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        migrationRecord.supabase_id,
+        {
+          password,
+          user_metadata: {
+            migrated: true,
+            migration_completed_at: new Date().toISOString()
+          }
+        }
+      )
+
+      if (updateError) {
+        logError(new Error('Failed to update Supabase password'), {
+          operation: 'complete_migration',
+          phase: 'password_update',
+          severity: 'high',
+          email: normalizedEmail,
+          supabase_id: migrationRecord.supabase_id,
+          errorContext: 'Could not update Supabase Auth password',
+          error: updateError
+        })
+        return NextResponse.json(
+          { error: `Failed to update password: ${updateError.message || 'Unknown error'}` },
+          { status: 500 }
+        )
+      }
+
+      // Mark as migrated in migration table
+      await supabaseAdmin
+        .from('user_migration')
+        .update({
+          migrated: true,
+          migrated_at: new Date().toISOString()
+        })
+        .eq('email', normalizedEmail)
+
+      loggers.auth(
+        { email: normalizedEmail, supabase_id: migrationRecord.supabase_id },
+        'Migration completed successfully (Email flow)'
+      )
+
+      return NextResponse.json({ success: true })
     }
 
-    // Mark as migrated in migration table
-    const { error: migrationUpdateError } = await supabaseAdmin
-      .from('user_migration')
-      .update({
-        migrated: true,
-        migrated_at: new Date().toISOString()
-      })
-      .eq('clerk_id', clerkUserId)
-
-    if (migrationUpdateError) {
-      logError(new Error('Failed to mark user as migrated'), {
-        operation: 'complete_migration',
-        phase: 'migration_flag_update',
-        severity: 'medium',
-        clerk_user_id: clerkUserId,
-        errorContext: 'Could not update migration table',
-        error: migrationUpdateError
-      })
-      // Don't fail the request - password was updated successfully
-    }
-
-    loggers.auth(
-      { clerk_user_id: clerkUserId, email, supabase_id: migrationRecord.supabase_id },
-      'Migration completed successfully'
+    // Should never reach here (guarded by initial validation)
+    return NextResponse.json(
+      { error: 'Either clerkUserId or email required' },
+      { status: 400 }
     )
-
-    return NextResponse.json({ success: true })
   } catch (error) {
     logError(
       error instanceof Error ? error : new Error('Complete migration failed'),
