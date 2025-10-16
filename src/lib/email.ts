@@ -13,16 +13,10 @@ export async function sendInvitationEmail(
   name: string,
   role: string,
   invitedBy: string,
-  token: string,
-  clerkTicket?: string | null
+  token: string
 ) {
   try {
-    let inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${token}`
-
-    // Add Clerk ticket if available (required for Restricted mode)
-    if (clerkTicket) {
-      inviteUrl += `?__clerk_ticket=${clerkTicket}`
-    }
+    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${token}`
     
     const { data, error } = await resend.emails.send({
       from: `${invitedBy} @ Multiply Tools <noreply-invitations@multiplytools.app>`,

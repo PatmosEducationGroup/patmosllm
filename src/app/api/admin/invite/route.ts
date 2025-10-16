@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { clerkClient } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 import { sendInvitationEmail, generateInvitationToken } from '@/lib/email'
-import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 import { loggers, logError } from '@/lib/logger'
 
 // =================================================================
@@ -65,11 +63,8 @@ export async function POST(_request: NextRequest) {
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
 
     // =================================================================
-    // DATABASE CREATION - Create invitation record in database
+    // DATABASE CREATION - Create invitation record in database (Supabase Auth only)
     // =================================================================
-    // Generate placeholder ID for invited user (before they complete signup)
-    const placeholderClerkId = `invited_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-
     const { data: invitedUser, error: inviteError } = await supabaseAdmin
       .from('users')
       .insert({
@@ -78,9 +73,8 @@ export async function POST(_request: NextRequest) {
         role: role,
         invited_by: user.id,
         invitation_token: invitationToken,
-        invitation_expires_at: expiresAt.toISOString(),
-        clerk_id: placeholderClerkId,
-        clerk_user_id: placeholderClerkId // Phase 3: Also set clerk_user_id to avoid NOT NULL constraint
+        invitation_expires_at: expiresAt.toISOString()
+        // No clerk_id - Supabase Auth only
       })
       .select()
       .single()
@@ -100,83 +94,9 @@ export async function POST(_request: NextRequest) {
     }
 
     // =================================================================
-    // ONBOARDING MILESTONE TRACKING - Track invitation milestone
+    // NOTE: Onboarding milestone tracking removed (was Clerk-dependent)
+    // If needed in future, track via Supabase Auth user_id instead
     // =================================================================
-    await trackOnboardingMilestone({
-      clerkUserId: invitedUser.clerk_id,
-      milestone: 'invited',
-      metadata: {
-        invited_by: user.id,
-        invitation_method: 'admin_invite',
-        invitation_token: invitationToken,
-        inviter_email: user.email
-      }
-    })
-
-    // =================================================================
-    // CLERK INVITATION - Create Clerk invitation to allow signup in Restricted mode
-    // =================================================================
-    let clerkTicket: string | null = null
-    try {
-      const client = await clerkClient()
-      const clerkInvitation = await client.invitations.createInvitation({
-        emailAddress: email.toLowerCase(),
-        redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}`,
-        notify: false, // Don't send Clerk's email - we handle emails ourselves
-        publicMetadata: {
-          invitationToken: invitationToken,
-          role: role,
-          invitedBy: user.email
-        }
-      })
-
-      // Extract the Clerk ticket from the invitation URL
-      // Clerk returns a URL like: https://clerk.dev/v1/tickets/accept?ticket=JWT_TOKEN
-      loggers.security({
-        operation: 'clerk_invitation_created',
-        adminUserId: user.id,
-        inviteeEmail: email.toLowerCase(),
-        hasUrl: !!clerkInvitation.url
-      }, 'Processing Clerk invitation response')
-
-      if (clerkInvitation.url) {
-        loggers.security({
-          operation: 'extract_clerk_ticket',
-          inviteeEmail: email.toLowerCase()
-        }, 'Extracting Clerk ticket from invitation URL')
-        const clerkUrl = new URL(clerkInvitation.url)
-        clerkTicket = clerkUrl.searchParams.get('ticket') // Changed from __clerk_ticket to ticket
-      }
-
-      if (clerkTicket) {
-        // Store the Clerk ticket in the database
-        await supabaseAdmin
-          .from('users')
-          .update({ clerk_ticket: clerkTicket })
-          .eq('id', invitedUser.id)
-        loggers.security({
-          operation: 'store_clerk_ticket',
-          inviteeEmail: email.toLowerCase(),
-          ticketStored: true
-        }, 'Clerk ticket stored in database')
-      }
-
-      loggers.security({
-        operation: 'clerk_invitation_complete',
-        adminUserId: user.id,
-        adminEmail: user.email,
-        inviteeEmail: email.toLowerCase(),
-        hasTicket: !!clerkTicket
-      }, 'Clerk invitation created successfully')
-    } catch (clerkError) {
-      logError(clerkError, {
-        operation: 'create_clerk_invitation',
-        adminUserId: user.id,
-        inviteeEmail: email.toLowerCase()
-      })
-      // Don't fail the whole request - user can still use the custom invitation link
-      // if Clerk is switched to a different mode
-    }
 
     // =================================================================
     // EMAIL SENDING - Conditionally send invitation email to new user
@@ -188,16 +108,12 @@ export async function POST(_request: NextRequest) {
         name || '',
         role,
         user.name || user.email,
-        invitationToken,
-        clerkTicket
+        invitationToken
       )
     }
 
-    // Build invitation URL with Clerk ticket if available
-    let invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}`
-    if (clerkTicket) {
-      invitationUrl += `?__clerk_ticket=${clerkTicket}`
-    }
+    // Build invitation URL (Supabase Auth only)
+    const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}`
 
     loggers.security({
       operation: 'admin_invite_user',
@@ -278,10 +194,9 @@ export async function GET(_request: NextRequest) {
         name,
         role,
         created_at,
-        clerk_id,
+        auth_user_id,
         invited_by,
         invitation_token,
-        clerk_ticket,
         inviter:invited_by(email, name)
       `)
       .is('deleted_at', null)
@@ -303,10 +218,10 @@ export async function GET(_request: NextRequest) {
       name: user.name,
       role: user.role,
       createdAt: user.created_at,
-      isActive: !user.clerk_id || !user.clerk_id.startsWith('invited_'), // Active if: NULL (Supabase) or not pending
+      isActive: !!user.auth_user_id, // Active if has Supabase Auth ID (completed signup)
+      isPending: !user.auth_user_id && !!user.invitation_token, // Pending if has invitation but no auth_user_id
       invitedBy: (user.inviter as { email?: string })?.email || 'System',
-      invitation_token: user.invitation_token,
-      clerk_ticket: user.clerk_ticket
+      invitation_token: user.invitation_token
     }))
 
     return NextResponse.json({
@@ -378,7 +293,7 @@ export async function DELETE(_request: NextRequest) {
     // =================================================================
     const { data: targetUser, error: fetchError } = await supabaseAdmin
       .from('users')
-      .select('id, email, clerk_id, role, invitation_token')
+      .select('id, email, auth_user_id, role, invitation_token')
       .eq('id', targetUserId)
       .single()
 
@@ -392,7 +307,7 @@ export async function DELETE(_request: NextRequest) {
     // =================================================================
     // USER STATUS CHECK - Determine if pending invitation vs active user
     // =================================================================
-    const isPendingInvitation = targetUser.clerk_id && targetUser.clerk_id.startsWith('invited_')
+    const isPendingInvitation = !targetUser.auth_user_id && !!targetUser.invitation_token
 
     // =================================================================
     // SOFT DELETE - Mark user as deleted (preserves data for audit trail)
@@ -418,42 +333,6 @@ export async function DELETE(_request: NextRequest) {
         { success: false, error: 'Failed to delete user' },
         { status: 500 }
       )
-    }
-
-    // =================================================================
-    // CLERK INVITATION REVOCATION - Revoke Clerk invitation if pending
-    // =================================================================
-    if (isPendingInvitation) {
-      try {
-        const client = await clerkClient()
-        // List all pending invitations for this email
-        const invitations = await client.invitations.getInvitationList({
-          status: 'pending'
-        })
-
-        // Find the invitation for this email
-        const invitation = invitations.data.find(
-          inv => inv.emailAddress.toLowerCase() === targetUser.email.toLowerCase()
-        )
-
-        if (invitation) {
-          await client.invitations.revokeInvitation(invitation.id)
-          loggers.security({
-            operation: 'revoke_clerk_invitation',
-            adminUserId: user.id,
-            adminEmail: user.email,
-            targetEmail: targetUser.email,
-            clerkInvitationId: invitation.id
-          }, 'Clerk invitation revoked')
-        }
-      } catch (clerkError) {
-        logError(clerkError, {
-          operation: 'revoke_clerk_invitation',
-          adminUserId: user.id,
-          targetEmail: targetUser.email
-        })
-        // Don't fail the whole request - user is already deleted from database
-      }
     }
 
     // =================================================================

@@ -64,7 +64,7 @@ export async function POST(_request: NextRequest) {
 
     const { data: targetUser, error: fetchError } = await supabaseAdmin
       .from('users')
-      .select('id, email, name, role, clerk_id, invitation_token, invitation_expires_at, clerk_ticket')
+      .select('id, email, name, role, auth_user_id, invitation_token, invitation_expires_at')
       .eq('id', targetUserId)
       .single()
 
@@ -87,8 +87,8 @@ export async function POST(_request: NextRequest) {
       targetEmail: targetUser.email
     }, 'Target user found')
 
-    // Check if this is a pending invitation (old Clerk system)
-    const isPendingInvitation = targetUser.clerk_id && targetUser.clerk_id.startsWith('invited_')
+    // Check if this is a pending invitation (Supabase Auth only)
+    const isPendingInvitation = !targetUser.auth_user_id && !!targetUser.invitation_token
 
     if (!isPendingInvitation) {
       loggers.security({
@@ -153,14 +153,13 @@ export async function POST(_request: NextRequest) {
       newExpiresAt: newExpiresAt.toISOString()
     }, 'Invitation expiry updated successfully')
 
-    // Resend invitation email with the existing token and clerk ticket
+    // Resend invitation email with the existing token (Supabase Auth only)
     const emailResult = await sendInvitationEmail(
       targetUser.email,
       targetUser.name || '',
       targetUser.role,
       user.name || user.email,
-      existingToken,
-      targetUser.clerk_ticket
+      existingToken
     )
 
     if (!emailResult.success) {
@@ -180,10 +179,7 @@ export async function POST(_request: NextRequest) {
       }, 'Invitation email sent successfully')
     }
 
-    let invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${existingToken}`
-    if (targetUser.clerk_ticket) {
-      invitationUrl += `?__clerk_ticket=${targetUser.clerk_ticket}`
-    }
+    const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${existingToken}`
 
     loggers.security({
       operation: 'admin_resend_invitation',
