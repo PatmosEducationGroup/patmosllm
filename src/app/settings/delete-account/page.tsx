@@ -6,6 +6,8 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useAuth } from '@clerk/nextjs'
+import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Alert'
@@ -22,33 +24,52 @@ interface UserStats {
 
 function DeleteAccountContent() {
   const { addToast } = useToast()
+  const { signOut } = useAuth()
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
+  const [canceling, setCanceling] = useState(false)
   const [userStats, setUserStats] = useState<UserStats | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmText, setConfirmText] = useState('')
   const [showConfirmation, setShowConfirmation] = useState(false)
+  const [deletionScheduledFor, setDeletionScheduledFor] = useState<string | null>(null)
 
   useEffect(() => {
-    loadUserStats()
+    loadUserData()
   }, [])
 
-  async function loadUserStats() {
+  async function loadUserData() {
     try {
       setLoading(true)
-      // For now, we'll use mock data
-      // In production, fetch from /api/user/stats
-      setUserStats({
-        totalConversations: 42,
-        totalSystemDocuments: 623,
-        accountCreatedAt: '2025-09-01T00:00:00Z'
-      })
+
+      // Fetch user profile to check deletion status
+      const profileResponse = await fetch('/api/user/profile')
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json()
+        console.log('[DeleteAccount] Profile data:', profileData)
+        console.log('[DeleteAccount] deleted_at:', profileData.profile?.deleted_at)
+        setDeletionScheduledFor(profileData.profile?.deleted_at || null)
+      } else {
+        console.log('[DeleteAccount] Profile fetch failed:', profileResponse.status)
+      }
+
+      // Fetch real user statistics
+      const statsResponse = await fetch('/api/user/stats')
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json()
+        setUserStats({
+          totalConversations: statsData.totalConversations,
+          totalSystemDocuments: statsData.totalSystemDocuments,
+          accountCreatedAt: statsData.accountCreatedAt
+        })
+      }
     } catch (err) {
-      logError(err instanceof Error ? err : new Error('Failed to load stats'), {
-        operation: 'loadUserStats',
+      logError(err instanceof Error ? err : new Error('Failed to load user data'), {
+        operation: 'loadUserData',
         component: 'DeleteAccount'
       })
-      setError('Failed to load user statistics')
+      setError('Failed to load user information')
     } finally {
       setLoading(false)
     }
@@ -64,18 +85,35 @@ function DeleteAccountContent() {
     setError(null)
 
     try {
-      // TODO: Implement soft delete API
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulated delay
+      const response = await fetch('/api/privacy/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ confirmation: confirmText }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to schedule account deletion')
+      }
 
       addToast({
         title: 'Account Deletion Scheduled',
-        message: 'Your account will be deleted in 30 days. Check your email for cancellation instructions.',
+        message: 'Your account will be deleted in 30 days. Redirecting to home page...',
         type: 'success'
       })
 
-      // Placeholder: In production, this would redirect after scheduling deletion
       setShowConfirmation(false)
       setConfirmText('')
+
+      // Wait a moment for the toast to be visible
+      await new Promise(resolve => setTimeout(resolve, 1500))
+
+      // Sign out and redirect to home page
+      await signOut()
+      router.push('/')
     } catch (err) {
       logError(err instanceof Error ? err : new Error('Delete failed'), {
         operation: 'handleDeleteAccount',
@@ -92,6 +130,67 @@ function DeleteAccountContent() {
     }
   }
 
+  const handleCancelDeletion = async () => {
+    setCanceling(true)
+    setError(null)
+
+    try {
+      const response = await fetch('/api/privacy/cancel-deletion', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel account deletion')
+      }
+
+      addToast({
+        title: 'Deletion Cancelled',
+        message: 'Your account deletion has been cancelled. Your account will remain active.',
+        type: 'success'
+      })
+
+      // Reload user data to hide cancellation UI
+      await loadUserData()
+    } catch (err) {
+      logError(err instanceof Error ? err : new Error('Cancel deletion failed'), {
+        operation: 'handleCancelDeletion',
+        component: 'DeleteAccount'
+      })
+      setError('Failed to cancel account deletion. Please try again.')
+      addToast({
+        title: 'Cancellation Failed',
+        message: 'Failed to cancel account deletion. Please try again.',
+        type: 'error'
+      })
+    } finally {
+      setCanceling(false)
+    }
+  }
+
+  const getDaysUntilDeletion = () => {
+    if (!deletionScheduledFor) return 0
+    const deletionDate = new Date(deletionScheduledFor)
+    const now = new Date()
+    const diffTime = deletionDate.getTime() - now.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return Math.max(0, diffDays)
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -100,13 +199,83 @@ function DeleteAccountContent() {
     )
   }
 
+  console.log('[DeleteAccount] Render - deletionScheduledFor:', deletionScheduledFor)
+
   return (
     <div className="space-y-6">
+      {/* Deletion Scheduled Notice - PRIORITY: Show at very top */}
+      {deletionScheduledFor && (
+        <Card className="border-orange-500 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-orange-900">
+              <AlertTriangle className="w-5 h-5" />
+              Account Deletion Scheduled
+            </CardTitle>
+            <CardDescription className="text-orange-800">
+              Your account is scheduled for permanent deletion
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-lg border border-orange-200">
+                <p className="text-sm text-gray-700 mb-3">
+                  Your account deletion is scheduled for:
+                </p>
+                <p className="text-2xl font-bold text-orange-900 mb-2">
+                  {formatDate(deletionScheduledFor)}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>{getDaysUntilDeletion()} days</strong> remaining until permanent deletion
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-orange-200">
+                <p className="text-sm text-gray-700 mb-3">
+                  <strong>What happens next:</strong>
+                </p>
+                <ul className="text-sm text-gray-700 space-y-2">
+                  <li>• You can still log in and use your account normally</li>
+                  <li>• All your data remains accessible during the grace period</li>
+                  <li>• You can cancel the deletion at any time before {formatDate(deletionScheduledFor)}</li>
+                  <li>• After the grace period expires, all your data will be permanently deleted</li>
+                </ul>
+              </div>
+
+              <Button
+                onClick={handleCancelDeletion}
+                disabled={canceling}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 text-lg"
+              >
+                {canceling ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Cancelling Deletion...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-4 h-4 mr-2" />
+                    Cancel Account Deletion
+                  </>
+                )}
+              </Button>
+
+              <p className="text-xs text-gray-600 text-center">
+                Cancelling will immediately restore your account to active status
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Page Header */}
       <div>
-        <h2 className="text-3xl font-bold text-gray-900">Delete Account</h2>
+        <h2 className="text-3xl font-bold text-gray-900">
+          {deletionScheduledFor ? 'Account Deletion Scheduled' : 'Delete Account'}
+        </h2>
         <p className="text-gray-600 mt-2">
-          Permanently delete your account and all associated data
+          {deletionScheduledFor
+            ? 'Your account is scheduled for deletion. Cancel above to restore access.'
+            : 'Permanently delete your account and all associated data'}
         </p>
       </div>
 
@@ -231,9 +400,7 @@ function DeleteAccountContent() {
                 Consider the following options before deleting your account:
               </p>
               <ul className="text-sm text-blue-800 list-disc list-inside space-y-1">
-                <li>Download a copy of your data using the Data Request page</li>
                 <li>Review your conversation history one last time</li>
-                <li>Check if there are any important documents you want to save</li>
                 <li>Contact support if you have account issues instead</li>
               </ul>
             </div>
@@ -241,26 +408,26 @@ function DeleteAccountContent() {
         </CardContent>
       </Card>
 
-      {/* Delete Account Section */}
-      <Card className="border-red-500">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-red-600">
-            <Trash2 className="w-5 h-5" />
-            Delete My Account
-          </CardTitle>
-          <CardDescription>
-            This will schedule your account for permanent deletion
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      {/* Delete Account Section - Only show if deletion not scheduled */}
+      {!deletionScheduledFor && (
+        <Card className="border-red-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="w-5 h-5" />
+              Delete My Account
+            </CardTitle>
+            <CardDescription>
+              This will schedule your account for permanent deletion
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
           {!showConfirmation ? (
             <Button
               onClick={() => setShowConfirmation(true)}
               variant="destructive"
-              className="w-full sm:w-auto"
+              className="bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-3 text-lg"
             >
-              <Trash2 className="w-4 h-4 mr-2" />
-              I Want to Delete My Account
+              DELETE
             </Button>
           ) : (
             <div className="space-y-4">
@@ -279,12 +446,12 @@ function DeleteAccountContent() {
                 />
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3">
                 <Button
                   onClick={handleDeleteAccount}
                   disabled={deleting || confirmText !== 'DELETE'}
                   variant="destructive"
-                  className="flex-1"
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 text-base"
                 >
                   {deleting ? (
                     <>
@@ -292,10 +459,7 @@ function DeleteAccountContent() {
                       Scheduling Deletion...
                     </>
                   ) : (
-                    <>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Confirm Deletion
-                    </>
+                    'CONFIRM DELETE MY ACCOUNT'
                   )}
                 </Button>
                 <button
@@ -304,7 +468,7 @@ function DeleteAccountContent() {
                     setConfirmText('')
                     setError(null)
                   }}
-                  className="flex-1 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium cursor-pointer"
+                  className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium cursor-pointer"
                   disabled={deleting}
                 >
                   Cancel
@@ -318,6 +482,7 @@ function DeleteAccountContent() {
           </p>
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }

@@ -34,17 +34,14 @@ export default function SettingsPage() {
   async function loadUserStats() {
     try {
       setLoading(true)
-      // For now, we'll use mock data
-      // In production, fetch from /api/user/stats
-      setStats({
-        totalConversations: 42,
-        totalQuestions: 156,
-        totalSystemDocuments: 623, // Total documents in the entire system
-        accountCreatedAt: '2025-09-01T00:00:00Z',
-        lastActiveAt: new Date().toISOString(),
-        avgQuestionsPerDay: 3.7,
-        mostActiveDay: 'Tuesday'
-      })
+
+      const response = await fetch('/api/user/stats')
+      if (!response.ok) {
+        throw new Error('Failed to fetch user statistics')
+      }
+
+      const data = await response.json()
+      setStats(data)
     } catch (err) {
       logError(err instanceof Error ? err : new Error('Failed to load stats'), {
         operation: 'loadUserStats',

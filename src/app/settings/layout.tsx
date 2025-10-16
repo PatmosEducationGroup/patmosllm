@@ -5,7 +5,7 @@
  * Provides consistent navigation across all settings pages
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -31,6 +31,24 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [hasDeletionScheduled, setHasDeletionScheduled] = useState(false)
+
+  useEffect(() => {
+    // Check if user has scheduled deletion
+    async function checkDeletionStatus() {
+      try {
+        const response = await fetch('/api/user/profile')
+        if (response.ok) {
+          const data = await response.json()
+          setHasDeletionScheduled(!!data.deleted_at)
+        }
+      } catch (_error) {
+        // Silently fail - navigation will still work
+      }
+    }
+
+    checkDeletionStatus()
+  }, [pathname])
 
   const navigationItems = [
     { name: 'Settings Home', href: '/settings', icon: Home, isHome: true },
@@ -44,6 +62,33 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
     { name: 'Delete Account', href: '/settings/delete-account', icon: Trash2 }
   ]
 
+  // If user has deletion scheduled, show minimal layout
+  if (hasDeletionScheduled) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200">
+        {/* Multiply Tools Header - No navigation */}
+        <div className="bg-white border-b border-neutral-200 px-4 sm:px-6 lg:px-8 py-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-center">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                MT
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Multiply Tools</h1>
+                <p className="text-xs text-gray-600">Account Deletion Pending</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {children}
+        </div>
+      </div>
+    )
+  }
+
+  // Normal layout with full navigation
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200">
       {/* Multiply Tools Header */}

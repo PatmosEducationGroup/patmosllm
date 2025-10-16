@@ -29,15 +29,15 @@ export async function getCurrentUser(): Promise<User | null> {
 
     if (authUser && !authError) {
       // User has Supabase session - use auth_user_id
+      // Allow users with scheduled deletion (deleted_at set) to log in to cancel
       const { data: user, error } = await supabaseAdmin
         .from('users')
         .select('*')
         .eq('auth_user_id', authUser.id)
-        .is('deleted_at', null)
         .single()
 
       if (!error && user) {
-        loggers.auth({ userId: user.id, source: 'supabase', auth_user_id: authUser.id }, 'User authenticated via Supabase')
+        loggers.auth({ userId: user.id, source: 'supabase', auth_user_id: authUser.id, has_deletion: !!user.deleted_at }, 'User authenticated via Supabase')
         return user
       }
     }
@@ -49,18 +49,18 @@ export async function getCurrentUser(): Promise<User | null> {
       return null
     }
 
+    // Allow users with scheduled deletion (deleted_at set) to log in to cancel
     const { data: user, error } = await supabaseAdmin
       .from('users')
       .select('*')
       .eq('clerk_id', clerkUserId)
-      .is('deleted_at', null)
       .single()
 
     if (error || !user) {
       return null
     }
 
-    loggers.auth({ userId: user.id, source: 'clerk', clerk_id: clerkUserId }, 'User authenticated via Clerk (not yet migrated)')
+    loggers.auth({ userId: user.id, source: 'clerk', clerk_id: clerkUserId, has_deletion: !!user.deleted_at }, 'User authenticated via Clerk (not yet migrated)')
     return user
   } catch (error) {
     logError(error instanceof Error ? error : new Error('Failed to get current user'), {

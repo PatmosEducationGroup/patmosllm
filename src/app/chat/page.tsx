@@ -5,9 +5,8 @@
 // =================================================================
 import { useState, useRef, useEffect, Suspense } from 'react'
 import { logError } from '@/lib/logger'
-import { UserButton } from '@clerk/nextjs'
-// Clerk useAuth removed - now using session-based auth
-import { useSearchParams } from 'next/navigation'
+// Clerk removed - now using session-based Supabase auth
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import {
@@ -23,7 +22,9 @@ import {
   Clock,
   Zap,
   Globe,
-  Shield
+  Shield,
+  Settings,
+  LogOut
 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { ToastProvider, useToastActions } from '@/components/ui/Toast'
@@ -100,12 +101,14 @@ interface Conversation {
 // =================================================================
 function ChatPageContent() {
   // =================================================================
-  // AUTHENTICATION STATE - Session-based auth (Supabase + Clerk)
+  // AUTHENTICATION STATE - Session-based auth (Supabase)
   // =================================================================
   const searchParams = useSearchParams()
+  const router = useRouter()
   const { success: showSuccessToast, error: showErrorToast } = useToastActions()
   const [canAdmin, setCanAdmin] = useState(false)
   const [isAuthChecking, setIsAuthChecking] = useState(true)
+  const [showUserDropdown, setShowUserDropdown] = useState(false)
   
   // =================================================================
   // CHAT STATE MANAGEMENT - Core chat functionality state
@@ -325,6 +328,22 @@ function ChatPageContent() {
       }
     }
   }, [input])
+
+  // =================================================================
+  // DROPDOWN CLICK OUTSIDE - Close dropdown when clicking outside
+  // =================================================================
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showUserDropdown && !(e.target as HTMLElement).closest('[aria-label="User menu"]')) {
+        setShowUserDropdown(false)
+      }
+    }
+
+    if (showUserDropdown) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [showUserDropdown])
 
   // =================================================================
   // FEEDBACK FORM HANDLERS - Handle beta feedback submission
@@ -894,12 +913,29 @@ setError('Failed to create chat session. Please try again.')
     createNewSession()
   }
 
+  const handleSignOut = async () => {
+    try {
+      const response = await fetch('/api/auth/signout', { method: 'POST' })
+      if (response.ok) {
+        router.push('/')
+      } else {
+        showErrorToast('Failed to sign out. Please try again.')
+      }
+    } catch (error) {
+      logError(error instanceof Error ? error : new Error('Sign out failed'), {
+        operation: 'handleSignOut',
+        component: 'ChatPage'
+      })
+      showErrorToast('Failed to sign out. Please try again.')
+    }
+  }
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
     const diff = now.getTime() - date.getTime()
     const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    
+
     if (days === 0) return 'Today'
     if (days === 1) return 'Yesterday'
     if (days < 7) return `${days} days ago`
@@ -1075,7 +1111,7 @@ setError('Failed to create chat session. Please try again.')
             </div>
 
             {/* Sidebar Footer */}
-            <div className="px-4 py-4 md:py-6">
+            <div className="px-4 py-4 md:py-6 border-t border-neutral-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-sm">
@@ -1086,19 +1122,45 @@ setError('Failed to create chat session. Please try again.')
                     <div className="text-xs text-neutral-600">Interact. Learn. Multiply.</div>
                   </div>
                 </div>
-                <UserButton />
+                <div className="relative">
+                  <button
+                    onClick={() => setShowUserDropdown(!showUserDropdown)}
+                    className="w-8 h-8 rounded-lg bg-gradient-to-br from-secondary-400 to-secondary-500 flex items-center justify-center text-white font-bold text-sm cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 border-none"
+                    aria-label="User menu"
+                  >
+                    <User className="w-4 h-4" />
+                  </button>
+                  {showUserDropdown && (
+                    <div className="absolute bottom-full right-0 mb-2 w-48 bg-white rounded-lg shadow-xl border border-neutral-200 py-2 z-50">
+                      <button
+                        onClick={handleSignOut}
+                        className="w-full px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 flex items-center gap-2 cursor-pointer bg-transparent border-none transition-colors duration-200"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className={`flex items-center gap-2 ${canAdmin ? '' : 'justify-center'}`}>
+              <div className="flex flex-col gap-2">
+                <Link
+                  href="/settings"
+                  className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-3 py-3 rounded-lg text-xs font-medium flex items-center justify-center gap-2 transition-all duration-200 min-h-[44px] no-underline"
+                >
+                  <Settings className="w-4 h-4" />
+                  Settings
+                </Link>
                 <button
                   onClick={() => setShowFeedbackModal(true)}
-                  className={`${canAdmin ? 'flex-1' : 'w-full'} bg-gradient-to-r from-primary-400 to-primary-600 text-white px-3 py-3 rounded-lg text-xs font-medium border-none cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 min-h-[44px]`}
+                  className="w-full bg-gradient-to-r from-primary-400 to-primary-600 text-white px-3 py-3 rounded-lg text-xs font-medium border-none cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 min-h-[44px]"
                 >
                   Feedback
                 </button>
                 {canAdmin && (
                   <Link
                     href="/admin"
-                    className="flex-1 text-xs text-neutral-600 bg-neutral-100 hover:bg-neutral-200 px-3 py-3 rounded-lg no-underline font-medium text-center transition-colors duration-200 min-h-[44px] flex items-center justify-center"
+                    className="w-full text-xs text-neutral-600 bg-neutral-100 hover:bg-neutral-200 px-3 py-3 rounded-lg no-underline font-medium text-center transition-colors duration-200 min-h-[44px] flex items-center justify-center"
                   >
                     Admin Tools
                   </Link>
@@ -1155,8 +1217,25 @@ setError('Failed to create chat session. Please try again.')
               </div>
 
               {/* Mobile User Button */}
-              <div className="min-w-[48px] min-h-[48px] flex items-center justify-center">
-                <UserButton />
+              <div className="min-w-[48px] min-h-[48px] flex items-center justify-center relative">
+                <button
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="w-10 h-10 rounded-lg bg-gradient-to-br from-secondary-400 to-secondary-500 flex items-center justify-center text-white font-bold cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 border-none"
+                  aria-label="User menu"
+                >
+                  <User className="w-5 h-5" />
+                </button>
+                {showUserDropdown && (
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-neutral-200 py-2 z-50">
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 flex items-center gap-2 cursor-pointer bg-transparent border-none transition-colors duration-200"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

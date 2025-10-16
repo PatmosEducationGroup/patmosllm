@@ -72,9 +72,12 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 - `id` (uuid, PK)
 - `user_id` (uuid, FK → users)
 - `auth_user_id` (uuid) - Denormalized `auth.users.id` for RLS and query performance
-- `title` (text)
-- `messages` (jsonb) - Array of message objects
-- `created_at`, `updated_at` (timestamptz)
+- `session_id` (uuid, FK → chat_sessions)
+- `question` (text) - User's question
+- `answer` (text) - AI's response
+- `sources` (jsonb) - Array of source references
+- `deleted_at` (timestamptz, nullable) - Soft delete timestamp
+- `created_at` (timestamptz)
 
 **documents** - Document metadata and content storage
 - `id` (uuid, PK)
@@ -179,7 +182,8 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 - `auth_user_id` (uuid) - Denormalized `auth.users.id` for audit trail
 - `action` (text) - Actions include:
   - `DATA_EXPORT_REQUESTED` - User requested GDPR data export
-  - `ACCOUNT_DELETED` - User account deletion initiated
+  - `ACCOUNT_DELETION_SCHEDULED` - User account deletion scheduled (30-day grace period)
+  - `ACCOUNT_DELETION_CANCELLED` - User cancelled scheduled deletion
   - `CONSENT_UPDATED` - Cookie or privacy consent updated
   - `EMAIL_PREFERENCES_UPDATED` - Email notification preferences changed
   - `PROFILE_UPDATED` - User profile information changed
@@ -234,6 +238,9 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 - `/api/user/update-profile` - POST profile updates (name, email)
 - `/api/user/update-password` - POST password changes
 - `/api/user/email-preferences` - GET/POST email notification preferences
+- `/api/privacy/export` - GET GDPR data export (Article 20 - Right to Data Portability)
+- `/api/privacy/delete` - POST account deletion with 30-day grace period (Article 17 - Right to Erasure)
+- `/api/privacy/cancel-deletion` - POST cancel scheduled account deletion
 
 ### Environment Variables
 ```bash
@@ -276,6 +283,7 @@ RESEND_API_KEY
 - **100% document ingestion** success rate (462/462 documents, 7,956+ chunks)
 
 ### Recent Completions
+- ✅ Data export & account deletion: GDPR Article 20 & 17 compliance with rate-limited exports, 30-day grace period deletion, and full audit trail (Oct 2024)
 - ✅ Email preferences: Granular email notification controls (Product Updates, Activity Summaries, Tips & Tricks, Security Alerts) with GDPR-compliant audit logging (Oct 2024)
 - ✅ Profile settings: Functional name/email update and password change features with privacy audit trail (Oct 2024)
 - ✅ TypeScript migration: Converted all 5 critical JS files to TypeScript (Oct 2024)
@@ -355,6 +363,18 @@ RESEND_API_KEY
 - [ ] Real-time usage/cost tracking (token consumption monitoring)
 - [ ] Cost transparency dashboard ("$3.47 this month")
 - [ ] Donation integration (Stripe/PayPal) with Wikipedia-style requests
+
+**Token Tracking & Cost Display Requirements** (User Request - October 2024):
+Display token usage and monthly cost in **4 prominent locations**:
+1. **`/chat` page** - Header area, above username (most prominent placement)
+2. **`/settings` page** - Main settings home page
+3. **`/settings/stats` page** - Detailed statistics page
+4. **`/settings/donate` page** - NEW PAGE: Donation/contribution page with:
+   - Current month cost display
+   - Historical usage graphs
+   - Wikipedia-style voluntary donation options
+   - Transparency messaging about infrastructure costs
+   - Stripe/PayPal integration for contributions
 
 #### Enhanced User Experience
 - [ ] Progressive Web App (PWA) with offline capabilities
@@ -439,6 +459,41 @@ RESEND_API_KEY
 ---
 
 ## Recent Implementation History
+
+### Data Export & Account Deletion (October 2024)
+- **GDPR Article 20 - Data Portability**: Complete data export functionality
+  - Rate-limited to 1 export per hour per user (anti-abuse protection)
+  - Comprehensive data gathering from 9 tables: profile, conversations, documents, user_context, preferences, onboarding_milestones, conversation_memory, topic_progression, chat_sessions
+  - Sanitized profile export (removes sensitive fields: `auth_user_id`, `invitation_token`)
+  - Full statistics calculation (record counts, document sizes, account creation date)
+  - Audit logging to both `data_export_requests` and `privacy_audit_log` tables
+  - Direct JSON download (future: temporary storage via Vercel Blob with expiring links)
+- **GDPR Article 17 - Right to Erasure**: Soft delete with grace period
+  - 30-day grace period before permanent deletion (set via `deleted_at` timestamp)
+  - User confirmation required (must type "DELETE" to proceed)
+  - Deletion date calculation and storage (30 days from request)
+  - Audit logging with `ACCOUNT_DELETION_SCHEDULED` action
+  - Cancellation API to reverse scheduled deletion (`POST /api/privacy/cancel-deletion`)
+  - Validates scheduled deletion exists before canceling
+  - Records original deletion date in cancellation metadata
+- **UI Integration**: Connected real APIs to existing pages
+  - `/settings/data-request` page uses real export API (was read-only)
+  - `/settings/delete-account` page uses real deletion API (replaced placeholder)
+  - Toast notifications for success/error states
+  - Loading states during API calls
+  - Confirmation dialogs with user-friendly messaging
+- **Database Utilization**: No schema changes required
+  - Uses existing `users.deleted_at` column for soft delete
+  - Uses existing `data_export_requests` table for rate limiting
+  - Uses existing `privacy_audit_log` table for compliance tracking
+- **API Routes**: RESTful privacy endpoints
+  - GET `/api/privacy/export` - Export all user data as JSON
+  - POST `/api/privacy/delete` - Schedule account deletion
+  - POST `/api/privacy/cancel-deletion` - Cancel scheduled deletion
+- **Future Enhancements**: Planned but not critical for Phase 8B
+  - Automated deletion cron job (permanently delete accounts after grace period expires)
+  - Email notifications for deletion confirmation and reminders
+  - Temporary storage for data exports (Vercel Blob with expiring download links)
 
 ### Profile Settings & Email Preferences (October 2024)
 - **Settings Portal**: Complete settings navigation with sidebar layout

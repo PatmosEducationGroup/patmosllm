@@ -43,13 +43,13 @@ export async function POST(request: NextRequest) {
     // If no migration record, check if this is a Supabase-only user (Phase 7)
     if (!migrationData) {
       // Check if user exists in users table with auth_user_id (Supabase-only)
+      // Allow users with scheduled deletion to log in to cancel
       const normalizedEmail = email ? email.toLowerCase().trim() : null
       if (normalizedEmail) {
         const { data: supabaseUser } = await supabaseAdmin
           .from('users')
           .select('id, auth_user_id')
           .eq('email', normalizedEmail)
-          .is('deleted_at', null)
           .maybeSingle()
 
         if (supabaseUser && supabaseUser.auth_user_id) {

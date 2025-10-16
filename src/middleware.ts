@@ -33,30 +33,94 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // Create response object for headers
   const response = NextResponse.next()
 
+  // Create Supabase clients:
+  // 1. Anon client for auth check (reads cookies)
+  // 2. Admin client for deletion check (bypasses RLS)
+  const supabaseAnon = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: Record<string, unknown>) {
+          response.cookies.set(name, value, options)
+        },
+        remove(name: string, options: Record<string, unknown>) {
+          response.cookies.set(name, '', { ...options, maxAge: 0 })
+        }
+      }
+    }
+  )
+
+  // Admin client for deletion check (bypasses RLS)
+  const supabaseAdmin = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: Record<string, unknown>) {
+          response.cookies.set(name, value, options)
+        },
+        remove(name: string, options: Record<string, unknown>) {
+          response.cookies.set(name, '', { ...options, maxAge: 0 })
+        }
+      }
+    }
+  )
+
+  const { data: { user: supabaseUser } } = await supabaseAnon.auth.getUser()
+
+  console.log('[MIDDLEWARE] Path:', req.nextUrl.pathname, 'Has Supabase user:', !!supabaseUser, 'User ID:', supabaseUser?.id)
+
+  // CRITICAL: Check for scheduled deletion BEFORE any other checks
+  // This must run on ALL routes, not just protected ones
+  // Use admin client to bypass RLS
+  if (supabaseUser) {
+    console.log('[MIDDLEWARE] Querying users table for auth_user_id:', supabaseUser.id)
+    const { data: userData, error: queryError } = await supabaseAdmin
+      .from('users')
+      .select('deleted_at')
+      .eq('auth_user_id', supabaseUser.id)
+      .maybeSingle()
+
+    console.log('[MIDDLEWARE] Deletion check - userData:', JSON.stringify(userData), 'error:', JSON.stringify(queryError))
+
+    if (userData?.deleted_at) {
+      console.log('[MIDDLEWARE] User has deletion scheduled:', userData.deleted_at)
+
+      // User has scheduled deletion - only allow access to deletion-related pages
+      const allowedPaths = [
+        '/settings/delete-account',
+        '/api/privacy/cancel-deletion',
+        '/api/privacy/validate-deletion-token',
+        '/cancel-deletion',
+        '/api/user/profile',
+        '/api/user/stats'
+      ]
+
+      const isAllowedPath = allowedPaths.some(path => req.nextUrl.pathname.startsWith(path))
+
+      console.log('[MIDDLEWARE] Is allowed path:', isAllowedPath, 'for path:', req.nextUrl.pathname)
+
+      if (!isAllowedPath) {
+        console.log('[MIDDLEWARE] REDIRECTING to /settings/delete-account')
+        // Redirect to delete account page to cancel deletion
+        return NextResponse.redirect(new URL('/settings/delete-account', req.url))
+      }
+    } else {
+      console.log('[MIDDLEWARE] No deletion scheduled for user')
+    }
+  }
+
   // PHASE 3: Dual-auth pattern - ONLY protect routes that need auth
   // All other routes are public by default (clerkMiddleware behavior)
   if (isProtectedRoute(req)) {
     // STEP 1: Check for Supabase session (migrated users)
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return req.cookies.get(name)?.value
-          },
-          set(name: string, value: string, options: Record<string, unknown>) {
-            response.cookies.set(name, value, options)
-          },
-          remove(name: string, options: Record<string, unknown>) {
-            response.cookies.set(name, '', { ...options, maxAge: 0 })
-          }
-        }
-      }
-    )
-
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
-
     // If Supabase user exists, allow access (migrated user)
     if (supabaseUser) {
       // User authenticated via Supabase - allow access
@@ -74,8 +138,8 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
         const email = clerkUser.primaryEmailAddress?.emailAddress?.toLowerCase()
 
         if (email) {
-          // Check migration status
-          const { data: migrationStatus } = await supabase
+          // Check migration status (use admin client to bypass RLS)
+          const { data: migrationStatus } = await supabaseAdmin
             .from('user_migration')
             .select('migrated')
             .eq('email', email)

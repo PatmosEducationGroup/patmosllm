@@ -53,44 +53,14 @@ export default function StatsPage() {
   async function loadDetailedStats() {
     try {
       setLoading(true)
-      // For now, we'll use mock data
-      // In production, fetch from /api/user/detailed-stats
-      setStats({
-        conversations: {
-          total: 42,
-          thisWeek: 5,
-          thisMonth: 18,
-          avgLength: 3.7
-        },
-        questions: {
-          total: 156,
-          thisWeek: 12,
-          thisMonth: 58,
-          avgPerConversation: 3.7
-        },
-        activity: {
-          totalDaysActive: 32,
-          longestStreak: 7,
-          currentStreak: 3,
-          avgQuestionsPerDay: 4.9
-        },
-        topTopics: [
-          { name: 'Prayer & Missions', count: 45 },
-          { name: 'Discipleship', count: 32 },
-          { name: 'Biblical Studies', count: 28 },
-          { name: 'Church Leadership', count: 21 },
-          { name: 'Evangelism', count: 18 }
-        ],
-        recentActivity: [
-          { date: '2025-10-15', questionCount: 8 },
-          { date: '2025-10-14', questionCount: 5 },
-          { date: '2025-10-13', questionCount: 6 },
-          { date: '2025-10-12', questionCount: 0 },
-          { date: '2025-10-11', questionCount: 4 },
-          { date: '2025-10-10', questionCount: 7 },
-          { date: '2025-10-09', questionCount: 3 }
-        ]
-      })
+
+      const response = await fetch('/api/user/detailed-stats')
+      if (!response.ok) {
+        throw new Error('Failed to fetch detailed statistics')
+      }
+
+      const data = await response.json()
+      setStats(data)
     } catch (err) {
       logError(err instanceof Error ? err : new Error('Failed to load stats'), {
         operation: 'loadDetailedStats',

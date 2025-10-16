@@ -28,7 +28,7 @@ export async function GET() {
     const profile = await withSupabaseAdmin(async (supabase) => {
       const { data, error } = await supabase
         .from('users')
-        .select('name, email, role, created_at')
+        .select('name, email, role, created_at, deleted_at')
         .eq('id', user.id)
         .single()
 
@@ -43,13 +43,20 @@ export async function GET() {
       }, { status: 404 })
     }
 
+    console.log('[Profile API] Profile data:', {
+      userId: user.id,
+      hasDeletedAt: !!profile.deleted_at,
+      deleted_at: profile.deleted_at
+    })
+
     return NextResponse.json({
       success: true,
       profile: {
         name: profile.name || profile.email?.split('@')[0] || 'User',
         email: profile.email,
         role: profile.role,
-        createdAt: profile.created_at
+        createdAt: profile.created_at,
+        deleted_at: profile.deleted_at
       }
     })
 
