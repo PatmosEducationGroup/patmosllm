@@ -152,15 +152,17 @@ SELECT cron.schedule(
     last_updated
   )
   SELECT
-    user_id,
-    (SELECT auth_user_id FROM users WHERE id = user_id LIMIT 1) AS auth_user_id,
-    ROUND(SUM(estimated_cost_usd)::NUMERIC, 2) AS current_month_estimate_usd,
-    SUM(total_tokens) AS total_tokens_used,
-    SUM(operation_count) AS total_operations,
+    l.user_id,
+    u.auth_user_id,
+    ROUND(SUM(l.estimated_cost_usd)::NUMERIC, 2) AS current_month_estimate_usd,
+    SUM(l.total_tokens) AS total_tokens_used,
+    SUM(l.operation_count) AS total_operations,
     NOW() AS last_updated
-  FROM api_usage_internal_log
-  WHERE created_at >= date_trunc('month', CURRENT_DATE)
-  GROUP BY user_id
+  FROM api_usage_internal_log l
+  JOIN users u ON u.id = l.user_id
+  WHERE l.created_at >= date_trunc('month', CURRENT_DATE)
+    AND u.auth_user_id IS NOT NULL
+  GROUP BY l.user_id, u.auth_user_id
   ON CONFLICT (user_id)
   DO UPDATE SET
     current_month_estimate_usd = EXCLUDED.current_month_estimate_usd,
