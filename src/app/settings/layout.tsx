@@ -21,7 +21,8 @@ import {
   ArrowLeft,
   Home,
   Mail,
-  Heart
+  Heart,
+  Gift
 } from 'lucide-react'
 
 interface SettingsLayoutProps {
@@ -55,6 +56,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
     { name: 'Settings Home', href: '/settings', icon: Home, isHome: true },
     { name: 'Donate', href: '/settings/donate', icon: Heart },
     { name: 'Profile', href: '/settings/profile', icon: User },
+    { name: 'Invitations', href: '/settings/invitations', icon: Gift },
     { name: 'Email Preferences', href: '/settings/email-preferences', icon: Mail },
     { name: 'Stats', href: '/settings/stats', icon: BarChart3 },
     { name: 'Data Request', href: '/settings/data-request', icon: Download },
