@@ -5,7 +5,7 @@ import { createEmbeddings } from '@/lib/openai'
 import { storeChunks } from '@/lib/pinecone'
 import { logger, loggers, logError } from '@/lib/logger'
 
-export async function processDocumentVectors(documentId: string, _userId: string) {
+export async function processDocumentVectors(documentId: string, userId: string) {
   // Get document from database
   const { data: document, error: docError } = await supabaseAdmin
     .from('documents')
@@ -69,8 +69,11 @@ export async function processDocumentVectors(documentId: string, _userId: string
     let embeddings: number[][]
 
     try {
+      // Generate requestId for idempotency
+      const requestId = crypto.randomUUID()
+
       // The createEmbeddings function now handles token validation and automatic batching
-      embeddings = await createEmbeddings(chunkContents)
+      embeddings = await createEmbeddings(chunkContents, 0, userId, requestId)
       loggers.ai({
         documentId,
         documentTitle: document.title,
@@ -108,7 +111,8 @@ export async function processDocumentVectors(documentId: string, _userId: string
           documentTitle: document.title,
           attempt: 'retry'
         }, 'Retrying embeddings with token-aware batching')
-        embeddings = await createEmbeddings(chunkContents)
+        const retryRequestId = crypto.randomUUID()
+        embeddings = await createEmbeddings(chunkContents, 0, userId, retryRequestId)
 
         if (embeddings.length !== chunks.length) {
           throw new Error(`Embedding count mismatch on retry: expected ${chunks.length}, got ${embeddings.length}`)

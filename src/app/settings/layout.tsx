@@ -20,7 +20,8 @@ import {
   Shield,
   ArrowLeft,
   Home,
-  Mail
+  Mail,
+  Heart
 } from 'lucide-react'
 
 interface SettingsLayoutProps {
@@ -52,6 +53,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
 
   const navigationItems = [
     { name: 'Settings Home', href: '/settings', icon: Home, isHome: true },
+    { name: 'Donate', href: '/settings/donate', icon: Heart },
     { name: 'Profile', href: '/settings/profile', icon: User },
     { name: 'Email Preferences', href: '/settings/email-preferences', icon: Mail },
     { name: 'Stats', href: '/settings/stats', icon: BarChart3 },
@@ -69,7 +71,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
         {/* Multiply Tools Header - No navigation */}
         <div className="bg-white border-b border-neutral-200 px-4 sm:px-6 lg:px-8 py-4">
           <div className="max-w-7xl mx-auto flex items-center justify-center">
-            <div className="flex items-center gap-3">
+            <Link href="/chat" className="flex items-center gap-3 no-underline hover:opacity-80 transition-opacity">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-lg shadow-lg">
                 MT
               </div>
@@ -77,7 +79,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
                 <h1 className="text-xl font-bold text-gray-900">Multiply Tools</h1>
                 <p className="text-xs text-gray-600">Account Deletion Pending</p>
               </div>
-            </div>
+            </Link>
           </div>
         </div>
 
@@ -94,7 +96,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
       {/* Multiply Tools Header */}
       <div className="bg-white border-b border-neutral-200 px-4 sm:px-6 lg:px-8 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <Link href="/chat" className="flex items-center gap-3 no-underline hover:opacity-80 transition-opacity">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white font-bold text-lg shadow-lg">
               MT
             </div>
@@ -102,7 +104,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
               <h1 className="text-xl font-bold text-gray-900">Multiply Tools</h1>
               <p className="text-xs text-gray-600">Interact. Learn. Multiply.</p>
             </div>
-          </div>
+          </Link>
           <button
             onClick={() => router.push('/chat')}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors cursor-pointer"

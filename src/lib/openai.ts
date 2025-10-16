@@ -26,6 +26,7 @@
 import OpenAI from 'openai'
 import { VoyageAIClient } from 'voyageai'
 import { loggers, logError } from './logger'
+import { trackUsage } from './donation-tracker'
 
 export const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -81,7 +82,11 @@ Remember: Your goal is to have a natural conversation while sharing helpful info
 `;
 
 // Create embedding for text using Voyage AI
-export async function createEmbedding(text: string): Promise<number[]> {
+export async function createEmbedding(
+  text: string,
+  userId?: string,
+  requestId?: string
+): Promise<number[]> {
   const startTime = Date.now()
   const estimatedTokens = estimateTokenCount(text)
 
@@ -93,6 +98,17 @@ export async function createEmbedding(text: string): Promise<number[]> {
 
     if (!response.data || !response.data[0] || !response.data[0].embedding) {
       throw new Error('No embedding returned from Voyage API')
+    }
+
+    // Track donation cost (fire-and-forget)
+    if (userId) {
+      trackUsage({
+        userId,
+        service: 'voyage',
+        totalTokens: estimatedTokens,
+        operationCount: 1,
+        requestId
+      }).catch(() => {}) // Silent failure
     }
 
     // Report success metrics
@@ -200,7 +216,12 @@ export function setEmbeddingMetricsCallback(callback: (metrics: EmbeddingMetrics
 }
 
 // Create embeddings for multiple texts with progressive retry and batch size reduction
-export async function createEmbeddings(texts: string[], retryCount: number = 0): Promise<number[][]> {
+export async function createEmbeddings(
+  texts: string[],
+  retryCount: number = 0,
+  userId?: string,
+  requestId?: string
+): Promise<number[][]> {
   const startTime = Date.now()
   const estimatedTokens = estimateBatchTokenCount(texts)
 
@@ -259,6 +280,17 @@ export async function createEmbeddings(texts: string[], retryCount: number = 0):
     })
 
     const result = response.data?.map(item => item?.embedding).filter(Boolean) as number[][] || []
+
+    // Track donation cost (fire-and-forget)
+    if (userId) {
+      trackUsage({
+        userId,
+        service: 'voyage',
+        totalTokens: estimatedTokens,
+        operationCount: texts.length,
+        requestId
+      }).catch(() => {}) // Silent failure
+    }
 
     // Report success metrics
     if (metricsCallback) {
@@ -424,7 +456,9 @@ export async function generateChatResponse(
     content: string
     title: string
     author?: string
-  }>
+  }>,
+  userId?: string,
+  requestId?: string
 ): Promise<{
   answer: string
   sources: Array<{
@@ -440,11 +474,11 @@ export async function generateChatResponse(
   try {
     // Build context string - clean format without numbering
     const contextString = context
-      .map((item) => 
+      .map((item) =>
         `=== ${item.title}${item.author ? ` by ${item.author}` : ''} ===\n${item.content}`
       )
       .join('\n\n')
-    
+
     // Combine system prompt with available documents
     const fullSystemPrompt = `${systemPrompt}
 
@@ -460,20 +494,31 @@ ${contextString}`;
       temperature: 0.3, // Slightly more natural
       max_tokens: 1000
     })
-    
+
     const answer = response.choices[0]?.message?.content
     if (!answer) {
       throw new Error('No response generated')
     }
-    
+
+    // Track donation cost (fire-and-forget)
+    if (userId && response.usage) {
+      trackUsage({
+        userId,
+        service: 'openai',
+        totalTokens: response.usage.total_tokens,
+        operationCount: 1,
+        requestId
+      }).catch(() => {}) // Silent failure
+    }
+
     // Extract unique sources from context - no duplicates
-    const uniqueSources = context.filter((source, index, self) => 
+    const uniqueSources = context.filter((source, index, self) =>
       index === self.findIndex(s => s.title === source.title)
     ).map(source => ({
       title: source.title,
       author: source.author
     }))
-    
+
     return {
       answer,
       sources: uniqueSources,

@@ -29,6 +29,7 @@ import {
 import { Modal } from '@/components/ui/Modal'
 import { ToastProvider, useToastActions } from '@/components/ui/Toast'
 import { ChatErrorBoundary } from '@/components/ErrorBoundary'
+import { DonationBannerBadge } from '@/components/DonationBannerBadge'
 
 const ensureHttps = (url: string): string => {
   if (!url) return url
@@ -1132,6 +1133,22 @@ setError('Failed to create chat session. Please try again.')
                   </button>
                   {showUserDropdown && (
                     <div className="absolute bottom-full right-0 mb-2 w-48 bg-white rounded-lg shadow-xl border border-neutral-200 py-2 z-50">
+                      <Link
+                        href="/settings"
+                        className="w-full px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 flex items-center gap-2 cursor-pointer transition-colors duration-200 no-underline"
+                      >
+                        <Settings className="w-4 h-4" />
+                        Settings
+                      </Link>
+                      {canAdmin && (
+                        <Link
+                          href="/admin"
+                          className="w-full px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 flex items-center gap-2 cursor-pointer transition-colors duration-200 no-underline"
+                        >
+                          <Shield className="w-4 h-4" />
+                          Admin
+                        </Link>
+                      )}
                       <button
                         onClick={handleSignOut}
                         className="w-full px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 flex items-center gap-2 cursor-pointer bg-transparent border-none transition-colors duration-200"
@@ -1143,29 +1160,18 @@ setError('Failed to create chat session. Please try again.')
                   )}
                 </div>
               </div>
-              <div className="flex flex-col gap-2">
-                <Link
-                  href="/settings"
-                  className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-3 py-3 rounded-lg text-xs font-medium flex items-center justify-center gap-2 transition-all duration-200 min-h-[44px] no-underline"
-                >
-                  <Settings className="w-4 h-4" />
-                  Settings
-                </Link>
-                <button
-                  onClick={() => setShowFeedbackModal(true)}
-                  className="w-full bg-gradient-to-r from-primary-400 to-primary-600 text-white px-3 py-3 rounded-lg text-xs font-medium border-none cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 min-h-[44px]"
-                >
-                  Feedback
-                </button>
-                {canAdmin && (
-                  <Link
-                    href="/admin"
-                    className="w-full text-xs text-neutral-600 bg-neutral-100 hover:bg-neutral-200 px-3 py-3 rounded-lg no-underline font-medium text-center transition-colors duration-200 min-h-[44px] flex items-center justify-center"
-                  >
-                    Admin Tools
-                  </Link>
-                )}
+
+              {/* Donation Badge */}
+              <div className="mb-3">
+                <DonationBannerBadge />
               </div>
+
+              <button
+                onClick={() => setShowFeedbackModal(true)}
+                className="w-full bg-gradient-to-r from-primary-400 to-primary-600 text-white px-2 py-1.5 rounded-lg text-xs font-medium border-none cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 min-h-[32px]"
+              >
+                Feedback
+              </button>
             </div>
           </div>
         </div>
@@ -1227,6 +1233,22 @@ setError('Failed to create chat session. Please try again.')
                 </button>
                 {showUserDropdown && (
                   <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-neutral-200 py-2 z-50">
+                    <Link
+                      href="/settings"
+                      className="w-full px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 flex items-center gap-2 cursor-pointer transition-colors duration-200 no-underline"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Settings
+                    </Link>
+                    {canAdmin && (
+                      <Link
+                        href="/admin"
+                        className="w-full px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 flex items-center gap-2 cursor-pointer transition-colors duration-200 no-underline"
+                      >
+                        <Shield className="w-4 h-4" />
+                        Admin
+                      </Link>
+                    )}
                     <button
                       onClick={handleSignOut}
                       className="w-full px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 flex items-center gap-2 cursor-pointer bg-transparent border-none transition-colors duration-200"

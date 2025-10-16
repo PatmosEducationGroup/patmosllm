@@ -18,6 +18,7 @@ import {
 } from '@/lib/advanced-cache'
 import OpenAI from 'openai'
 import { logger, loggers, logError } from '@/lib/logger'
+import { trackUsage } from '@/lib/donation-tracker'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -403,7 +404,8 @@ export async function POST(_request: NextRequest) {
     // STEP 2: EMBEDDING GENERATION - Convert contextual query to vector
     // =================================================================
     loggers.ai({ queryLength: contextualSearchQuery.length }, 'Creating question embedding')
-    const questionEmbedding = await createEmbedding(contextualSearchQuery)
+    const requestId = crypto.randomUUID() // For donation tracking idempotency
+    const questionEmbedding = await createEmbedding(contextualSearchQuery, currentUserId, requestId)
 
     // =================================================================
     // STEP 3: HYBRID SEARCH - Advanced semantic + keyword search with context
@@ -1244,6 +1246,17 @@ controller.enqueue(encoder.encode(`data: ${JSON.stringify({
                 conversationId,
                 responseLength: fullResponse.length
               }, 'Successfully saved streaming conversation')
+
+              // Track OpenAI streaming usage for donation cost
+              // Estimate tokens: rough heuristic of 1 token ≈ 4 characters
+              const estimatedTokens = Math.ceil(fullResponse.length / 4)
+              trackUsage({
+                userId: currentUserId,
+                service: 'openai',
+                totalTokens: estimatedTokens,
+                operationCount: 1,
+                requestId
+              }).catch(() => {}) // Silent failure - never block chat
 
             } catch (_cacheError) {
             }
