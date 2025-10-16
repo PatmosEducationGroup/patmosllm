@@ -229,18 +229,44 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 3. **Auth**: Clerk → Middleware → Role validation
 
 ### Key API Routes
+
+#### Core Application
 - `/api/chat/*` - Streaming chat with session management and AI document generation
 - `/api/upload/*` - Document processing pipeline
 - `/api/admin/*` - System administration
 - `/api/documents/download/[documentId]` - Secure document downloads
 - `/api/download/[fileId]` - Generated document downloads (PDF/PPTX/XLSX)
+
+#### User Profile & Settings
 - `/api/user/profile` - GET user profile information
 - `/api/user/update-profile` - POST profile updates (name, email)
 - `/api/user/update-password` - POST password changes
 - `/api/user/email-preferences` - GET/POST email notification preferences
+
+#### User Statistics
+- `/api/user/stats` - GET basic user statistics (conversations, questions, documents, account age, most active day)
+- `/api/user/detailed-stats` - GET comprehensive analytics (weekly/monthly breakdowns, streaks, activity patterns, top topics, 7-day chart)
+
+#### GDPR Privacy & Compliance
 - `/api/privacy/export` - GET GDPR data export (Article 20 - Right to Data Portability)
+  - Rate-limited to 1 export per hour per user
+  - Comprehensive data from 9 tables (profile, conversations, documents, preferences, etc.)
+  - Audit logging to `data_export_requests` and `privacy_audit_log`
 - `/api/privacy/delete` - POST account deletion with 30-day grace period (Article 17 - Right to Erasure)
+  - Soft delete with `deleted_at` timestamp
+  - Generates deletion token for magic link cancellation
+  - Sends email notification with cancellation link
+  - Account locked during grace period (middleware enforcement)
 - `/api/privacy/cancel-deletion` - POST cancel scheduled account deletion
+  - Dual authentication: session-based OR token-based (magic link)
+  - Clears `deleted_at`, `deletion_token`, `deletion_token_expires_at`
+  - Audit logging with cancellation method tracking
+- `/api/privacy/validate-deletion-token` - POST validate magic link token
+  - Checks token validity and expiration
+  - Returns user email and deletion status
+
+#### Authentication
+- `/api/auth/signout` - POST Supabase logout (clears session cookies)
 
 ### Environment Variables
 ```bash
@@ -265,6 +291,193 @@ RESEND_API_KEY
 
 ---
 
+## GDPR Compliance Framework
+
+### Overview
+Multiply Tools implements a comprehensive GDPR compliance framework covering Articles 17 (Right to Erasure) and 20 (Right to Data Portability). All privacy operations are fully audited and logged for compliance.
+
+### Settings Portal Structure
+- `/settings` - Settings home page with real user statistics
+- `/settings/profile` - Profile management (name, email, password)
+- `/settings/email-preferences` - Email notification controls (4 granular toggles)
+- `/settings/stats` - Detailed analytics and activity insights
+- `/settings/data-request` - GDPR data export (Article 20)
+- `/settings/cookies` - Cookie consent management
+- `/settings/delete-account` - Account deletion with cancellation UI (Article 17)
+
+### Account Deletion System (GDPR Article 17)
+
+#### Soft Delete with Grace Period
+When a user requests account deletion:
+1. **Immediate Effect**: `deleted_at` timestamp set (30 days from request)
+2. **Deletion Token**: Cryptographic token generated (`crypto.randomUUID()`)
+3. **Email Notification**: Magic link sent via Resend for password-free cancellation
+4. **Account Lock**: Middleware blocks all features except cancellation
+5. **Grace Period**: 30 days before permanent deletion (future: automated cron job)
+
+#### Database Schema
+```sql
+-- users table columns
+deleted_at TIMESTAMPTZ             -- NULL = active, non-NULL = scheduled for deletion
+deletion_token UUID                -- Magic link token (crypto.randomUUID())
+deletion_token_expires_at TIMESTAMPTZ  -- Token expiration (30 days)
+```
+
+#### Middleware Enforcement
+**File**: `src/middleware.ts`
+
+**Behavior**: When `deleted_at` is set:
+- **Blocked**: All routes except allowed list (redirects to `/settings/delete-account`)
+- **Allowed Routes**:
+  - `/settings/delete-account` - View deletion status and cancel
+  - `/api/privacy/cancel-deletion` - Cancel deletion API
+  - `/api/privacy/validate-deletion-token` - Token validation API
+  - `/cancel-deletion/[token]` - Public cancellation page (no auth)
+  - `/api/user/profile` - Read-only profile (React state)
+  - `/api/user/stats` - Read-only statistics
+  - `/api/auth/signout` - Logout
+
+**Implementation**:
+- Dual Supabase clients (anon for auth, admin for deletion check)
+- Deletion check runs on ALL routes (not just protected)
+- Users with `deleted_at` redirected to cancellation UI
+
+#### Magic Link Cancellation System
+**Problem**: User schedules deletion, locks themselves out, can't access cancellation UI
+**Solution**: Public cancellation page via email magic link (no login required)
+
+**Flow**:
+1. User requests deletion → email sent with magic link
+2. User clicks link → `/cancel-deletion/[token]` (public route)
+3. Token validated → displays user email and cancellation button
+4. User clicks "Cancel Deletion & Restore Account"
+5. API clears `deleted_at`, `deletion_token`, `deletion_token_expires_at`
+6. Account restored → redirects to login
+
+**Token Security**:
+- Generated with `crypto.randomUUID()` (cryptographically secure)
+- Stored in `users.deletion_token` (UUID column)
+- Expires after 30 days (`deletion_token_expires_at`)
+- One-time use (cleared on cancellation)
+
+**Email Template** (Resend):
+- Subject: "Cancel Your Account Deletion - [X] Days Remaining"
+- Content:
+  - Deletion date and countdown
+  - "Cancel Account Deletion" button with magic link
+  - Explanation: "Your account is locked - You cannot access any features"
+  - Alternative: "Or log in to cancel from your settings"
+
+**Cancellation UI**:
+- **Authenticated Users**: Green cancellation button at top of `/settings/delete-account`
+- **Public Page**: `/cancel-deletion/[token]` - Multiply Tools header + simple cancel button
+- **Success State**: Auto-redirect to login after 3 seconds
+- **Error States**: Invalid token, expired token, already cancelled
+
+**Dual Authentication**:
+The cancellation API (`POST /api/privacy/cancel-deletion`) supports both:
+1. **Session-based**: User logs in, clicks button (uses `getCurrentUser()`)
+2. **Token-based**: User clicks magic link (validates `deletion_token` from body)
+
+**Audit Logging**:
+```typescript
+// privacy_audit_log entry
+{
+  action: 'ACCOUNT_DELETION_CANCELLED',
+  metadata: {
+    original_deletion_date: '2025-11-15T...',
+    cancelled_at: '2025-10-20T...',
+    cancelled_via: 'magic_link', // or 'authenticated_session'
+    ip_address: '192.168.x.x'  // Last octet truncated
+  }
+}
+```
+
+### Data Export System (GDPR Article 20)
+
+#### Comprehensive Data Export
+**Endpoint**: `GET /api/privacy/export`
+
+**Scope**: All user data from 9 tables:
+1. **Profile** (sanitized: removes `auth_user_id`, `invitation_token`)
+2. **Conversations** (questions, answers, sources)
+3. **Documents** (metadata + content)
+4. **User Context** (learning preferences)
+5. **Preferences** (email settings, UI preferences)
+6. **Onboarding Milestones** (progress tracking)
+7. **Conversation Memory** (satisfaction tracking)
+8. **Topic Progression** (expertise levels)
+9. **Chat Sessions** (session history)
+
+**Features**:
+- **Rate Limiting**: 1 export per hour (enforced via `data_export_requests` table)
+- **Statistics**: Record counts, document sizes, account creation date
+- **Format**: JSON (machine-readable, GDPR-compliant)
+- **Audit Logging**: All exports logged to `privacy_audit_log`
+- **Future Enhancement**: Temporary storage via Vercel Blob with expiring download links
+
+### Privacy Audit Log
+
+All privacy-related actions are logged to `privacy_audit_log` table:
+
+**Actions Tracked**:
+- `DATA_EXPORT_REQUESTED` - User exported data
+- `ACCOUNT_DELETION_SCHEDULED` - User requested deletion
+- `ACCOUNT_DELETION_CANCELLED` - User cancelled deletion (with method tracking)
+- `CONSENT_UPDATED` - Cookie or privacy consent changed
+- `EMAIL_PREFERENCES_UPDATED` - Email notification preferences updated
+- `PROFILE_UPDATED` - Name or email changed
+- `PASSWORD_CHANGED` - Password updated
+
+**Privacy Protections**:
+- IP addresses truncated (last octet removed: `192.168.x.x`)
+- `auth_user_id` denormalized for RLS performance
+- Logs retained for 2 years (active accounts) or 90 days (deleted accounts)
+
+### Data Retention Policy
+
+**Active Accounts**:
+- User data: Indefinitely
+- Conversations: Indefinitely
+- Documents: Indefinitely
+- Preferences: Indefinitely
+- Audit logs: 2 years
+
+**Deleted Accounts** (after 30-day grace period):
+- User profile: Permanent deletion (planned: automated cron job)
+- Conversations: Permanent deletion
+- Documents: Permanent deletion
+- Preferences: Permanent deletion
+- Audit logs: 90 days (anonymized: user_id nulled)
+- Vector embeddings: Deleted from Pinecone via batch API
+
+**Documentation**: See `/docs/data-retention-policy.md` for comprehensive retention policy
+
+### OpenAI Training Policy
+
+**User Data**: Conversations sent to OpenAI via API are **NOT used for model training**
+
+Per OpenAI's enterprise API policy:
+- API data retained for 30 days (abuse monitoring), then permanently deleted
+- Zero Data Retention (ZDR) available for enterprise customers
+- All conversations processed server-side (never exposed to user-facing products)
+
+**Reference**: See comment in `/src/lib/openai.ts` for training policy details
+
+### Cookie Consent System
+
+**Implementation**: Cookie consent banner (Phase 6)
+- **Granular Controls**: Essential vs Analytics cookies
+- **Sentry Integration**: Respects consent before tracking
+- **Storage**: Consent logged to `user_preferences` table
+- **Audit**: Consent changes logged to `privacy_audit_log`
+
+### Legal Pages
+- `/privacy` - Privacy Policy (GDPR-compliant, explains data collection and rights)
+- `/terms` - Terms of Service (user agreement, COPPA compliance - 13+ age verification)
+
+---
+
 ## Current Status
 
 **Overall Assessment: 7.5/10** - Production-ready application with identified improvements
@@ -283,9 +496,10 @@ RESEND_API_KEY
 - **100% document ingestion** success rate (462/462 documents, 7,956+ chunks)
 
 ### Recent Completions
-- ✅ Data export & account deletion: GDPR Article 20 & 17 compliance with rate-limited exports, 30-day grace period deletion, and full audit trail (Oct 2024)
-- ✅ Email preferences: Granular email notification controls (Product Updates, Activity Summaries, Tips & Tricks, Security Alerts) with GDPR-compliant audit logging (Oct 2024)
-- ✅ Profile settings: Functional name/email update and password change features with privacy audit trail (Oct 2024)
+- ✅ GDPR compliance framework (Phase 9): Complete documentation with data retention policy, magic link cancellation system, and comprehensive GDPR section in CLAUDE.md (Oct 2024)
+- ✅ Data export & account deletion (Phase 8B): GDPR Article 20 & 17 compliance with rate-limited exports, 30-day grace period deletion, magic link cancellation, middleware enforcement, and full audit trail (Oct 2024)
+- ✅ Email preferences (Phase 8A): Granular email notification controls (Product Updates, Activity Summaries, Tips & Tricks, Security Alerts) with GDPR-compliant audit logging (Oct 2024)
+- ✅ Profile settings (Phase 8A): Functional name/email update and password change features with privacy audit trail (Oct 2024)
 - ✅ TypeScript migration: Converted all 5 critical JS files to TypeScript (Oct 2024)
 - ✅ Testing infrastructure: Vitest, Testing Library, CI/CD, Husky hooks, 121 tests (Oct 2024)
 - ✅ Security hardening: Environment variable validation (Zod), request size limits, auth race fix (Oct 2024)

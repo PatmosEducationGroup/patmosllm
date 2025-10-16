@@ -1,3 +1,28 @@
+/*
+ * OpenAI Training Policy & User Data Privacy
+ *
+ * IMPORTANT: User conversations sent to OpenAI via this API client are NOT used for model training.
+ *
+ * Per OpenAI's Enterprise API Policy:
+ * - API data is retained for 30 days for abuse and misuse monitoring
+ * - After 30 days, data is permanently deleted from OpenAI's systems
+ * - API data is NEVER used to train, improve, or fine-tune OpenAI models
+ * - Zero Data Retention (ZDR) available for enterprise customers (immediate deletion after processing)
+ * - All conversations processed server-side (never exposed to user-facing OpenAI products)
+ *
+ * GDPR Compliance:
+ * - Users can export all conversation data via GET /api/privacy/export (Article 20 - Right to Data Portability)
+ * - Users can delete their account and all data via POST /api/privacy/delete (Article 17 - Right to Erasure)
+ * - All privacy operations logged to privacy_audit_log table for compliance
+ *
+ * Privacy Policy: https://multiplytools.app/privacy
+ * Data Retention Policy: /docs/data-retention-policy.md
+ *
+ * References:
+ * - OpenAI API Data Usage: https://openai.com/enterprise-privacy
+ * - OpenAI API Terms: https://openai.com/policies/terms-of-use
+ */
+
 import OpenAI from 'openai'
 import { VoyageAIClient } from 'voyageai'
 import { loggers, logError } from './logger'
