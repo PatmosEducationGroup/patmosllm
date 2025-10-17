@@ -11,7 +11,7 @@ export async function POST(_request: NextRequest) {
   try {
     // Rate limiting
     const identifier = await getIdentifier(_request)
-    const rateLimitResult = uploadRateLimit(identifier)
+    const rateLimitResult = await uploadRateLimit(identifier)
     
     if (!rateLimitResult.success) {
       return NextResponse.json({

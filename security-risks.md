@@ -6,30 +6,9 @@
 
 ## 🚨 CRITICAL Issues (Immediate Action Required)
 
-### 1. Rate Limiting Broken in Serverless
-**Status**: CRITICAL
-**Impact**: Production-breaking, potential DDoS vulnerability
-**Estimated Fix Time**: 2-3 hours
+**Status**: All critical issues resolved! ✅
 
-**Problem**: In-memory `Map()` doesn't persist across serverless function invocations
-- Current implementation: `src/lib/rate-limiter.ts` uses in-memory storage
-- Serverless architecture: Each request may hit a different lambda instance
-- Result: Rate limits reset per instance, ineffective protection
-
-**Solution Ready**: Upstash packages installed (`@upstash/ratelimit`, `@upstash/redis`)
-- Need to implement distributed rate limiting using Upstash Redis
-- Replace in-memory Map with Redis-backed storage
-- Configure rate limit windows and thresholds in environment variables
-
-**Next Steps**:
-1. Set up Upstash Redis instance (free tier available)
-2. Add `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to environment variables
-3. Refactor `src/lib/rate-limiter.ts` to use Upstash client
-4. Test with multiple concurrent requests across different lambda instances
-
----
-
-### 2. Supabase Security: Mutable search_path
+### Supabase Security: Mutable search_path
 **Status**: ✅ RESOLVED
 **Date Fixed**: October 2024
 
@@ -117,23 +96,55 @@
 
 ## ✅ Recently Fixed Security Issues
 
-### 1. Hardcoded Credentials (FIXED - October 2024)
+### 1. Rate Limiting Broken in Serverless (FIXED - October 2024)
+**Status**: RESOLVED
+**Impact**: Production-breaking, potential DDoS vulnerability - NOW FIXED
+
+**Problem**: In-memory `Map()` didn't persist across serverless function invocations
+- Serverless architecture: Each request could hit a different lambda instance
+- Result: Rate limits reset per instance, ineffective protection
+
+**Solution Implemented**: Upstash Redis distributed rate limiting
+- Migrated `src/lib/rate-limiter.ts` to use Upstash Redis with sliding window algorithm
+- Graceful fallback to in-memory for local development
+- Fail-open strategy on Upstash errors (falls back instead of blocking)
+- All 7 API routes updated to async rate limiting:
+  - `/api/chat/route.ts`
+  - `/api/upload/blob/route.ts`
+  - `/api/upload/presigned/route.ts`
+  - `/api/upload/process/route.ts`
+  - `/api/upload/process-blob/route.ts`
+  - `/api/upload/processes/route.ts`
+  - `/api/question-assistant/route.ts`
+
+**Environment Variables**:
+- `UPSTASH_REDIS_REST_URL` - Upstash Redis REST endpoint
+- `UPSTASH_REDIS_REST_TOKEN` - Authentication token
+- `RATE_LIMIT_EXEMPT_USERS` - Comma-separated exempt user IDs
+
+**Benefits**:
+- ✅ Production-ready distributed rate limiting
+- ✅ Better DDoS protection with per-user limits stored in Redis
+- ✅ Analytics enabled for monitoring rate limit hits
+- ✅ Seamless local development with automatic fallback
+
+### 2. Hardcoded Credentials (FIXED - October 2024)
 **Status**: RESOLVED
 **Fix**: Moved to `RATE_LIMIT_EXEMPT_USERS` environment variable
 
-### 2. Auth Race Condition (FIXED - October 2024)
+### 3. Auth Race Condition (FIXED - October 2024)
 **Status**: RESOLVED
 **Fix**: Added `await` to `auth()` call in `src/lib/get-identifier.ts:34`
 
-### 3. No Request Size Limits (FIXED - October 2024)
+### 4. No Request Size Limits (FIXED - October 2024)
 **Status**: RESOLVED
 **Fix**: 10MB limit enforced in middleware with 413 response
 
-### 4. Missing Environment Variable Validation (FIXED - October 2024)
+### 5. Missing Environment Variable Validation (FIXED - October 2024)
 **Status**: RESOLVED
 **Fix**: Zod validation for 40+ environment variables in `src/lib/env.ts`
 
-### 5. Supabase SQL Injection Risks (FIXED - October 2024)
+### 6. Supabase SQL Injection Risks (FIXED - October 2024)
 **Status**: RESOLVED
 **Fix**: Set `search_path = ''` on all SECURITY DEFINER functions (18 functions)
 

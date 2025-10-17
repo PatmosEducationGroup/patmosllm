@@ -12,7 +12,7 @@ export async function POST(_request: NextRequest) {
     // RATE LIMITING & AUTHENTICATION
     // =================================================================
     const identifier = await getIdentifier(_request)
-    const rateLimitResult = chatRateLimit(identifier)
+    const rateLimitResult = await chatRateLimit(identifier)
 
     if (!rateLimitResult.success) {
       return NextResponse.json(

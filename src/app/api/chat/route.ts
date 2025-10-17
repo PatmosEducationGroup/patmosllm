@@ -149,7 +149,7 @@ export async function POST(_request: NextRequest) {
     // RATE LIMITING - Prevent abuse by limiting requests per user/IP
     // =================================================================
     const identifier = await getIdentifier(_request);
-    const rateLimitResult = chatRateLimit(identifier);
+    const rateLimitResult = await chatRateLimit(identifier);
     
     if (!rateLimitResult.success) {
       return new Response(

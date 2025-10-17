@@ -123,10 +123,10 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 - `VOYAGE_API_KEY`
 - `RESEND_API_KEY`
 
-**Rate Limiting** (to be configured):
-- `UPSTASH_REDIS_REST_URL`
-- `UPSTASH_REDIS_REST_TOKEN`
-- `RATE_LIMIT_EXEMPT_USERS`
+**Rate Limiting**:
+- `UPSTASH_REDIS_REST_URL` - Upstash Redis REST endpoint (optional, falls back to in-memory)
+- `UPSTASH_REDIS_REST_TOKEN` - Authentication token (optional)
+- `RATE_LIMIT_EXEMPT_USERS` - Comma-separated list of exempt user IDs
 
 ---
 
@@ -193,10 +193,11 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 
 ### Current State
 - **Testing**: 121 tests (78% pass rate), CI/CD pipeline operational
-- **Security**: Sentry monitoring, structured logging (88% complete), TypeScript 100%
-- **Known Issues**: Rate limiting broken (serverless), 18 test failures, Supabase security script pending
+- **Security**: Sentry monitoring, structured logging (88% complete), TypeScript 100%, Upstash Redis rate limiting
+- **Known Issues**: 18 test failures, Supabase security script pending
 
 **Recent Major Features** (see [`completed.md`](completed.md) for details):
+- Upstash Redis rate limiting (distributed rate limiting for serverless)
 - GDPR Article 17 & 20 compliance (data export + account deletion)
 - Profile settings with email preference controls
 - AI document generation (PDF/PPTX/XLSX)
@@ -208,11 +209,6 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 ## Priority Roadmap
 
 ### 🚨 Critical (Week 1-2)
-
-#### Security & Stability
-- [ ] **🚨 URGENT: Fix rate limiting** - In-memory Map broken in serverless, Upstash packages installed but not implemented
-
-**Estimated Time**: 2-3 hours | **Impact**: Fix production-breaking rate limiting vulnerability
 
 **See [`security-risks.md`](security-risks.md) for complete security assessment.**
 
@@ -226,7 +222,6 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 ### ⚡ High Priority (Week 3-4)
 
 #### Performance & Scalability
-- [ ] Replace in-memory rate limiting with distributed cache (Upstash packages installed)
 - [ ] Implement database transactions for multi-step operations (partially done: 3 stored procedures)
 - [ ] Add bundle size monitoring (`@next/bundle-analyzer`)
 - [ ] Optimize cache key generation (replace `JSON.stringify`)
@@ -286,9 +281,9 @@ Display token usage and monthly cost in **4 prominent locations**:
 
 **See [`security-risks.md`](security-risks.md) for complete security assessment.**
 
-### 🚨 Security Issues
-1. **Rate limiting broken** - CRITICAL: In-memory `Map()` doesn't work in serverless (Upstash packages installed, needs implementation)
-2. **Supabase security** - URGENT: 18 functions with mutable search_path (fix script ready but not executed)
+### ✅ Security Issues (All Resolved)
+1. **Rate limiting** - ✅ FIXED: Migrated to Upstash Redis with distributed rate limiting
+2. **Supabase security** - ✅ FIXED: Applied `search_path = ''` to all SECURITY DEFINER functions
 
 ### ⚠️ Code Quality Issues
 1. **Large files** - `src/app/api/chat/route.ts` (1,276 lines), violates single responsibility principle

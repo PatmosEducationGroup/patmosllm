@@ -30,6 +30,44 @@ This file tracks all completed features, migrations, and improvements for histor
 - Updated `/api/admin/system-health` to return full Pinecone stats (totalVectors, dimensions)
 - Added `getPineconeStats()` helper function for vector database metrics
 
+### ✅ Upstash Redis Rate Limiting (October 2024)
+**Status**: Complete - Production-ready distributed rate limiting for serverless environments
+
+**Core Implementation** (`src/lib/rate-limiter.ts`):
+- Complete migration from in-memory Map to Upstash Redis
+- Uses `@upstash/ratelimit` with sliding window algorithm
+- Graceful fallback to in-memory rate limiting if Upstash not configured
+- Fail-open strategy on Upstash errors (falls back to in-memory instead of blocking requests)
+- Singleton Redis client for efficient connection reuse
+- Environment-based exempt users via `RATE_LIMIT_EXEMPT_USERS`
+
+**Rate Limit Configurations**:
+- **Chat**: 30 requests per 5 minutes (`chatRateLimit`)
+- **Upload**: 100 requests per hour (`uploadRateLimit`)
+- **General**: 100 requests per 15 minutes (`generalRateLimit`)
+- **Export**: 1 request per hour (`exportRateLimit`) - GDPR compliance
+
+**API Route Updates** (7 files converted to async):
+- `/api/chat/route.ts` - Chat message rate limiting
+- `/api/upload/blob/route.ts` - Blob upload rate limiting
+- `/api/upload/presigned/route.ts` - Presigned URL rate limiting
+- `/api/upload/process/route.ts` - Document processing rate limiting
+- `/api/upload/process-blob/route.ts` - Blob processing rate limiting
+- `/api/upload/processes/route.ts` - Batch processing rate limiting
+- `/api/question-assistant/route.ts` - Question assistant rate limiting
+
+**Environment Variables Required**:
+- `UPSTASH_REDIS_REST_URL` - Upstash Redis REST endpoint
+- `UPSTASH_REDIS_REST_TOKEN` - Authentication token
+- `RATE_LIMIT_EXEMPT_USERS` - Comma-separated list of exempt user IDs
+
+**Benefits**:
+- ✅ Fixes serverless incompatibility (in-memory Map doesn't work across function instances)
+- ✅ Production-ready distributed rate limiting
+- ✅ Seamless local development with automatic fallback
+- ✅ Better DDoS protection with per-user limits stored in Redis
+- ✅ Analytics enabled for monitoring rate limit hits
+
 ### ✅ GDPR Compliance Framework (Phase 9)
 Complete documentation with data retention policy, magic link cancellation system, and comprehensive GDPR section in CLAUDE.md.
 
