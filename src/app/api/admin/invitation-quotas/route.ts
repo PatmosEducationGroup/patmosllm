@@ -124,23 +124,22 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json()
-    const { action, userId, addInvites, onlyRole } = body
-
-    // Validate addInvites
-    if (!addInvites || addInvites <= 0) {
-      return NextResponse.json(
-        { error: 'Must grant at least 1 invitation' },
-        { status: 400 }
-      )
-    }
+    const { action, userId, addInvites, setTotal, onlyRole } = body
 
     let result
 
     if (action === 'grant-to-user') {
-      // Grant to specific user
+      // Grant to specific user (ADD invitations)
       if (!userId) {
         return NextResponse.json(
           { error: 'userId required for grant-to-user action' },
+          { status: 400 }
+        )
+      }
+
+      if (!addInvites || addInvites <= 0) {
+        return NextResponse.json(
+          { error: 'Must grant at least 1 invitation' },
           { status: 400 }
         )
       }
@@ -162,7 +161,14 @@ export async function POST(request: NextRequest) {
         'Admin granted invitations to specific user'
       )
     } else if (action === 'grant-to-all') {
-      // Grant to all users (with optional role filter)
+      // Grant to all users (ADD invitations with optional role filter)
+      if (!addInvites || addInvites <= 0) {
+        return NextResponse.json(
+          { error: 'Must grant at least 1 invitation' },
+          { status: 400 }
+        )
+      }
+
       const { data, error } = await supabaseAdmin
         .rpc('grant_invites_to_all', {
           p_add_invites: addInvites,
@@ -184,9 +190,71 @@ export async function POST(request: NextRequest) {
         },
         'Admin granted invitations to all users'
       )
+    } else if (action === 'set-quota-for-user') {
+      // Set exact quota for specific user (allows 0 = disable, 999999999 = unlimited)
+      if (!userId) {
+        return NextResponse.json(
+          { error: 'userId required for set-quota-for-user action' },
+          { status: 400 }
+        )
+      }
+
+      if (setTotal === undefined || setTotal === null || setTotal < 0) {
+        return NextResponse.json(
+          { error: 'setTotal must be 0 or greater (0 = disable, 999999999 = unlimited)' },
+          { status: 400 }
+        )
+      }
+
+      const { data, error } = await supabaseAdmin
+        .rpc('set_quota_for_user', {
+          p_user_id: userId,
+          p_set_total: setTotal
+        })
+
+      if (error) {
+        throw new Error(`Failed to set quota: ${error.message}`)
+      }
+
+      result = data?.[0]
+
+      loggers.auth(
+        { admin_id: user.id, target_user_id: userId, quota_set_to: setTotal },
+        'Admin set quota for specific user'
+      )
+    } else if (action === 'set-quota-for-all') {
+      // Set exact quota for all users (allows 0 = disable, 999999999 = unlimited)
+      if (setTotal === undefined || setTotal === null || setTotal < 0) {
+        return NextResponse.json(
+          { error: 'setTotal must be 0 or greater (0 = disable, 999999999 = unlimited)' },
+          { status: 400 }
+        )
+      }
+
+      const { data, error } = await supabaseAdmin
+        .rpc('set_quota_for_all', {
+          p_set_total: setTotal,
+          p_only_role: onlyRole || null
+        })
+
+      if (error) {
+        throw new Error(`Failed to set quota for all: ${error.message}`)
+      }
+
+      result = data?.[0]
+
+      loggers.auth(
+        {
+          admin_id: user.id,
+          quota_set_to: setTotal,
+          role_filter: onlyRole || 'all',
+          users_updated: result?.users_updated
+        },
+        'Admin set quota for all users'
+      )
     } else {
       return NextResponse.json(
-        { error: 'Invalid action. Must be "grant-to-user" or "grant-to-all"' },
+        { error: 'Invalid action. Must be "grant-to-user", "grant-to-all", "set-quota-for-user", or "set-quota-for-all"' },
         { status: 400 }
       )
     }

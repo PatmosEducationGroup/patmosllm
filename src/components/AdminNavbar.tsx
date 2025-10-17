@@ -12,7 +12,8 @@ import {
   Activity,
   TrendingUp,
   Rocket,
-  AlertCircle
+  AlertCircle,
+  Gift
 } from 'lucide-react'
 
 interface AdminNavbarProps {
@@ -59,6 +60,7 @@ export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps
     { href: '/chat', label: 'Chat', icon: MessageCircle, roles: ['USER', 'CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'] },
     { href: '/admin', label: 'Documents', icon: BookOpen, roles: ['CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'] },
     { href: '/admin/users', label: 'Users', icon: Users, roles: ['ADMIN', 'SUPER_ADMIN'] },
+    { href: '/admin/invitation-quotas', label: 'Invitations', icon: Gift, roles: ['ADMIN', 'SUPER_ADMIN'] },
     { href: '/admin/system-health', label: 'System Health', icon: Activity, roles: ['ADMIN', 'SUPER_ADMIN'] },
     { href: '/admin/document-analytics', label: 'Document Analytics', icon: TrendingUp, roles: ['ADMIN', 'SUPER_ADMIN'] },
     { href: '/admin/question-quality', label: 'Question Quality', icon: AlertCircle, roles: ['SUPER_ADMIN'] },

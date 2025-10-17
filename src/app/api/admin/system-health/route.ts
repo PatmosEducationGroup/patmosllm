@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { logError } from '@/lib/logger'
 import { withSupabaseAdmin } from '@/lib/supabase'
 import { advancedCache } from '@/lib/advanced-cache'
-import { testConnection as testPineconeConnection } from '@/lib/pinecone'
+import { getIndexStats } from '@/lib/pinecone'
 import { getCurrentUser } from '@/lib/auth'
 
 export async function GET(_request: NextRequest) {
@@ -20,7 +20,7 @@ export async function GET(_request: NextRequest) {
     const startTime = Date.now()
 
     // Get advanced system metrics including memory system
-    const [dbStats, cacheStats, pineconeHealth, memoryHealth] = await Promise.all([
+    const [dbStats, cacheStats, pineconeStats, memoryHealth] = await Promise.all([
       // Database stats with connection pooling
       withSupabaseAdmin(async (supabase) => {
         const [usersResult, documentsResult, conversationsResult, userContextResult, conversationMemoryResult, topicProgressionResult] = await Promise.all([
@@ -35,8 +35,8 @@ export async function GET(_request: NextRequest) {
       }),
       // Cache performance metrics
       advancedCache.getStats(),
-      // Vector database health
-      testPineconeConnection(),
+      // Vector database health and stats
+      getPineconeStats(),
       // Memory system health check
       testMemorySystemHealth()
     ])
@@ -83,8 +83,10 @@ export async function GET(_request: NextRequest) {
           memoryUsageMB: parseFloat(cacheStats.memoryUsage.toFixed(2))
         },
         vectorDatabase: {
-          status: pineconeHealth ? 'healthy' : 'error',
-          connected: pineconeHealth
+          status: pineconeStats.connected ? 'healthy' : 'error',
+          connected: pineconeStats.connected,
+          totalVectors: pineconeStats.totalVectors,
+          dimensions: pineconeStats.dimensions
         },
         memorySystem: {
           status: memoryHealth.status,
@@ -163,8 +165,25 @@ return NextResponse.json({
 }
 
 // =================================================================
-// MEMORY SYSTEM HEALTH FUNCTIONS
+// HELPER FUNCTIONS
 // =================================================================
+
+async function getPineconeStats() {
+  try {
+    const stats = await getIndexStats()
+    return {
+      connected: true,
+      totalVectors: stats.totalVectors,
+      dimensions: stats.dimension
+    }
+  } catch (_error) {
+    return {
+      connected: false,
+      totalVectors: 0,
+      dimensions: 0
+    }
+  }
+}
 
 async function testMemorySystemHealth() {
   const startTime = Date.now()

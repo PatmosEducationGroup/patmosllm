@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { logError } from '@/lib/logger'
 // Clerk hooks removed - now using session-based auth
 import { useRouter } from 'next/navigation'
-import AdminNavbar from '@/components/AdminNavbar'
 import {
   UserCheck,
   AlertCircle,
@@ -589,7 +588,6 @@ setError('Failed to resend invitation')
 
   return (
     <div>
-      <AdminNavbar />
       
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem' }}>
         <div style={{ marginBottom: '2rem' }}>

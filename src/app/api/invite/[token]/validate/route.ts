@@ -20,24 +20,25 @@ export async function GET(
     }
 
     // =================================================================
-    // LOOKUP INVITATION - Find invitation by token
+    // LOOKUP INVITATION - Find invitation by token in users table
     // =================================================================
-    const { data: invitation, error: lookupError } = await supabaseAdmin
-      .from('invitation_tokens')
+    const { data: user, error: lookupError } = await supabaseAdmin
+      .from('users')
       .select(`
         id,
         email,
+        name,
         role,
-        expires_at,
-        accepted_at,
-        created_at,
+        invitation_token,
+        invitation_expires_at,
+        auth_user_id,
         invited_by,
         inviter:invited_by(email, name)
       `)
-      .eq('token', token)
+      .eq('invitation_token', token)
       .single()
 
-    if (lookupError || !invitation) {
+    if (lookupError || !user) {
       loggers.security({
         operation: 'validate_invitation_token',
         token,
@@ -51,16 +52,9 @@ export async function GET(
     }
 
     // =================================================================
-    // CHECK EXPIRATION - Verify invitation hasn't expired
-    // =================================================================
-    const now = new Date()
-    const expiresAt = new Date(invitation.expires_at)
-    const isExpired = expiresAt < now
-
-    // =================================================================
     // CHECK ACCEPTANCE STATUS - Verify invitation hasn't been used
     // =================================================================
-    if (invitation.accepted_at) {
+    if (user.auth_user_id) {
       return NextResponse.json(
         { success: false, error: 'This invitation has already been accepted' },
         { status: 400 }
@@ -68,17 +62,24 @@ export async function GET(
     }
 
     // =================================================================
+    // CHECK EXPIRATION - Verify invitation hasn't expired
+    // =================================================================
+    const now = new Date()
+    const expiresAt = new Date(user.invitation_expires_at)
+    const isExpired = expiresAt < now
+
+    // =================================================================
     // SUCCESS RESPONSE - Return invitation details
     // =================================================================
-    const inviterInfo = invitation.inviter as { email?: string; name?: string }
+    const inviterInfo = user.inviter as { email?: string; name?: string }
 
     return NextResponse.json({
       success: true,
       invitation: {
-        id: invitation.id,
-        email: invitation.email,
-        role: invitation.role,
-        expiresAt: invitation.expires_at,
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        expiresAt: user.invitation_expires_at,
         expired: isExpired,
         invitedBy: inviterInfo?.name || inviterInfo?.email || 'Administrator'
       }

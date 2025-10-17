@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { logError } from '@/lib/logger'
 // Clerk hooks removed - now using session-based auth
-import AdminNavbar from '@/components/AdminNavbar'
 import { Modal } from '@/components/ui/Modal'
 import {
   FileText,
@@ -124,7 +123,6 @@ setError('Failed to load analytics')
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AdminNavbar />
         <div className="max-w-7xl mx-auto py-6 px-4">
           <div className="flex items-center justify-center py-12">
             <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
@@ -137,7 +135,6 @@ setError('Failed to load analytics')
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AdminNavbar />
       
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8 flex items-center justify-between">

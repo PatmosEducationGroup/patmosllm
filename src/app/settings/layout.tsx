@@ -22,11 +22,21 @@ import {
   Home,
   Mail,
   Heart,
-  Gift
+  Gift,
+  LogOut
 } from 'lucide-react'
 
 interface SettingsLayoutProps {
   children: React.ReactNode
+}
+
+interface NavigationItem {
+  name: string
+  href?: string
+  icon: React.ElementType
+  isHome?: boolean
+  isButton?: boolean
+  onClick?: () => void
 }
 
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
@@ -34,6 +44,28 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [hasDeletionScheduled, setHasDeletionScheduled] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    if (loggingOut) return
+
+    setLoggingOut(true)
+    try {
+      const response = await fetch('/api/auth/signout', {
+        method: 'POST'
+      })
+
+      if (response.ok) {
+        // Redirect to home page
+        router.push('/')
+      }
+    } catch (_error) {
+      // Silently fail and redirect anyway
+      router.push('/')
+    } finally {
+      setLoggingOut(false)
+    }
+  }
 
   useEffect(() => {
     // Check if user has scheduled deletion
@@ -52,7 +84,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
     checkDeletionStatus()
   }, [pathname])
 
-  const navigationItems = [
+  const navigationItems: NavigationItem[] = [
     { name: 'Settings Home', href: '/settings', icon: Home, isHome: true },
     { name: 'Donate', href: '/settings/donate', icon: Heart },
     { name: 'Profile', href: '/settings/profile', icon: User },
@@ -63,6 +95,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
     { name: 'Cookies Management', href: '/settings/cookies', icon: Cookie },
     { name: 'Privacy Policy', href: '/privacy', icon: Shield },
     { name: 'Terms of Use', href: '/terms', icon: FileText },
+    { name: 'Logout', icon: LogOut, isButton: true, onClick: handleLogout },
     { name: 'Delete Account', href: '/settings/delete-account', icon: Trash2 }
   ]
 
@@ -145,13 +178,32 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
               <ul className="space-y-2">
                 {navigationItems.map((item) => {
                   const Icon = item.icon
-                  const isActive = pathname === item.href
-                  const isExternal = item.href.startsWith('/privacy') || item.href.startsWith('/terms')
+                  const isActive = item.href ? pathname === item.href : false
+                  const isExternal = item.href?.startsWith('/privacy') || item.href?.startsWith('/terms')
+
+                  // Handle button items (like Logout)
+                  if (item.isButton) {
+                    return (
+                      <li key={item.name}>
+                        <button
+                          onClick={() => {
+                            setSidebarOpen(false)
+                            item.onClick?.()
+                          }}
+                          disabled={loggingOut}
+                          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 border border-transparent text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Icon className="w-5 h-5" />
+                          <span>{loggingOut ? 'Logging out...' : item.name}</span>
+                        </button>
+                      </li>
+                    )
+                  }
 
                   return (
                     <li key={item.name} className={item.isHome ? 'pb-2 mb-2 border-b border-gray-200' : ''}>
                       <Link
-                        href={item.href}
+                        href={item.href!}
                         className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 no-underline ${
                           isActive
                             ? 'bg-primary-400/10 text-primary-600 border border-primary-400/30'

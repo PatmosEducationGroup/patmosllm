@@ -10,6 +10,7 @@ interface Invitation {
   expires_at: string
   sent_at: string
   accepted_at: string | null
+  invitation_token: string | null
 }
 
 interface Quota {
@@ -110,8 +111,14 @@ export default function InvitationsPage() {
     }
   }
 
-  function copyInviteLink(token: string) {
-    const url = `${window.location.origin}/signup?invite=${token}`
+  function copyInviteLink(invitation: Invitation) {
+    if (!invitation.invitation_token) {
+      setError('Invitation token not found')
+      return
+    }
+
+    // Use the same URL format as admin system: /invite/[token]/accept
+    const url = `${window.location.origin}/invite/${invitation.invitation_token}/accept`
     navigator.clipboard.writeText(url)
     setSuccess('Invitation link copied to clipboard')
     setTimeout(() => setSuccess(null), 3000)
@@ -222,7 +229,7 @@ export default function InvitationsPage() {
 
             {quota.invites_remaining === 0 && (
               <p className="text-sm text-orange-600">
-                You have used all your invitations. Contact an administrator for more.
+                More invitations will be granted soon!
               </p>
             )}
           </>
@@ -257,6 +264,37 @@ export default function InvitationsPage() {
             {loading ? 'Sending...' : 'Send Invitation'}
           </button>
         </form>
+      </div>
+
+      {/* Invitation Stats */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Invitation Activity</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">
+              {invitations.length}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">Total Sent</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600">
+              {invitations.filter(inv => inv.status === 'accepted').length}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">Accepted</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">
+              {invitations.filter(inv => inv.status === 'pending').length}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">Pending</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-600">
+              {invitations.filter(inv => inv.status === 'expired' || inv.status === 'revoked').length}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">Expired/Revoked</div>
+          </div>
+        </div>
       </div>
 
       {/* Invitations List */}
@@ -315,7 +353,7 @@ export default function InvitationsPage() {
                         {inv.status === 'pending' && (
                           <>
                             <button
-                              onClick={() => copyInviteLink(inv.id)}
+                              onClick={() => copyInviteLink(inv)}
                               className="text-primary-600 hover:text-primary-900"
                               title="Copy invitation link"
                             >

@@ -160,7 +160,16 @@ export async function getUserQuota(userId: string, isAdmin: boolean) {
 export async function getUserInvitations(userId: string) {
   const { data: invitations, error } = await supabaseAdmin
     .from('user_sent_invitations_log')
-    .select('*')
+    .select(`
+      id,
+      invitee_email,
+      status,
+      expires_at,
+      created_at,
+      accepted_at,
+      revoked_at,
+      invited_user:invited_user_id(invitation_token)
+    `)
     .eq('sender_user_id', userId)
     .order('created_at', { ascending: false })
 
@@ -168,7 +177,19 @@ export async function getUserInvitations(userId: string) {
     throw new Error(`Failed to fetch invitations: ${error.message}`)
   }
 
-  return invitations
+  // Format response to include token at top level
+  const formattedInvitations = invitations?.map(inv => ({
+    id: inv.id,
+    invitee_email: inv.invitee_email,
+    status: inv.status,
+    expires_at: inv.expires_at,
+    sent_at: inv.created_at,
+    accepted_at: inv.accepted_at,
+    revoked_at: inv.revoked_at,
+    invitation_token: (inv.invited_user as { invitation_token?: string })?.invitation_token || null
+  }))
+
+  return formattedInvitations
 }
 
 /**
