@@ -3,6 +3,7 @@ import { searchChunks } from './pinecone'
 import { supabaseAdmin } from './supabase'
 import { advancedCache, CACHE_NAMESPACES, CACHE_TTL } from './advanced-cache'
 import { loggers, logError } from '@/lib/logger'
+import { generateCacheKeySync } from '@/lib/utils/cache-key'
 
 export interface SearchResult {
   id: string
@@ -171,9 +172,16 @@ export async function hybridSearch(
   
   // Check cache first if enabled
   if (opts.enableCache) {
-    const cacheKey = `${query}-${JSON.stringify(opts)}`
+    const cacheKey = generateCacheKeySync(query, {
+      semanticWeight: opts.semanticWeight,
+      keywordWeight: opts.keywordWeight,
+      minSemanticScore: opts.minSemanticScore,
+      minKeywordScore: opts.minKeywordScore,
+      maxResults: opts.maxResults,
+      userId: opts.userId
+    })
     const cached = advancedCache.get<SearchResult[]>(
-      CACHE_NAMESPACES.SEARCH_RESULTS, 
+      CACHE_NAMESPACES.SEARCH_RESULTS,
       cacheKey,
       { userId: opts.userId }
     )
@@ -288,7 +296,14 @@ export async function hybridSearch(
 
     // Cache results if enabled
     if (opts.enableCache) {
-      const cacheKey = `${query}-${JSON.stringify(opts)}`
+      const cacheKey = generateCacheKeySync(query, {
+        semanticWeight: opts.semanticWeight,
+        keywordWeight: opts.keywordWeight,
+        minSemanticScore: opts.minSemanticScore,
+        minKeywordScore: opts.minKeywordScore,
+        maxResults: opts.maxResults,
+        userId: opts.userId
+      })
       advancedCache.set(
         CACHE_NAMESPACES.SEARCH_RESULTS,
         cacheKey,

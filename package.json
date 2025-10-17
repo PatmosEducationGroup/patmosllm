@@ -64,8 +64,10 @@
     "svix": "^1.76.1",
     "tailwind-merge": "^3.3.1",
     "tesseract.js": "^6.0.1",
+    "tiktoken": "^1.0.22",
     "uuid": "^11.1.0",
     "voyageai": "^0.0.8",
+    "xxhash-wasm": "^1.1.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

@@ -19,6 +19,8 @@ import {
 import OpenAI from 'openai'
 import { logger, loggers, logError } from '@/lib/logger'
 import { trackUsage } from '@/lib/donation-tracker'
+import { pMap, pTimeout, retry } from '@/lib/utils/performance'
+import { createPerformanceTimings, buildPerformanceMetrics } from '@/lib/performance-tracking'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
@@ -210,6 +212,11 @@ export async function POST(_request: NextRequest) {
     }, 'Processing chat question')
 
     // =================================================================
+    // PERFORMANCE TRACKING - Start timing instrumentation
+    // =================================================================
+    const timings = createPerformanceTimings()
+
+    // =================================================================
     // PARALLEL BATCH 1: SESSION VALIDATION + CACHE CHECK + CONVERSATION HISTORY
     // Fetch everything we need upfront in parallel for maximum speed
     // =================================================================
@@ -232,6 +239,8 @@ export async function POST(_request: NextRequest) {
       // 3. Get conversation history (uses new composite index: idx_conversations_session_user_created)
       getCachedConversationHistory(sessionId) ||
         withSupabaseAdmin(async (supabase) => {
+          // Feature flag: FF_CHAT_HISTORY_2_TURNS reduces history from 3 to 2 turns for speed
+          const historyLimit = process.env.FF_CHAT_HISTORY_2_TURNS === 'true' ? 2 : 3
           const { data } = await supabase
             .from('conversations')
             .select('question, answer')
@@ -239,7 +248,7 @@ export async function POST(_request: NextRequest) {
             .eq('user_id', currentUserId)
             .is('deleted_at', null)
             .order('created_at', { ascending: false })
-            .limit(3) // Keep for context quality
+            .limit(historyLimit)
           return data || []
         })
     ])
@@ -255,6 +264,8 @@ export async function POST(_request: NextRequest) {
     // =================================================================
     // STEP 1.5: RETURN CACHED RESPONSE IF AVAILABLE (instant)
     // =================================================================
+    timings.cacheCheck = Date.now() - timings.start
+    timings.cacheHit = !!cachedResponse
 
     if (cachedResponse) {
       loggers.cache({
@@ -411,12 +422,15 @@ export async function POST(_request: NextRequest) {
     // =================================================================
     // STEP 3: HYBRID SEARCH - Advanced semantic + keyword search with context
     // =================================================================
+    // Feature flag: FF_K_17 reduces search results from 20 to 17 for speed
+    const searchMaxResults = process.env.FF_K_17 === 'true' ? 17 : 20
+
     loggers.performance({ userId: currentUserId }, 'Starting intelligent hybrid search')
     const searchResult = await intelligentSearch(
       contextualSearchQuery,
       questionEmbedding,
       {
-        maxResults: 20,
+        maxResults: searchMaxResults,
         minSemanticScore: 0.5, // Raised to 0.5 to filter weak false positives
         minKeywordScore: 0.05, // Lowered from 0.1 for better recall
         userId: currentUserId,
@@ -425,10 +439,13 @@ export async function POST(_request: NextRequest) {
     )
 
     const relevantChunks = searchResult.results
+    timings.search = Date.now() - timings.start
+
     loggers.performance({
       chunksFound: relevantChunks.length,
       searchStrategy: searchResult.searchStrategy,
       confidence: searchResult.confidence,
+      searchTime: timings.search,
       userId: currentUserId
     }, 'Hybrid search completed')
 
@@ -581,6 +598,9 @@ export async function POST(_request: NextRequest) {
       return acc
     }, {} as Record<string, typeof relevantChunks>)
 
+    // Feature flag: FF_CTX_CHUNKS_7 reduces context chunks from 8 to 7 for speed
+    const contextChunkLimit = process.env.FF_CTX_CHUNKS_7 === 'true' ? 7 : 8
+
     const context = Object.entries(chunksByDocument)
       .map(([title, chunks]) => ({
         title,
@@ -588,7 +608,7 @@ export async function POST(_request: NextRequest) {
       }))
       .sort((a, b) => b.chunks[0].score - a.chunks[0].score)
       .flatMap(group => group.chunks)
-      .slice(0, 8) // Restored to original for quality
+      .slice(0, contextChunkLimit)
       .map(chunk => ({
         content: chunk.content || 'No content available',
         title: chunk.documentTitle,
@@ -785,34 +805,55 @@ export async function POST(_request: NextRequest) {
 
     // =================================================================
     // STEP 4: PREPARE SOURCES FOR FRONTEND WITH METADATA
+    // Parallel metadata fetch with retry and concurrency control
     // =================================================================
-    
-    // Get unique document titles from chunks
-    const uniqueDocumentTitles = [...new Set(relevantChunks.map(chunk => chunk.documentTitle))];
 
-    // Fetch document metadata from database with connection pooling
-    const documentsWithMetadata = await withSupabaseAdmin(async (supabase) => {
-      const { data, error} = await supabase
-        .from('documents')
-        .select(`
-          id,
-          title,
-          author,
-          storage_path,
-          file_size,
-          amazon_url,
-          resource_url,
-          download_enabled,
-          contact_person,
-          contact_email
-        `)
-        .in('title', uniqueDocumentTitles)
+    // Get unique document IDs from chunks (more efficient than titles)
+    const uniqueDocumentIds = [...new Set(relevantChunks.map(chunk => chunk.documentId))];
 
-      if (error) {
-        return []
-      }
-      return data || []
-    })
+    // Fetch document metadata in parallel with retry and concurrency control
+    // This replaces the sequential .in() query with parallel per-document fetches
+    const documentsWithMetadata = await pMap(
+      uniqueDocumentIds,
+      async (docId) => {
+        return await retry(
+          () => pTimeout(
+            withSupabaseAdmin(async (supabase) => {
+              const { data, error } = await supabase
+                .from('documents')
+                .select(`
+                  id,
+                  title,
+                  author,
+                  storage_path,
+                  file_size,
+                  amazon_url,
+                  resource_url,
+                  download_enabled,
+                  contact_person,
+                  contact_email
+                `)
+                .eq('id', docId)
+                .single()
+
+              if (error) {
+                throw error
+              }
+              return data
+            }),
+            1500 // 1.5s timeout per document
+          ),
+          { retries: 1, minTimeout: 120, maxTimeout: 250 } // Retry with jitter for transient errors
+        ).catch((error) => {
+          // Log error but don't fail - partial metadata is better than no metadata
+          loggers.database({ docId, error: error.message }, 'Metadata fetch failed (tolerated)')
+          return null
+        })
+      },
+      { concurrency: 8 } // Max 8 parallel requests to avoid DB overload
+    ).then(results => results.filter(r => r !== null)) // Remove null results
+
+    timings.metadata = Date.now() - timings.start
 
     // Build sources array with metadata
     const sources = relevantChunks
@@ -922,6 +963,7 @@ ${conversationHistoryText}
 Available documents:
 ${contextDocuments}`
 
+    timings.promptBuild = Date.now() - timings.start
 
     // =================================================================
     // STEP 7: STREAMING AI RESPONSE
@@ -977,13 +1019,19 @@ ${contextDocuments}`
 
         try {
           let _chunkCount = 0
+          let firstTokenRecorded = false
           for await (const chunk of stream) {
             _chunkCount++
             const content = chunk.choices[0]?.delta?.content || ''
 
             if (content) {
-              fullResponse += content
+              // Record first token latency (FTL)
+              if (!firstTokenRecorded) {
+                timings.firstToken = Date.now() - timings.start
+                firstTokenRecorded = true
+              }
 
+              fullResponse += content
 
               // Send each chunk to the frontend
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({
@@ -995,6 +1043,7 @@ ${contextDocuments}`
             // Check if streaming is finished
             if (chunk.choices[0]?.finish_reason === 'stop') {
               streamingComplete = true
+              timings.streamComplete = Date.now() - timings.start
               break
             }
           }
@@ -1250,14 +1299,47 @@ controller.enqueue(encoder.encode(`data: ${JSON.stringify({
 
               // Track OpenAI streaming usage for donation cost
               // Estimate tokens: rough heuristic of 1 token ≈ 4 characters
-              const estimatedTokens = Math.ceil(fullResponse.length / 4)
+              const estimatedPromptTokens = Math.ceil((systemPrompt.length + userMessage.length) / 4)
+              const estimatedCompletionTokens = Math.ceil(fullResponse.length / 4)
+              const estimatedTotalTokens = estimatedPromptTokens + estimatedCompletionTokens
+
               trackUsage({
                 userId: currentUserId,
                 service: 'openai',
-                totalTokens: estimatedTokens,
+                totalTokens: estimatedTotalTokens,
                 operationCount: 1,
                 requestId
               }).catch(() => {}) // Silent failure - never block chat
+
+              // =================================================================
+              // PERFORMANCE METRICS - Log complete performance data
+              // =================================================================
+              const perfMetrics = buildPerformanceMetrics(
+                timings,
+                currentUserId,
+                sessionId,
+                estimatedPromptTokens,
+                estimatedCompletionTokens,
+                {
+                  chatHistory2: process.env.FF_CHAT_HISTORY_2_TURNS === 'true',
+                  ctx7: process.env.FF_CTX_CHUNKS_7 === 'true',
+                  k17: process.env.FF_K_17 === 'true',
+                  summaryBuffer: false // Not implemented yet
+                },
+                false // usedSummaryBuffer - not implemented yet
+              )
+
+              loggers.performance({
+                ...perfMetrics,
+                breakdown: {
+                  cacheCheck: timings.cacheCheck,
+                  search: timings.search,
+                  metadata: timings.metadata,
+                  promptBuild: timings.promptBuild,
+                  ftl: perfMetrics.ftl,
+                  ttlt: perfMetrics.ttlt
+                }
+              }, 'Chat request completed - full performance metrics')
 
             } catch (_cacheError) {
             }
