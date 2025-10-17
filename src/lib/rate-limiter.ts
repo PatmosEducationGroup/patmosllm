@@ -6,6 +6,12 @@
  * Uses Upstash Redis for distributed rate limiting across serverless function instances.
  * Falls back to in-memory storage for local development if Upstash is not configured.
  *
+ * Supports role-based tiered limits:
+ * - Regular users: Base limit (1x)
+ * - CONTRIBUTOR: 5x base limit
+ * - ADMIN: 50x base limit
+ * - SUPER_ADMIN: 100x base limit
+ *
  * Environment Variables Required:
  * - UPSTASH_REDIS_REST_URL: Your Upstash Redis REST URL
  * - UPSTASH_REDIS_REST_TOKEN: Your Upstash Redis REST token
@@ -17,6 +23,17 @@ import { Redis } from '@upstash/redis'
 
 // In-memory fallback for development
 const rateLimitMap = new Map<string, number[]>()
+
+// User roles (matching your database schema)
+type UserRole = 'USER' | 'CONTRIBUTOR' | 'ADMIN' | 'SUPER_ADMIN'
+
+// Role-based rate limit multipliers
+const ROLE_MULTIPLIERS: Record<UserRole, number> = {
+  USER: 1,           // Base rate limit
+  CONTRIBUTOR: 5,    // 5x higher limits
+  ADMIN: 50,         // 50x higher limits
+  SUPER_ADMIN: 100   // 100x higher limits (effectively unlimited for most use cases)
+}
 
 interface RateLimitOptions {
   windowMs?: number
@@ -74,21 +91,40 @@ function getRedisClient(): Redis | null {
 }
 
 /**
- * Create an Upstash Ratelimit instance
+ * Cache of Upstash Ratelimit instances per role tier
+ * Key format: `${windowMs}:${max}:${role}`
  */
-function createUpstashRateLimit(windowMs: number, max: number) {
+const upstashLimiterCache = new Map<string, Ratelimit>()
+
+/**
+ * Create an Upstash Ratelimit instance (with caching for role tiers)
+ */
+function createUpstashRateLimit(windowMs: number, max: number, role: UserRole = 'USER') {
   const redis = getRedisClient()
   if (!redis) return null
+
+  // Apply role multiplier
+  const adjustedMax = max * ROLE_MULTIPLIERS[role]
+
+  // Check cache first
+  const cacheKey = `${windowMs}:${max}:${role}`
+  const cached = upstashLimiterCache.get(cacheKey)
+  if (cached) return cached
 
   // Convert windowMs to seconds for Upstash
   const windowSeconds = Math.ceil(windowMs / 1000)
 
-  return new Ratelimit({
+  const limiter = new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(max, `${windowSeconds} s`),
+    limiter: Ratelimit.slidingWindow(adjustedMax, `${windowSeconds} s`),
     analytics: true,
-    prefix: 'ratelimit'
+    prefix: `ratelimit:${role.toLowerCase()}`
   })
+
+  // Cache for future use
+  upstashLimiterCache.set(cacheKey, limiter)
+
+  return limiter
 }
 
 /**
@@ -98,10 +134,14 @@ function inMemoryRateLimit(
   identifier: string,
   windowMs: number,
   max: number,
-  message: string
+  message: string,
+  role: UserRole = 'USER'
 ): RateLimitResult {
   const now = Date.now()
   const windowStart = now - windowMs
+
+  // Apply role multiplier
+  const adjustedMax = max * ROLE_MULTIPLIERS[role]
 
   // Get existing requests for this identifier
   let requests = rateLimitMap.get(identifier) || []
@@ -110,7 +150,7 @@ function inMemoryRateLimit(
   requests = requests.filter(timestamp => timestamp > windowStart)
 
   // Check if we've exceeded the limit
-  if (requests.length >= max) {
+  if (requests.length >= adjustedMax) {
     const oldestRequest = requests[0]
     const resetTime = new Date(oldestRequest + windowMs)
 
@@ -128,12 +168,13 @@ function inMemoryRateLimit(
 
   return {
     success: true,
-    remaining: max - requests.length
+    remaining: adjustedMax - requests.length
   }
 }
 
 /**
  * Create a rate limiter with Upstash Redis (or in-memory fallback)
+ * Supports role-based tiered limits
  */
 export function createRateLimit(options: RateLimitOptions = {}) {
   const {
@@ -146,9 +187,7 @@ export function createRateLimit(options: RateLimitOptions = {}) {
   // Merge provided exempt users with environment variable users
   const allExemptUsers = [...exemptUsers, ...getExemptUsersFromEnv()]
 
-  // Try to create Upstash rate limiter
-  const upstashLimiter = createUpstashRateLimit(windowMs, max)
-  const usingUpstash = !!upstashLimiter
+  const usingUpstash = isUpstashConfigured()
 
   if (!usingUpstash) {
     console.warn(
@@ -157,32 +196,36 @@ export function createRateLimit(options: RateLimitOptions = {}) {
     )
   }
 
-  return async function rateLimit(identifier: string): Promise<RateLimitResult> {
+  return async function rateLimit(identifier: string, role: UserRole = 'USER'): Promise<RateLimitResult> {
     // Check if user is exempt from rate limiting
     if (allExemptUsers.includes(identifier)) {
       return {
         success: true,
-        remaining: max
+        remaining: max * ROLE_MULTIPLIERS[role]
       }
     }
 
     // Use Upstash if available
-    if (upstashLimiter) {
+    if (usingUpstash) {
       try {
-        const { success, remaining, reset } = await upstashLimiter.limit(identifier)
+        // Get or create limiter for this role tier
+        const limiter = createUpstashRateLimit(windowMs, max, role)
+        if (limiter) {
+          const { success, remaining, reset } = await limiter.limit(identifier)
 
-        if (!success) {
-          return {
-            success: false,
-            message,
-            resetTime: new Date(reset).toISOString(),
-            remaining: 0
+          if (!success) {
+            return {
+              success: false,
+              message,
+              resetTime: new Date(reset).toISOString(),
+              remaining: 0
+            }
           }
-        }
 
-        return {
-          success: true,
-          remaining
+          return {
+            success: true,
+            remaining
+          }
         }
       } catch (error) {
         console.error('[RATE LIMITER] Upstash error, falling back to in-memory:', error)
@@ -191,7 +234,7 @@ export function createRateLimit(options: RateLimitOptions = {}) {
     }
 
     // Fall back to in-memory rate limiting
-    return inMemoryRateLimit(identifier, windowMs, max, message)
+    return inMemoryRateLimit(identifier, windowMs, max, message, role)
   }
 }
 

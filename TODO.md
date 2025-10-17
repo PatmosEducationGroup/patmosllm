@@ -3,18 +3,22 @@
 ## 🔴 Critical Issues
 
 ### Production Blockers
-- [ ] **🚨 URGENT: Fix Rate Limiting** (BROKEN IN PRODUCTION)
-  - **Issue**: In-memory `Map()` doesn't work in serverless - each invocation gets new memory
-  - **Impact**: Rate limiting completely non-functional across serverless instances
-  - **Solution**: Implement Upstash Redis (packages already installed: `@upstash/ratelimit`, `@upstash/redis`)
-  - **Location**: `src/lib/rate-limiter.ts:15` (line with `const rateLimitMap = new Map()`)
-  - **Estimated Time**: 2-3 hours
-  - **Priority**: CRITICAL - Security vulnerability
+- [x] **✅ COMPLETE: Role-Based Tiered Rate Limiting** (2025-10-16)
+  - **Status**: Implemented Upstash Redis with role-based multipliers
+  - **Solution**:
+    - USER: 1x base limit (30 chat/5min, 100 upload/hour)
+    - CONTRIBUTOR: 5x limit (150 chat/5min, 500 upload/hour)
+    - ADMIN: 50x limit (1500 chat/5min, 5000 upload/hour)
+    - SUPER_ADMIN: 100x limit (3000 chat/5min, 10000 upload/hour)
+  - **Files Updated**: 8 API routes (chat, upload/*, question-assistant)
+  - **Security**: Authentication moved BEFORE rate limiting for role access
+  - **Ready**: Production-ready, tested with local development
 
-- [x] **✅ COMPLETE: Supabase Security Functions** (Previously Fixed)
-  - **Status**: All 18 database functions have secure `search_path=pg_catalog, pg_temp`
-  - **Verification**: Confirmed via SQL query on 2025-10-15
-  - **No Action Required**: Functions already properly secured
+- [x] **✅ COMPLETE: Supabase Security Functions** (2025-10-16)
+  - **Status**: All 32 database functions have secure `search_path=pg_catalog, pg_temp`
+  - **Verification**: Confirmed via SQL query on 2025-10-16 (all ✅ SECURE)
+  - **Fixed**: 13 remaining functions (11 with NULL config, 2 with incorrect search_path)
+  - **No Action Required**: All functions properly secured
 
 ### Phase 3 Migration - In Progress
 - [ ] **Complete Phase 3 manual testing**
@@ -124,6 +128,9 @@
 ## ✅ Recently Completed (Last 30 Days)
 
 ### October 2024
+- ✅ **Role-Based Tiered Rate Limiting** - Upstash Redis with 4-tier role multipliers (2025-10-16)
+- ✅ **Supabase Security Functions** - All 32 functions secured with `search_path=pg_catalog, pg_temp` (2025-10-16)
+- ✅ **Dependency Updates** - Updated @sentry/nextjs to 10.20.0, removed deprecated imports (2025-10-16)
 - ✅ **TypeScript Migration Complete** - All 5 critical JS files converted to TS (Oct 2024)
   - rate-limiter.ts, input-sanitizer.ts, get-identifier.ts, file-security.ts, env-validator.ts
 - ✅ **Testing Infrastructure Complete** - Vitest, Testing Library, 121 tests, CI/CD, Husky (Oct 2024)
@@ -141,4 +148,4 @@
 
 ---
 
-**Last Updated**: 2025-10-14
+**Last Updated**: 2025-10-16

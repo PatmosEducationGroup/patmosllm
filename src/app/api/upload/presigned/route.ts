@@ -9,17 +9,6 @@ import { logError } from '@/lib/logger'
 
 export async function POST(_request: NextRequest) {
   try {
-    // Rate limiting
-    const identifier = await getIdentifier(_request)
-    const rateLimitResult = await uploadRateLimit(identifier)
-    
-    if (!rateLimitResult.success) {
-      return NextResponse.json({
-        success: false,
-        error: rateLimitResult.message,
-      }, { status: 429 })
-    }
-
     // getCurrentUser() handles both Supabase and Clerk auth
     const user = await getCurrentUser()
     if (!user) {
@@ -34,6 +23,18 @@ export async function POST(_request: NextRequest) {
         { success: false, error: 'Only administrators and contributors can upload files' },
         { status: 403 }
       )
+    }
+
+    // Rate limiting - Role-based tiered limits (after auth)
+    // Regular: 100/hour, Contributor: 500/hour, Admin: 5000/hour, Super Admin: 10000/hour
+    const identifier = await getIdentifier(_request)
+    const rateLimitResult = await uploadRateLimit(identifier, user.role)
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json({
+        success: false,
+        error: rateLimitResult.message,
+      }, { status: 429 })
     }
 
     const { fileName, fileSize, mimeType } = await _request.json()

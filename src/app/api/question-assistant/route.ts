@@ -9,22 +9,25 @@ import { logError } from '@/lib/logger'
 export async function POST(_request: NextRequest) {
   try {
     // =================================================================
-    // RATE LIMITING & AUTHENTICATION
+    // AUTHENTICATION - getCurrentUser() handles both Supabase and Clerk auth
+    // =================================================================
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    // =================================================================
+    // RATE LIMITING - Role-based tiered limits (after auth)
+    // Regular: 30/5min, Contributor: 150/5min, Admin: 1500/5min, Super Admin: 3000/5min
     // =================================================================
     const identifier = await getIdentifier(_request)
-    const rateLimitResult = await chatRateLimit(identifier)
+    const rateLimitResult = await chatRateLimit(identifier, user.role)
 
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { error: rateLimitResult.message, resetTime: rateLimitResult.resetTime },
         { status: 429 }
       )
-    }
-
-    // getCurrentUser() handles both Supabase and Clerk auth
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
     // =================================================================

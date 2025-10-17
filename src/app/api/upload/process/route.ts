@@ -26,17 +26,6 @@ function cleanTextContent(content: string): string {
 
 export async function POST(_request: NextRequest) {
   try {
-    // RATE LIMITING - Check this FIRST
-    const identifier = await getIdentifier(_request)
-    const rateLimitResult = await uploadRateLimit(identifier)
-
-    if (!rateLimitResult.success) {
-      return NextResponse.json({
-        success: false,
-        error: rateLimitResult.message,
-      }, { status: 429 })
-    }
-
     // getCurrentUser() handles both Supabase and Clerk auth
     const user = await getCurrentUser()
     loggers.auth({
@@ -64,6 +53,18 @@ export async function POST(_request: NextRequest) {
         { success: false, error: 'Only administrators and contributors can upload files' },
         { status: 403 }
       )
+    }
+
+    // RATE LIMITING - Role-based tiered limits (after auth)
+    // Regular: 100/hour, Contributor: 500/hour, Admin: 5000/hour, Super Admin: 10000/hour
+    const identifier = await getIdentifier(_request)
+    const rateLimitResult = await uploadRateLimit(identifier, user.role)
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json({
+        success: false,
+        error: rateLimitResult.message,
+      }, { status: 429 })
     }
 
     // Get request data

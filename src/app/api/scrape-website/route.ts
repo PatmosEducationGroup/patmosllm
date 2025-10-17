@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as cheerio from 'cheerio'
 import puppeteer, { Browser } from 'puppeteer'
 import robotsParser from 'robots-parser'
-import { URL } from 'url'
 import { logger, loggers, logError } from '@/lib/logger'
 
 // Browser pool for efficient Puppeteer reuse

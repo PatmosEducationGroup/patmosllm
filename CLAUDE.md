@@ -193,11 +193,12 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 
 ### Current State
 - **Testing**: 121 tests (78% pass rate), CI/CD pipeline operational
-- **Security**: Sentry monitoring, structured logging (88% complete), TypeScript 100%, Upstash Redis rate limiting
-- **Known Issues**: 18 test failures, Supabase security script pending
+- **Security**: Sentry monitoring, structured logging (88% complete), TypeScript 100%, role-based tiered rate limiting (Upstash Redis), all 32 Supabase functions secured
+- **Known Issues**: 18 test failures
 
 **Recent Major Features** (see [`completed.md`](completed.md) for details):
-- Upstash Redis rate limiting (distributed rate limiting for serverless)
+- Role-based tiered rate limiting with Upstash Redis (4 role tiers: USER/CONTRIBUTOR/ADMIN/SUPER_ADMIN) - 2025-10-16
+- Supabase security hardening (all 32 functions secured with search_path) - 2025-10-16
 - GDPR Article 17 & 20 compliance (data export + account deletion)
 - Profile settings with email preference controls
 - AI document generation (PDF/PPTX/XLSX)
@@ -281,9 +282,9 @@ Display token usage and monthly cost in **4 prominent locations**:
 
 **See [`security-risks.md`](security-risks.md) for complete security assessment.**
 
-### ✅ Security Issues (All Resolved)
-1. **Rate limiting** - ✅ FIXED: Migrated to Upstash Redis with distributed rate limiting
-2. **Supabase security** - ✅ FIXED: Applied `search_path = ''` to all SECURITY DEFINER functions
+### ✅ Security Issues (All Resolved - 2025-10-16)
+1. **Rate limiting** - ✅ FIXED: Migrated to Upstash Redis with role-based tiered limits (USER/CONTRIBUTOR/ADMIN/SUPER_ADMIN multipliers)
+2. **Supabase security** - ✅ FIXED: All 32 database functions secured with `search_path=pg_catalog, pg_temp`
 
 ### ⚠️ Code Quality Issues
 1. **Large files** - `src/app/api/chat/route.ts` (1,276 lines), violates single responsibility principle
