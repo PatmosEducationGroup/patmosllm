@@ -1311,9 +1311,18 @@ controller.enqueue(encoder.encode(`data: ${JSON.stringify({
                 requestId
               }).catch(() => {}) // Silent failure - never block chat
 
-              // =================================================================
-              // PERFORMANCE METRICS - Log complete performance data
-              // =================================================================
+            } catch (_cacheError) {
+              // Silently tolerate cache/database errors - don't break chat
+            }
+
+            // =================================================================
+            // PERFORMANCE METRICS - Always log, even if cache/database failed
+            // Moved outside try-catch to ensure metrics are always captured
+            // =================================================================
+            try {
+              const estimatedPromptTokens = Math.ceil((systemPrompt.length + userMessage.length) / 4)
+              const estimatedCompletionTokens = Math.ceil(fullResponse.length / 4)
+
               const perfMetrics = buildPerformanceMetrics(
                 timings,
                 currentUserId,
@@ -1340,8 +1349,12 @@ controller.enqueue(encoder.encode(`data: ${JSON.stringify({
                   ttlt: perfMetrics.ttlt
                 }
               }, 'Chat request completed - full performance metrics')
-
-            } catch (_cacheError) {
+            } catch (perfError) {
+              // Log error but don't fail
+              logError(perfError instanceof Error ? perfError : new Error('Performance logging failed'), {
+                userId: currentUserId,
+                sessionId
+              })
             }
           }
         }
