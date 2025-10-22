@@ -74,6 +74,38 @@ export async function POST(request: NextRequest) {
     }
 
     // =================================================================
+    // CLEANUP ORPHANED AUTH USER - Remove stale auth users from previous invitations
+    // =================================================================
+    // If a previous invitation was retracted but auth user wasn't cleaned up,
+    // we need to remove it before creating a new invitation
+    try {
+      const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+      const orphanedAuthUser = authUsers?.users?.find(
+        u => u.email?.toLowerCase() === email.toLowerCase()
+      )
+
+      if (orphanedAuthUser) {
+        // This is an orphaned auth user (exists in auth.users but not in users table
+        // and has no pending invitation). Delete it so we can create a fresh invitation.
+        await supabaseAdmin.auth.admin.deleteUser(orphanedAuthUser.id)
+
+        loggers.security({
+          operation: 'cleanup_orphaned_auth_user',
+          adminUserId: user.id,
+          orphanedAuthUserId: orphanedAuthUser.id,
+          email: email.toLowerCase()
+        }, 'Cleaned up orphaned auth user before creating new invitation')
+      }
+    } catch (cleanupError) {
+      // Log error but don't fail - we'll try to create invitation anyway
+      logError(cleanupError instanceof Error ? cleanupError : new Error('Auth cleanup failed'), {
+        operation: 'cleanup_orphaned_auth_user',
+        email: email.toLowerCase(),
+        severity: 'low'
+      })
+    }
+
+    // =================================================================
     // GENERATE TOKEN - Create secure invitation token
     // =================================================================
     const invitationToken = generateInvitationToken()
@@ -142,8 +174,14 @@ export async function POST(request: NextRequest) {
             inviteeEmail: email.toLowerCase()
           })
 
+          // Check if it's a rate limit error
+          const isRateLimitError = inviteError.message?.includes('rate limit')
+          const errorMessage = isRateLimitError
+            ? 'Email rate limit exceeded. Please wait a few minutes or uncheck "Send invitation email automatically" to generate a manual link instead.'
+            : 'Failed to send invitation email. Please try generating a manual link instead.'
+
           return NextResponse.json(
-            { success: false, error: 'Failed to send invitation email' },
+            { success: false, error: errorMessage },
             { status: 500 }
           )
         }
