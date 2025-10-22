@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     // =================================================================
     // INPUT VALIDATION - Get and validate invitation details
     // =================================================================
-    const { email, role = 'USER', sendEmail = true } = await request.json()
+    const { email, name, role = 'USER', sendEmail = true } = await request.json()
 
     if (!email || !email.includes('@')) {
       return NextResponse.json(
@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
       .from('invitation_tokens')
       .insert({
         email: email.toLowerCase(),
+        name: name || null,
         token: invitationToken,
         role: role,
         invited_by: user.id,
@@ -203,6 +204,7 @@ export async function POST(request: NextRequest) {
       invitation: {
         id: invitation.id,
         email: invitation.email,
+        name: invitation.name,
         role: invitation.role,
         expiresAt: invitation.expires_at,
         invitedBy: user.email
@@ -250,6 +252,7 @@ export async function GET(_request: NextRequest) {
       .select(`
         id,
         email,
+        name,
         role,
         token,
         expires_at,
@@ -274,6 +277,7 @@ export async function GET(_request: NextRequest) {
     const formattedInvitations = invitations.map(inv => ({
       id: inv.id,
       email: inv.email,
+      name: inv.name,
       role: inv.role,
       token: inv.token,
       expiresAt: inv.expires_at,

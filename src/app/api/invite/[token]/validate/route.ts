@@ -20,25 +20,25 @@ export async function GET(
     }
 
     // =================================================================
-    // LOOKUP INVITATION - Find invitation by token in users table
+    // LOOKUP INVITATION - Find invitation by token in invitation_tokens table
     // =================================================================
-    const { data: user, error: lookupError } = await supabaseAdmin
-      .from('users')
+    const { data: invitation, error: lookupError } = await supabaseAdmin
+      .from('invitation_tokens')
       .select(`
         id,
         email,
         name,
         role,
-        invitation_token,
-        invitation_expires_at,
-        auth_user_id,
+        token,
+        expires_at,
+        accepted_at,
         invited_by,
         inviter:invited_by(email, name)
       `)
-      .eq('invitation_token', token)
+      .eq('token', token)
       .single()
 
-    if (lookupError || !user) {
+    if (lookupError || !invitation) {
       loggers.security({
         operation: 'validate_invitation_token',
         token,
@@ -54,7 +54,7 @@ export async function GET(
     // =================================================================
     // CHECK ACCEPTANCE STATUS - Verify invitation hasn't been used
     // =================================================================
-    if (user.auth_user_id) {
+    if (invitation.accepted_at) {
       return NextResponse.json(
         { success: false, error: 'This invitation has already been accepted' },
         { status: 400 }
@@ -65,21 +65,22 @@ export async function GET(
     // CHECK EXPIRATION - Verify invitation hasn't expired
     // =================================================================
     const now = new Date()
-    const expiresAt = new Date(user.invitation_expires_at)
+    const expiresAt = new Date(invitation.expires_at)
     const isExpired = expiresAt < now
 
     // =================================================================
     // SUCCESS RESPONSE - Return invitation details
     // =================================================================
-    const inviterInfo = user.inviter as { email?: string; name?: string }
+    const inviterInfo = invitation.inviter as { email?: string; name?: string }
 
     return NextResponse.json({
       success: true,
       invitation: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        expiresAt: user.invitation_expires_at,
+        id: invitation.id,
+        email: invitation.email,
+        name: invitation.name,
+        role: invitation.role,
+        expiresAt: invitation.expires_at,
         expired: isExpired,
         invitedBy: inviterInfo?.name || inviterInfo?.email || 'Administrator'
       }

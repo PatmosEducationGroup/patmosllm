@@ -85,6 +85,7 @@ export default function AdminUsersPage() {
 
   // Form state
   const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
   const [inviteRole, setInviteRole] = useState('USER')
   const [sendEmail, setSendEmail] = useState(true)
   const [generatedInviteUrl, setGeneratedInviteUrl] = useState<string | null>(null)
@@ -368,6 +369,7 @@ setError(userToDelete.isActive ? 'Failed to delete user' : 'Failed to retract in
         },
         body: JSON.stringify({
           email: inviteEmail.trim(),
+          name: inviteName.trim() || undefined,
           role: inviteRole,
           sendEmail: sendEmail
         })
@@ -384,6 +386,7 @@ setError(userToDelete.isActive ? 'Failed to delete user' : 'Failed to retract in
         // Don't close form if email wasn't sent (show the link)
         if (sendEmail) {
           setInviteEmail('')
+          setInviteName('')
           setInviteRole('USER')
           setSendEmail(true)
           setShowInviteForm(false)
@@ -428,6 +431,7 @@ setError('Failed to invite user')
   const closeInviteForm = () => {
     setShowInviteForm(false)
     setInviteEmail('')
+    setInviteName('')
     setInviteRole('USER')
     setSendEmail(true)
     setGeneratedInviteUrl(null)
@@ -658,19 +662,29 @@ setError('Failed to resend invitation')
                     size="sm"
                   />
                 </div>
-                <div style={{ maxWidth: '200px' }}>
-                  <Select
-                    label="Role"
-                    value={inviteRole}
-                    onValueChange={setInviteRole}
-                    options={[
-                      { value: 'USER', label: 'User (Chat only)' },
-                      { value: 'CONTRIBUTOR', label: 'Contributor (Chat + Upload)' },
-                      { value: 'ADMIN', label: 'Admin (Full access)' }
-                    ]}
+                <div>
+                  <Input
+                    label="Name (Optional)"
+                    type="text"
+                    value={inviteName}
+                    onChange={(e) => setInviteName(e.target.value)}
+                    placeholder="John Doe"
                     size="sm"
                   />
                 </div>
+              </div>
+              <div style={{ maxWidth: '200px' }}>
+                <Select
+                  label="Role"
+                  value={inviteRole}
+                  onValueChange={setInviteRole}
+                  options={[
+                    { value: 'USER', label: 'User (Chat only)' },
+                    { value: 'CONTRIBUTOR', label: 'Contributor (Chat + Upload)' },
+                    { value: 'ADMIN', label: 'Admin (Full access)' }
+                  ]}
+                  size="sm"
+                />
               </div>
 
               <div>
