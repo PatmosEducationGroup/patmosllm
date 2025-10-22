@@ -37,15 +37,15 @@ export async function POST(request: NextRequest) {
     }
 
     // =================================================================
-    // LOOKUP INVITATION - Validate invitation token in users table
+    // LOOKUP INVITATION - Validate invitation token in invitation_tokens table
     // =================================================================
-    const { data: invitedUser, error: lookupError } = await supabaseAdmin
-      .from('users')
-      .select('id, email, role, invitation_token, invitation_expires_at, auth_user_id, invited_by')
-      .eq('invitation_token', token)
+    const { data: invitation, error: lookupError } = await supabaseAdmin
+      .from('invitation_tokens')
+      .select('id, email, name, role, token, expires_at, accepted_at, invited_by')
+      .eq('token', token)
       .single()
 
-    if (lookupError || !invitedUser) {
+    if (lookupError || !invitation) {
       return NextResponse.json(
         { success: false, error: 'Invalid invitation token' },
         { status: 404 }
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     // VALIDATE INVITATION STATUS
     // =================================================================
     const now = new Date()
-    const expiresAt = new Date(invitedUser.invitation_expires_at)
+    const expiresAt = new Date(invitation.expires_at)
 
     if (expiresAt < now) {
       return NextResponse.json(
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (invitedUser.auth_user_id) {
+    if (invitation.accepted_at) {
       return NextResponse.json(
         { success: false, error: 'Invitation has already been accepted' },
         { status: 400 }
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     // Try to find existing auth user by email
     const { data: existingAuthUsers } = await supabaseAdmin.auth.admin.listUsers()
     const existingAuthUser = existingAuthUsers?.users?.find(
-      u => u.email?.toLowerCase() === invitedUser.email.toLowerCase()
+      u => u.email?.toLowerCase() === invitation.email.toLowerCase()
     )
 
     if (existingAuthUser) {
@@ -98,8 +98,8 @@ export async function POST(request: NextRequest) {
           password: password,
           email_confirm: true,
           user_metadata: {
-            role: invitedUser.role,
-            invited_by: invitedUser.invited_by,
+            role: invitation.role,
+            invited_by: invitation.invited_by,
             invitation_accepted_at: new Date().toISOString()
           }
         }
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         logError(updateError, {
           operation: 'update_auth_user_password',
-          email: invitedUser.email,
+          email: invitation.email,
           authUserId
         })
         return NextResponse.json(
@@ -119,19 +119,19 @@ export async function POST(request: NextRequest) {
 
       loggers.security({
         operation: 'auth_user_password_set',
-        email: invitedUser.email,
+        email: invitation.email,
         authUserId
       }, 'Password set for existing auth user')
 
     } else {
       // User doesn't exist yet - create new auth user
       const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: invitedUser.email.toLowerCase(),
+        email: invitation.email.toLowerCase(),
         password: password,
         email_confirm: true,
         user_metadata: {
-          role: invitedUser.role,
-          invited_by: invitedUser.invited_by,
+          role: invitation.role,
+          invited_by: invitation.invited_by,
           invitation_accepted_at: new Date().toISOString()
         }
       })
@@ -139,8 +139,8 @@ export async function POST(request: NextRequest) {
       if (authError || !authUser.user) {
         logError(authError || new Error('Failed to create auth user'), {
           operation: 'create_supabase_auth_user',
-          email: invitedUser.email,
-          role: invitedUser.role
+          email: invitation.email,
+          role: invitation.role
         })
         return NextResponse.json(
           { success: false, error: 'Failed to create account. Please try again.' },
@@ -152,21 +152,24 @@ export async function POST(request: NextRequest) {
 
       loggers.security({
         operation: 'supabase_auth_user_created',
-        email: invitedUser.email,
-        role: invitedUser.role,
+        email: invitation.email,
+        role: invitation.role,
         authUserId
       }, 'Supabase Auth user created successfully')
     }
 
     // =================================================================
-    // UPDATE USER RECORD - Link auth user and store GDPR consent
+    // CREATE USER RECORD - Create new user in users table with GDPR consent
     // =================================================================
-    // The user record already exists (created when invitation was sent)
-    // We just need to link it to the Supabase Auth account
-    const { data: updatedUser, error: userError } = await supabaseAdmin
+    // Create a new user record linked to the Supabase Auth account
+    const { data: createdUser, error: userError } = await supabaseAdmin
       .from('users')
-      .update({
+      .insert({
         auth_user_id: authUserId, // CRITICAL: Link to auth.users
+        email: invitation.email.toLowerCase(),
+        name: invitation.name || null,
+        role: invitation.role,
+        invited_by: invitation.invited_by,
 
         // GDPR Phase 7: Store consent capture at signup
         age_confirmed: consents.age_confirmed,
@@ -175,21 +178,19 @@ export async function POST(request: NextRequest) {
         cookies_accepted_at: consents.cookies_accepted ? consents.consent_timestamp : null,
         consent_version: '1.0' // Track which version of T&C/Privacy they agreed to
       })
-      .eq('id', invitedUser.id)
       .select()
       .single()
 
-    if (userError || !updatedUser) {
-      // Rollback: Delete auth user if database update fails (only if we just created them)
+    if (userError || !createdUser) {
+      // Rollback: Delete auth user if database insert fails (only if we just created them)
       if (!existingAuthUser) {
         await supabaseAdmin.auth.admin.deleteUser(authUserId)
       }
 
-      logError(userError || new Error('Failed to update user record'), {
-        operation: 'update_user_record',
-        email: invitedUser.email,
-        authUserId,
-        userId: invitedUser.id
+      logError(userError || new Error('Failed to create user record'), {
+        operation: 'create_user_record',
+        email: invitation.email,
+        authUserId
       })
 
       return NextResponse.json(
@@ -199,21 +200,20 @@ export async function POST(request: NextRequest) {
     }
 
     // =================================================================
-    // MARK INVITATION ACCEPTED - Update user_sent_invitations_log
+    // MARK INVITATION ACCEPTED - Update invitation_tokens table
     // =================================================================
     const { error: updateError } = await supabaseAdmin
-      .from('user_sent_invitations_log')
+      .from('invitation_tokens')
       .update({
-        status: 'accepted',
         accepted_at: new Date().toISOString()
       })
-      .eq('invited_user_id', invitedUser.id)
-      .eq('status', 'pending')
+      .eq('id', invitation.id)
 
     if (updateError) {
       logError(updateError, {
         operation: 'mark_invitation_accepted',
-        userId: updatedUser.id
+        invitationId: invitation.id,
+        userId: createdUser.id
       })
       // Don't fail the request - user was created successfully
     }
@@ -222,11 +222,11 @@ export async function POST(request: NextRequest) {
     // ONBOARDING MILESTONE - Track invitation acceptance
     // =================================================================
     await trackOnboardingMilestone({
-      clerkUserId: updatedUser.id,
+      clerkUserId: createdUser.id,
       milestone: 'invited', // Use existing milestone type
       metadata: {
         invitation_token: token,
-        role: updatedUser.role,
+        role: createdUser.role,
         invitation_accepted: true,
         acceptance_timestamp: new Date().toISOString(),
         consents_captured: {
@@ -240,10 +240,10 @@ export async function POST(request: NextRequest) {
 
     loggers.security({
       operation: 'invitation_accepted',
-      userId: updatedUser.id,
-      email: updatedUser.email,
-      role: updatedUser.role,
-      invitedBy: updatedUser.invited_by,
+      userId: createdUser.id,
+      email: createdUser.email,
+      role: createdUser.role,
+      invitedBy: createdUser.invited_by,
       consents: {
         age_confirmed: consents.age_confirmed,
         terms_accepted: consents.terms_accepted,
@@ -259,9 +259,9 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Account created successfully. Please sign in.',
       user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        role: updatedUser.role
+        id: createdUser.id,
+        email: createdUser.email,
+        role: createdUser.role
       }
     })
 
