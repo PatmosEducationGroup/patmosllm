@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
+import { WaitlistModal } from '@/components/WaitlistModal'
 import {
   Heart,
   Church,
@@ -116,6 +117,7 @@ export default function LandingPage() {
   const { isLoaded, userId } = useAuth()
   const router = useRouter()
   const [canAdmin, setCanAdmin] = useState(false)
+  const [showWaitlistModal, setShowWaitlistModal] = useState(false)
 
   // Randomly select 3 questions from the pool on each page load
   const selectedQuestions = useMemo(() => {
@@ -225,19 +227,26 @@ export default function LandingPage() {
       </header>
 
       {/* Beta Banner */}
-      <div className="relative bg-gradient-to-r from-primary-500 to-primary-600 text-white text-sm py-3 px-4 overflow-hidden">
+      <div className="relative bg-gradient-to-r from-primary-500 to-primary-600 text-white text-sm py-4 px-4 overflow-hidden">
         <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
-        <div className="relative flex items-center justify-center gap-3 flex-wrap">
-          <span className="bg-secondary-400 text-neutral-800 px-3 py-1 rounded-full text-xs font-bold tracking-wider">
-            BETA
-          </span>
-          <span className="text-center">This system is in beta testing - Your feedback helps us improve</span>
-          <a
-            href="mailto:feedback@multiplytools.app"
-            className="bg-gradient-to-r from-white/20 to-white/10 hover:from-white/30 hover:to-white/20 px-4 py-2 rounded-lg font-semibold border border-white/30 text-white cursor-pointer transition-all duration-200 min-h-[36px]"
-          >
-            Share Feedback
-          </a>
+        <div className="relative flex flex-col items-center justify-center gap-2 text-center">
+          <div className="flex items-center gap-3 flex-wrap justify-center">
+            <span className="bg-secondary-400 text-neutral-800 px-3 py-1 rounded-full text-xs font-bold tracking-wider">
+              BETA
+            </span>
+            <span>This system is in beta testing - Your feedback helps us improve</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+            <span className="text-white/90">
+              Our system is currently in invitation-only mode. To receive an invitation and be notified when we open to all,
+            </span>
+            <button
+              onClick={() => setShowWaitlistModal(true)}
+              className="bg-gradient-to-r from-white/90 to-white/80 hover:from-white hover:to-white/90 px-4 py-2 rounded-lg font-semibold text-primary-600 cursor-pointer transition-all duration-200 min-h-[36px] shadow-lg hover:shadow-xl"
+            >
+              sign up here
+            </button>
+          </div>
         </div>
       </div>
 
@@ -385,6 +394,12 @@ export default function LandingPage() {
           )}
         </div>
       </div>
+
+      {/* Waitlist Modal */}
+      <WaitlistModal
+        isOpen={showWaitlistModal}
+        onClose={() => setShowWaitlistModal(false)}
+      />
     </div>
   )
 }
