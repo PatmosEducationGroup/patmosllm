@@ -84,10 +84,13 @@ export async function POST(request: NextRequest) {
         const cookie = [
           `${name}=${value}`,
           `Path=${options?.path ?? '/'}`,
-          'HttpOnly',
+          // ✅ FIX: Don't force HttpOnly - let Supabase decide (needed for client refresh)
+          options?.httpOnly ? 'HttpOnly' : '',
           `SameSite=${options?.sameSite ?? 'Lax'}`,
-          options?.secure ? 'Secure' : '',
-          options?.maxAge ? `Max-Age=${options.maxAge}` : '',
+          // ✅ FIX: Always Secure in production
+          process.env.NODE_ENV === 'production' ? 'Secure' : (options?.secure ? 'Secure' : ''),
+          // ✅ FIX: Default MaxAge to 1 year
+          `Max-Age=${options?.maxAge ?? 60 * 60 * 24 * 365}`,
           options?.domain ? `Domain=${options.domain}` : ''
         ]
           .filter(Boolean)

@@ -56,21 +56,67 @@ export async function POST(request: NextRequest) {
     }
 
     // =================================================================
-    // CHECK PENDING INVITATION - Ensure no pending invitation exists
+    // CHECK EXISTING INVITATION - Ensure no invitation exists (any status)
     // =================================================================
     const { data: existingInvitation } = await supabaseAdmin
       .from('invitation_tokens')
-      .select('id, email, expires_at, accepted_at')
+      .select('id, email, expires_at, accepted_at, role')
       .eq('email', email.toLowerCase())
-      .is('accepted_at', null)
-      .gt('expires_at', new Date().toISOString())
       .single()
 
     if (existingInvitation) {
-      return NextResponse.json(
-        { success: false, error: 'An active invitation already exists for this email' },
-        { status: 400 }
-      )
+      const isExpired = new Date(existingInvitation.expires_at) < new Date()
+      const isAccepted = !!existingInvitation.accepted_at
+      const isPending = !isAccepted && !isExpired
+
+      if (isPending) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'An active invitation already exists for this email. Please delete or resend the existing invitation instead.'
+          },
+          { status: 409 }
+        )
+      } else if (isAccepted) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'This email has already accepted an invitation. Delete the old invitation record first if you need to send a new one.'
+          },
+          { status: 409 }
+        )
+      } else if (isExpired) {
+        // Auto-delete expired invitation and continue with creating new one
+        const { error: deleteError } = await supabaseAdmin
+          .from('invitation_tokens')
+          .delete()
+          .eq('id', existingInvitation.id)
+
+        if (deleteError) {
+          logError(deleteError, {
+            operation: 'auto_delete_expired_invitation',
+            adminUserId: user.id,
+            invitationId: existingInvitation.id,
+            email: email.toLowerCase()
+          })
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'An expired invitation exists for this email, but automatic cleanup failed. Please contact support.'
+            },
+            { status: 500 }
+          )
+        }
+
+        loggers.security({
+          operation: 'auto_delete_expired_invitation',
+          adminUserId: user.id,
+          invitationId: existingInvitation.id,
+          email: email.toLowerCase()
+        }, 'Auto-deleted expired invitation before creating new one')
+
+        // Continue with creating new invitation (don't return here)
+      }
     }
 
     // =================================================================
@@ -135,6 +181,18 @@ export async function POST(request: NextRequest) {
         inviteeEmail: email.toLowerCase(),
         inviteeRole: role
       })
+
+      // Check if it's a duplicate key violation (PostgreSQL error code 23505)
+      if (insertError.code === '23505') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'An invitation for this email already exists. Please delete the existing invitation first or use the resend feature.'
+          },
+          { status: 409 } // 409 Conflict
+        )
+      }
+
       return NextResponse.json(
         { success: false, error: 'Failed to create invitation' },
         { status: 500 }
@@ -231,11 +289,16 @@ export async function POST(request: NextRequest) {
     // =================================================================
     const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}/accept`
 
+    // Check if we auto-deleted an expired invitation (for success message)
+    const autoDeletedExpired = existingInvitation && new Date(existingInvitation.expires_at) < new Date()
+
     return NextResponse.json({
       success: true,
-      message: sendEmail
-        ? `Invitation sent to ${email}. They will receive an email with a secure setup link.`
-        : `Invitation created for ${email}. Copy the link below to share manually.`,
+      message: autoDeletedExpired
+        ? `Previous expired invitation was automatically deleted. New invitation ${sendEmail ? 'sent' : 'created'} successfully.`
+        : sendEmail
+          ? `Invitation sent to ${email}. They will receive an email with a secure setup link.`
+          : `Invitation created for ${email}. Copy the link below to share manually.`,
       invitationToken: invitationToken,
       invitationUrl: invitationUrl,
       emailSent: sendEmail,

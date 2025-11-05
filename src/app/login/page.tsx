@@ -12,6 +12,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,24 @@ function LoginForm() {
   const [successMessage, setSuccessMessage] = useState('')
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      const supabase = createClient()
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
+
+      if (session?.user) {
+        // User is already logged in, redirect to chat
+        console.log('[Login] User already logged in, redirecting to /chat')
+        router.push('/chat')
+      }
+    }
+
+    checkSession()
+  }, [router])
 
   useEffect(() => {
     // Check for migration success

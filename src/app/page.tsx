@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { WaitlistModal } from '@/components/WaitlistModal'
+import { createClient } from '@/lib/supabase-client'
 import {
   Heart,
   Church,
@@ -114,15 +115,37 @@ const ALL_QUESTION_OPTIONS = [
 ]
 
 export default function LandingPage() {
-  const { isLoaded, userId } = useAuth()
+  const { isLoaded, userId: clerkUserId } = useAuth()
   const router = useRouter()
+  const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null)
   const [canAdmin, setCanAdmin] = useState(false)
   const [showWaitlistModal, setShowWaitlistModal] = useState(false)
+  const [authLoaded, setAuthLoaded] = useState(false)
+
+  // Determine which user ID to use (Supabase takes precedence over Clerk)
+  const userId = supabaseUserId || clerkUserId
 
   // Randomly select 3 questions from the pool on each page load
   const selectedQuestions = useMemo(() => {
     const shuffled = [...ALL_QUESTION_OPTIONS].sort(() => 0.5 - Math.random())
     return shuffled.slice(0, 3)
+  }, [])
+
+  // Check for Supabase session on mount
+  useEffect(() => {
+    const checkSupabaseSession = async () => {
+      const supabase = createClient()
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
+
+      if (session?.user) {
+        setSupabaseUserId(session.user.id)
+      }
+      setAuthLoaded(true)
+    }
+
+    checkSupabaseSession()
   }, [])
 
   // Check if user has admin access
@@ -139,7 +162,7 @@ export default function LandingPage() {
 
   // Handle question button clicks
   const handleQuestionClick = (question: string) => {
-    if (!isLoaded) return
+    if (!isLoaded || !authLoaded) return
 
     if (userId) {
       // User is authenticated, navigate to chat with the question
@@ -154,7 +177,7 @@ export default function LandingPage() {
 
 
   // Loading state
-  if (!isLoaded) {
+  if (!isLoaded || !authLoaded) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
         <div className="text-center">

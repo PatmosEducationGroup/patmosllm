@@ -35,10 +35,22 @@ export async function POST(request: NextRequest) {
           `SameSite=${options?.sameSite ?? 'Lax'}`
         ]
 
-        // Only add these if explicitly set
-        if (options?.secure) cookieParts.push('Secure')
-        if (options?.httpOnly) cookieParts.push('HttpOnly')
-        if (options?.maxAge) cookieParts.push(`Max-Age=${options.maxAge}`)
+        // ✅ FIX: Always enforce Secure flag in production
+        if (process.env.NODE_ENV === 'production') {
+          cookieParts.push('Secure')
+        } else if (options?.secure) {
+          cookieParts.push('Secure')
+        }
+
+        // ✅ Respect Supabase's httpOnly settings (needed for client-side refresh)
+        if (options?.httpOnly) {
+          cookieParts.push('HttpOnly')
+        }
+
+        // ✅ FIX: Set default MaxAge if not provided (1 year)
+        const maxAge = options?.maxAge ?? 60 * 60 * 24 * 365
+        cookieParts.push(`Max-Age=${maxAge}`)
+
         if (options?.domain) cookieParts.push(`Domain=${options.domain}`)
 
         responseHeaders.append('Set-Cookie', cookieParts.join('; '))

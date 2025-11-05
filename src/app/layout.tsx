@@ -2,6 +2,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { AuthRefreshHandler } from '@/components/AuthRefreshHandler'
 import Footer from '@/components/Footer'
 import CookieConsentBanner from '@/components/CookieConsentBanner'
 import './globals.css'
@@ -44,12 +45,14 @@ export default function RootLayout({
           <meta name="theme-color" content="#000000" />
         </head>
         <body className={inter.className}>
-          <ErrorBoundary>
-            {children}
-            <Footer />
-            <CookieConsentBanner />
-            <Analytics />
-          </ErrorBoundary>
+          <AuthRefreshHandler>
+            <ErrorBoundary>
+              {children}
+              <Footer />
+              <CookieConsentBanner />
+              <Analytics />
+            </ErrorBoundary>
+          </AuthRefreshHandler>
         </body>
       </html>
     </ClerkProvider>
