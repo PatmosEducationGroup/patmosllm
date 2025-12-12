@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { logError } from '@/lib/logger'
-// Clerk hooks removed - now using session-based auth
 import { Modal } from '@/components/ui/Modal'
 import {
   FileText,

@@ -153,7 +153,7 @@ export default function AcceptInvitationPage() {
           localStorage.setItem('cookie_consent_timestamp', new Date().toISOString())
         }
 
-        // Success! Redirect to Supabase login (not Clerk)
+        // Success! Redirect to login
         router.push('/login?message=Account created successfully. Please sign in.')
       } else {
         setError(data.error || 'Failed to create account')

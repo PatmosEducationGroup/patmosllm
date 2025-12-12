@@ -9,7 +9,7 @@ import { logError } from '@/lib/logger'
 
 export async function POST(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(

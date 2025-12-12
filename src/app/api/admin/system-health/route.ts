@@ -7,7 +7,7 @@ import { getCurrentUser } from '@/lib/auth'
 
 export async function GET(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
@@ -24,7 +24,7 @@ export async function GET(_request: NextRequest) {
       // Database stats with connection pooling
       withSupabaseAdmin(async (supabase) => {
         const [usersResult, documentsResult, conversationsResult, userContextResult, conversationMemoryResult, topicProgressionResult] = await Promise.all([
-          supabase.from('users').select('id, created_at, clerk_id').limit(1000),
+          supabase.from('users').select('id, created_at, auth_user_id').limit(1000),
           supabase.from('documents').select('id, file_size, created_at').limit(1000),
           supabase.from('conversations').select('id, created_at').limit(1000),
           supabase.from('user_context').select('user_id, updated_at, current_session_topics, topic_familiarity').limit(1000),
@@ -45,7 +45,7 @@ export async function GET(_request: NextRequest) {
 
     // Calculate statistics from pooled database results
     const totalUsers = dbStats.usersResult.data?.length || 0
-    const activeUsers = dbStats.usersResult.data?.filter(u => !u.clerk_id || !u.clerk_id.startsWith('invited_')).length || 0
+    const activeUsers = dbStats.usersResult.data?.filter(u => u.auth_user_id !== null).length || 0
     const pendingUsers = totalUsers - activeUsers
 
     const totalDocuments = dbStats.documentsResult.data?.length || 0

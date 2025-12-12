@@ -1,4 +1,3 @@
-import { ClerkProvider } from '@clerk/nextjs'
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -7,7 +6,7 @@ import Footer from '@/components/Footer'
 import CookieConsentBanner from '@/components/CookieConsentBanner'
 import './globals.css'
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ['latin'],
   display: 'block',
   preload: false,
@@ -35,26 +34,20 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <ClerkProvider
-      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      signInUrl="/sign-in"
-      signInFallbackRedirectUrl="/chat"
-    >
-      <html lang="en">
-        <head>
-          <meta name="theme-color" content="#000000" />
-        </head>
-        <body className={inter.className}>
-          <AuthRefreshHandler>
-            <ErrorBoundary>
-              {children}
-              <Footer />
-              <CookieConsentBanner />
-              <Analytics />
-            </ErrorBoundary>
-          </AuthRefreshHandler>
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en">
+      <head>
+        <meta name="theme-color" content="#000000" />
+      </head>
+      <body className={inter.className}>
+        <AuthRefreshHandler>
+          <ErrorBoundary>
+            {children}
+            <Footer />
+            <CookieConsentBanner />
+            <Analytics />
+          </ErrorBoundary>
+        </AuthRefreshHandler>
+      </body>
+    </html>
   )
 }

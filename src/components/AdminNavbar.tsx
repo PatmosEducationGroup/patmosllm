@@ -1,9 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { UserButton } from '@clerk/nextjs'
-// Clerk useAuth removed - now using session-based auth
+import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import {
   MessageCircle,
@@ -13,7 +11,9 @@ import {
   TrendingUp,
   Rocket,
   AlertCircle,
-  Gift
+  Gift,
+  LogOut,
+  User
 } from 'lucide-react'
 
 interface AdminNavbarProps {
@@ -22,7 +22,10 @@ interface AdminNavbarProps {
 
 export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [userRole, setUserRole] = useState<string>(propUserRole || 'USER')
+  const [userName, setUserName] = useState<string>('')
+  const [loggingOut, setLoggingOut] = useState(false)
 
   useEffect(() => {
     // If userRole prop is provided, use it
@@ -45,6 +48,7 @@ export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps
           const data = await response.json()
           if (data.success && data.user?.role) {
             setUserRole(data.user.role)
+            setUserName(data.user.name || data.user.email || '')
           }
         }
       } catch (error) {
@@ -55,6 +59,19 @@ export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps
 
     fetchUserRole()
   }, [propUserRole])
+
+  const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await fetch('/api/auth/signout', { method: 'POST' })
+      router.push('/')
+    } catch {
+      router.push('/')
+    } finally {
+      setLoggingOut(false)
+    }
+  }
 
   const allNavItems = [
     { href: '/chat', label: 'Chat', icon: MessageCircle, roles: ['USER', 'CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'] },
@@ -148,7 +165,7 @@ export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps
             {navItems.map((item) => {
               const Icon = item.icon
               const active = isActive(item.href)
-              
+
               return (
                 <Link
                   key={item.href}
@@ -163,8 +180,8 @@ export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps
                     fontSize: '14px',
                     fontWeight: '500',
                     transition: 'all 0.2s',
-                    background: active 
-                      ? 'linear-gradient(135deg, rgb(130, 179, 219) 0%, #5a9bd4 100%)' 
+                    background: active
+                      ? 'linear-gradient(135deg, rgb(130, 179, 219) 0%, #5a9bd4 100%)'
                       : 'transparent',
                     color: active ? 'white' : '#64748b',
                     boxShadow: active ? '0 4px 12px rgba(130, 179, 219, 0.3)' : 'none',
@@ -196,15 +213,15 @@ export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps
           {/* User Info and Avatar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ 
-                fontSize: '14px', 
-                fontWeight: '500', 
-                color: '#1e293b' 
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#1e293b'
               }}>
-                Admin Panel
+                {userName || 'Admin Panel'}
               </div>
-              <div style={{ 
-                fontSize: '12px', 
+              <div style={{
+                fontSize: '12px',
                 color: '#64748b',
                 display: 'flex',
                 alignItems: 'center',
@@ -222,13 +239,64 @@ export default function AdminNavbar({ userRole: propUserRole }: AdminNavbarProps
                 Online
               </div>
             </div>
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: 'w-10 h-10 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200'
+            <Link
+              href="/settings"
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)'
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)'
+              }}
+            >
+              <User size={20} />
+            </Link>
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                background: 'white',
+                color: '#64748b',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: loggingOut ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                opacity: loggingOut ? 0.5 : 1,
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                if (!loggingOut) {
+                  e.currentTarget.style.borderColor = '#cbd5e1'
+                  e.currentTarget.style.color = '#1e293b'
                 }
               }}
-            />
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#e2e8f0'
+                e.currentTarget.style.color = '#64748b'
+              }}
+            >
+              <LogOut size={16} />
+              {loggingOut ? 'Logging out...' : 'Logout'}
+            </button>
           </div>
         </div>
       </div>

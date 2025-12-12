@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { logError } from '@/lib/logger'
-// Clerk hooks removed - now using session-based auth
 import { useRouter } from 'next/navigation'
 import { validateFile } from '@/lib/clientValidation'
 import { Button } from '@/components/ui/Button'
@@ -207,8 +206,6 @@ function AdminPageContent() {
 
   // Check authentication and permissions
   useEffect(() => {
-    // PHASE 3: Support dual authentication (Supabase + Clerk)
-    // Let the API handle auth check instead of client-side Clerk check
     fetchUserData()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

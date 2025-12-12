@@ -3,10 +3,6 @@ import { POST } from '@/app/api/chat/route'
 import { NextRequest } from 'next/server'
 
 // Mock all external dependencies
-vi.mock('@clerk/nextjs/server', () => ({
-  auth: vi.fn(() => Promise.resolve({ userId: 'test-clerk-user-123' }))
-}))
-
 vi.mock('@/lib/supabase', () => ({
   withSupabaseAdmin: vi.fn((callback) => {
     const mockSupabase = {
@@ -79,7 +75,7 @@ vi.mock('@/lib/auth', () => ({
   getCurrentUser: vi.fn(() => Promise.resolve({
     id: 'test-user-uuid',
     email: 'test@example.com',
-    clerk_user_id: 'test-clerk-user-123'
+    auth_user_id: 'test-supabase-user-123'
   }))
 }))
 
@@ -205,9 +201,9 @@ describe('/api/chat - Integration Tests', () => {
   })
 
   it('should return 401 if user is not authenticated', async () => {
-    // Mock auth to return no userId
-    const { auth } = await import('@clerk/nextjs/server')
-    vi.mocked(auth).mockResolvedValueOnce({ userId: null } as unknown as ReturnType<typeof auth>)
+    // Mock getCurrentUser to return null (no authenticated user)
+    const { getCurrentUser } = await import('@/lib/auth')
+    vi.mocked(getCurrentUser).mockResolvedValueOnce(null)
 
     const request = new NextRequest('http://localhost:3000/api/chat', {
       method: 'POST',
@@ -501,7 +497,7 @@ describe('/api/chat - Integration Tests', () => {
 
     expect(trackOnboardingMilestone).toHaveBeenCalledWith(
       expect.objectContaining({
-        clerkUserId: 'test-clerk-user-123',
+        visitorId: 'test-supabase-user-123',
         milestone: 'first_chat'
       })
     )

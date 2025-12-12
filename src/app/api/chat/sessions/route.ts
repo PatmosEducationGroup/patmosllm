@@ -11,7 +11,7 @@ import { loggers, logError } from '@/lib/logger'
 // Get all chat sessions for user
 export async function GET(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(
@@ -100,7 +100,7 @@ export async function GET(_request: NextRequest) {
 // Create new chat session
 export async function POST(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(

@@ -7,7 +7,7 @@ import { processDocumentVectors } from '@/lib/ingest'
 // GET - Load ingest jobs for admin interface
 export async function GET(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(
@@ -61,7 +61,7 @@ return NextResponse.json(
 // POST - Start new ingest job
 export async function POST(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(

@@ -5,7 +5,7 @@ import {logger, loggers, logError} from '@/lib/logger'
 
 export async function GET(_request: NextRequest) {
   try {
-    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
+    // Get authenticated user
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(
@@ -98,7 +98,7 @@ return NextResponse.json(
 // Delete a document
 export async function DELETE(_request: NextRequest) {
   try {
-    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
+    // Get authenticated user
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, Fragment } from 'react'
-// Clerk hooks removed - now using session-based auth
 import {
   AlertCircle,
   RefreshCw,

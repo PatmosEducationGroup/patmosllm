@@ -3,15 +3,11 @@ import { POST } from '@/app/api/upload/blob/route'
 import { NextRequest } from 'next/server'
 
 // Mock all external dependencies
-vi.mock('@clerk/nextjs/server', () => ({
-  auth: vi.fn(() => Promise.resolve({ userId: 'test-clerk-user-123' }))
-}))
-
 vi.mock('@/lib/auth', () => ({
   getCurrentUser: vi.fn(() => Promise.resolve({
     id: 'test-user-uuid',
     email: 'test@example.com',
-    clerk_user_id: 'test-clerk-user-123',
+    auth_user_id: 'test-supabase-user-123',
     role: 'ADMIN'
   }))
 }))
@@ -117,8 +113,8 @@ describe('/api/upload/blob - Integration Tests', () => {
   })
 
   it('should return 401 if user is not authenticated', async () => {
-    const { auth } = await import('@clerk/nextjs/server')
-    vi.mocked(auth).mockResolvedValueOnce({ userId: null } as unknown as ReturnType<typeof auth>)
+    const { getCurrentUser } = await import('@/lib/auth')
+    vi.mocked(getCurrentUser).mockResolvedValueOnce(null)
 
     const formData = new FormData()
     formData.append('file', new File(['test'], 'test.pdf', { type: 'application/pdf' }))
@@ -140,9 +136,9 @@ describe('/api/upload/blob - Integration Tests', () => {
     vi.mocked(getCurrentUser).mockResolvedValueOnce({
       id: 'test-user-uuid',
       email: 'test@example.com',
-      clerk_user_id: 'test-clerk-user-123',
+      auth_user_id: 'test-supabase-user-123',
       role: 'USER'
-    } as unknown as ReturnType<typeof auth>)
+    })
 
     const formData = new FormData()
     formData.append('file', new File(['test'], 'test.pdf', { type: 'application/pdf' }))
@@ -266,7 +262,7 @@ describe('/api/upload/blob - Integration Tests', () => {
       url: 'https://blob.vercel-storage.com/existing-file.pdf',
       size: 1024,
       uploadedAt: new Date()
-    } as unknown as ReturnType<typeof auth>)
+    })
 
     const formData = new FormData()
     formData.append('file', new File(['test'], 'existing-file.pdf', { type: 'application/pdf' }))
@@ -415,7 +411,7 @@ describe('/api/upload/blob - Integration Tests', () => {
 
     expect(processDocumentVectors).toHaveBeenCalledWith(
       'doc-uuid-123',
-      'test-clerk-user-123'
+      'test-supabase-user-123'
     )
   }, 15000)
 
@@ -435,7 +431,7 @@ describe('/api/upload/blob - Integration Tests', () => {
 
     expect(trackOnboardingMilestone).toHaveBeenCalledWith(
       expect.objectContaining({
-        clerkUserId: 'test-clerk-user-123',
+        visitorId: 'test-supabase-user-123',
         milestone: 'first_document_upload'
       })
     )

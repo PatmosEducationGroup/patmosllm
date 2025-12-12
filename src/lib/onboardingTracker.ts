@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase'
 import { logError, loggers } from '@/lib/logger'
 
-export type MilestoneType = 
+export type MilestoneType =
   | 'invited'
   | 'first_login'
   | 'first_document_view'
@@ -13,7 +13,7 @@ export type MilestoneType =
   | 'onboarding_complete'
 
 interface TrackMilestoneParams {
-  clerkUserId: string
+  authUserId: string
   milestone: MilestoneType
   metadata?: Record<string, unknown>
 }
@@ -23,22 +23,22 @@ interface TrackMilestoneParams {
  * This function can be called from anywhere in your app to record progress
  */
 export async function trackOnboardingMilestone({
-  clerkUserId,
+  authUserId,
   milestone,
   metadata = {}
 }: TrackMilestoneParams): Promise<boolean> {
   try {
 const supabase = supabaseAdmin
 
-    // Get user from database using clerk_id
+    // Get user from database using auth_user_id
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('id')
-      .eq('clerk_id', clerkUserId)
+      .eq('auth_user_id', authUserId)
       .single()
 
     if (userError || !user) {
-      loggers.database({ clerkUserId, error: userError?.message, operation: 'find_user' }, 'User not found for milestone tracking')
+      loggers.database({ authUserId, error: userError?.message, operation: 'find_user' }, 'User not found for milestone tracking')
       return false
     }
 
@@ -51,11 +51,11 @@ const supabase = supabaseAdmin
       })
 
     if (milestoneError) {
-      loggers.database({ milestone, clerkUserId, userId: user.id, error: milestoneError.message }, 'Error tracking milestone')
+      loggers.database({ milestone, authUserId, userId: user.id, error: milestoneError.message }, 'Error tracking milestone')
       return false
     }
 
-    loggers.database({ milestone, clerkUserId, userId: user.id, success: true }, 'Milestone tracked successfully')
+    loggers.database({ milestone, authUserId, userId: user.id, success: true }, 'Milestone tracked successfully')
     return true
 
   } catch (error) {
@@ -63,7 +63,7 @@ const supabase = supabaseAdmin
       operation: 'trackOnboardingMilestone',
       phase: 'milestone_save',
       severity: 'low',
-      clerkUserId,
+      authUserId,
       milestone,
       errorContext: 'Failed to track user onboarding milestone in database'
     })
@@ -103,14 +103,14 @@ export async function trackMilestoneAPI(milestone: MilestoneType, metadata?: Rec
 /**
  * Get user's current onboarding status
  */
-export async function getUserOnboardingStatus(clerkUserId: string) {
+export async function getUserOnboardingStatus(authUserId: string) {
   try {
    const supabase = supabaseAdmin
 
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('id')
-      .eq('clerk_id', clerkUserId)
+      .eq('auth_user_id', authUserId)
       .single()
 
     if (userError || !user) {
@@ -124,7 +124,7 @@ export async function getUserOnboardingStatus(clerkUserId: string) {
       .single()
 
     if (statusError) {
-      loggers.database({ clerkUserId, userId: user.id, error: statusError.message }, 'Error fetching onboarding status')
+      loggers.database({ authUserId, userId: user.id, error: statusError.message }, 'Error fetching onboarding status')
       return null
     }
 
@@ -134,7 +134,7 @@ export async function getUserOnboardingStatus(clerkUserId: string) {
       operation: 'getUserOnboardingStatus',
       phase: 'status_retrieval',
       severity: 'low',
-      clerkUserId,
+      authUserId,
       errorContext: 'Failed to retrieve user onboarding status from database'
     })
     return null
@@ -145,11 +145,11 @@ export async function getUserOnboardingStatus(clerkUserId: string) {
  * Check if user has completed a specific milestone
  */
 export async function hasCompletedMilestone(
-  clerkUserId: string, 
+  authUserId: string,
   milestone: MilestoneType
 ): Promise<boolean> {
   try {
-    const status = await getUserOnboardingStatus(clerkUserId)
+    const status = await getUserOnboardingStatus(authUserId)
     if (!status) return false
 
     const milestoneField = `${milestone}_at` as keyof typeof status
@@ -159,7 +159,7 @@ export async function hasCompletedMilestone(
       operation: 'hasCompletedMilestone',
       phase: 'milestone_check',
       severity: 'low',
-      clerkUserId,
+      authUserId,
       milestone,
       errorContext: 'Failed to check if user completed specific milestone'
     })
@@ -171,12 +171,12 @@ export async function hasCompletedMilestone(
  * Middleware function to automatically track first_login milestone
  * Call this in your middleware or auth check
  */
-export async function trackFirstLogin(clerkUserId: string) {
-  const hasLoggedIn = await hasCompletedMilestone(clerkUserId, 'first_login')
-  
+export async function trackFirstLogin(authUserId: string) {
+  const hasLoggedIn = await hasCompletedMilestone(authUserId, 'first_login')
+
   if (!hasLoggedIn) {
     await trackOnboardingMilestone({
-      clerkUserId,
+      authUserId,
       milestone: 'first_login',
       metadata: {
         timestamp: new Date().toISOString(),

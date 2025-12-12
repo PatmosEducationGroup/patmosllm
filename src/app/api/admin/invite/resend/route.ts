@@ -12,7 +12,7 @@ export async function POST(_request: NextRequest) {
   }, 'Resend invitation endpoint called')
 
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       loggers.security({

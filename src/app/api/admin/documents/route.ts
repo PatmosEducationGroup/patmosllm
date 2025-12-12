@@ -6,7 +6,7 @@ import { getCurrentUser } from '@/lib/auth'
 // GET - List documents based on user role
 export async function GET(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(

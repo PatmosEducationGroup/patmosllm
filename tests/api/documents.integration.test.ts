@@ -3,15 +3,11 @@ import { GET, DELETE } from '@/app/api/documents/route'
 import { NextRequest } from 'next/server'
 
 // Mock all external dependencies
-vi.mock('@clerk/nextjs/server', () => ({
-  auth: vi.fn(() => Promise.resolve({ userId: 'test-clerk-user-123' }))
-}))
-
 vi.mock('@/lib/auth', () => ({
   getCurrentUser: vi.fn(() => Promise.resolve({
     id: 'test-user-uuid',
     email: 'test@example.com',
-    clerk_user_id: 'test-clerk-user-123',
+    auth_user_id: 'test-supabase-user-123',
     role: 'ADMIN'
   }))
 }))
@@ -113,8 +109,8 @@ describe('/api/documents - Integration Tests', () => {
 
   describe('GET /api/documents', () => {
     it('should return 401 if user is not authenticated', async () => {
-      const { auth } = await import('@clerk/nextjs/server')
-      vi.mocked(auth).mockResolvedValueOnce({ userId: null } as unknown as ReturnType<typeof auth>)
+      const { getCurrentUser } = await import('@/lib/auth')
+      vi.mocked(getCurrentUser).mockResolvedValueOnce(null)
 
       const request = new NextRequest('http://localhost:3000/api/documents')
       const response = await GET(request)
@@ -155,9 +151,9 @@ describe('/api/documents - Integration Tests', () => {
       vi.mocked(getCurrentUser).mockResolvedValueOnce({
         id: 'test-user-uuid',
         email: 'contributor@example.com',
-        clerk_user_id: 'test-clerk-user-123',
+        auth_user_id: 'test-supabase-user-123',
         role: 'CONTRIBUTOR'
-      } as unknown as ReturnType<typeof auth>)
+      })
 
       const request = new NextRequest('http://localhost:3000/api/documents')
       const response = await GET(request)
@@ -232,8 +228,8 @@ describe('/api/documents - Integration Tests', () => {
 
   describe('DELETE /api/documents', () => {
     it('should return 401 if user is not authenticated', async () => {
-      const { auth } = await import('@clerk/nextjs/server')
-      vi.mocked(auth).mockResolvedValueOnce({ userId: null } as unknown as ReturnType<typeof auth>)
+      const { getCurrentUser } = await import('@/lib/auth')
+      vi.mocked(getCurrentUser).mockResolvedValueOnce(null)
 
       const request = new NextRequest('http://localhost:3000/api/documents?id=doc-123')
       const response = await DELETE(request)
@@ -260,9 +256,9 @@ describe('/api/documents - Integration Tests', () => {
       vi.mocked(getCurrentUser).mockResolvedValueOnce({
         id: 'test-user-uuid',
         email: 'user@example.com',
-        clerk_user_id: 'test-clerk-user-123',
+        auth_user_id: 'test-supabase-user-123',
         role: 'USER' // Regular users cannot delete
-      } as unknown as ReturnType<typeof auth>)
+      })
 
       const request = new NextRequest('http://localhost:3000/api/documents?id=doc-123')
       const response = await DELETE(request)
@@ -314,9 +310,9 @@ describe('/api/documents - Integration Tests', () => {
       vi.mocked(getCurrentUser).mockResolvedValueOnce({
         id: 'different-user-uuid',
         email: 'contributor@example.com',
-        clerk_user_id: 'test-clerk-user-123',
+        auth_user_id: 'test-supabase-user-123',
         role: 'CONTRIBUTOR'
-      } as unknown as ReturnType<typeof auth>)
+      })
 
       const request = new NextRequest('http://localhost:3000/api/documents?id=doc-123')
       const response = await DELETE(request)

@@ -7,7 +7,7 @@ import { trackOnboardingMilestone, MilestoneType } from '@/lib/onboardingTracker
 
 export async function POST(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
 
     if (!user) {
@@ -63,7 +63,7 @@ return NextResponse.json(
 
     // Track the milestone with enhanced metadata
     const success = await trackOnboardingMilestone({
-      clerkUserId: user.clerk_id, // Use clerk_id from user record
+      authUserId: user.auth_user_id, // Use auth_user_id from user record
       milestone,
       metadata: {
         ...metadata,

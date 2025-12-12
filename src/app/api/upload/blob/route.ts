@@ -27,7 +27,7 @@ function cleanTextContent(content: string): string {
 
 export async function POST(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(
@@ -406,7 +406,7 @@ export async function POST(_request: NextRequest) {
 
       // Track first document upload milestone
       await trackOnboardingMilestone({
-        clerkUserId: user.clerk_id,
+        authUserId: user.auth_user_id,
         milestone: 'first_document_upload',
         metadata: {
           documentTitle: cleanTitle,

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { logError } from '@/lib/logger'
-// Clerk hooks removed - now using session-based auth
 import { useRouter } from 'next/navigation'
 import OnboardingAnalyticsDashboard from '@/components/OnboardingAnalyticsDashboard'
 

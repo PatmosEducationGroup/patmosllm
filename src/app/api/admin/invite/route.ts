@@ -11,7 +11,7 @@ import { loggers, logError } from '@/lib/logger'
 export async function POST(_request: NextRequest) {
   try {
     // =================================================================
-    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
+    // Get authenticated user
     // =================================================================
     const user = await getCurrentUser()
     if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
@@ -74,7 +74,7 @@ export async function POST(_request: NextRequest) {
         invited_by: user.id,
         invitation_token: invitationToken,
         invitation_expires_at: expiresAt.toISOString()
-        // No clerk_id - Supabase Auth only
+        // auth_user_id will be set when user accepts invitation via Supabase Auth
       })
       .select()
       .single()
@@ -173,7 +173,7 @@ export async function POST(_request: NextRequest) {
 export async function GET(_request: NextRequest) {
   try {
     // =================================================================
-    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
+    // Get authenticated user
     // =================================================================
     const user = await getCurrentUser()
     if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
@@ -256,7 +256,7 @@ export async function GET(_request: NextRequest) {
 export async function DELETE(_request: NextRequest) {
   try {
     // =================================================================
-    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
+    // Get authenticated user
     // =================================================================
     const user = await getCurrentUser()
     if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {

@@ -6,7 +6,7 @@ import { logError } from '@/lib/logger'
 export async function GET(_request: NextRequest) {
   try {
     // =================================================================
-    // AUTHENTICATION - getCurrentUser() handles both Supabase and Clerk auth
+    // AUTHENTICATION - getCurrentUser() handles Supabase auth
     // =================================================================
     const user = await getCurrentUser()
     if (!user) {

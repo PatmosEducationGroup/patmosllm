@@ -1,29 +1,33 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-const isProtectedRoute = createRouteMatcher([
-  '/chat(.*)',
-  '/admin(.*)',
+// Routes that require authentication
+const protectedRoutes = [
+  '/chat',
+  '/admin',
+  '/settings',
   '/api/upload',
   '/api/ingest',
   '/api/chat',
   '/api/chat/clarify',
   '/api/question-assistant',
   '/api/documents'
-])
+]
 
-export default clerkMiddleware(async (auth, req: NextRequest) => {
-  // IMPORTANT: Skip middleware entirely for webhook routes
-  // Webhooks must be completely public (no Clerk processing at all)
+function isProtectedRoute(pathname: string): boolean {
+  return protectedRoutes.some(route => pathname.startsWith(route))
+}
+
+export default async function middleware(req: NextRequest) {
+  // Skip middleware entirely for webhook routes (must be public)
   if (req.nextUrl.pathname.startsWith('/api/webhooks/')) {
     return NextResponse.next()
   }
 
-  // Quick Win: Request size limit (prevent DoS attacks)
+  // Request size limit (prevent DoS attacks) - 10MB limit for API requests
   const contentLength = req.headers.get('content-length')
-  if (contentLength && parseInt(contentLength) > 10_000_000) { // 10MB limit for API requests
+  if (contentLength && parseInt(contentLength) > 10_000_000) {
     return new Response(JSON.stringify({ error: 'Payload too large' }), {
       status: 413,
       headers: { 'Content-Type': 'application/json' }
@@ -33,9 +37,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   // Create response object for headers
   const response = NextResponse.next()
 
-  // Create Supabase clients:
-  // 1. Anon client for auth check (reads cookies)
-  // 2. Admin client for deletion check (bypasses RLS)
+  // Create Supabase clients
   const supabaseAnon = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -78,8 +80,6 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   console.log('[MIDDLEWARE] Path:', req.nextUrl.pathname, 'Has Supabase user:', !!supabaseUser, 'User ID:', supabaseUser?.id)
 
   // CRITICAL: Check for scheduled deletion BEFORE any other checks
-  // This must run on ALL routes, not just protected ones
-  // Use admin client to bypass RLS
   if (supabaseUser) {
     console.log('[MIDDLEWARE] Querying users table for auth_user_id:', supabaseUser.id)
     const { data: userData, error: queryError } = await supabaseAdmin
@@ -109,7 +109,6 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
       if (!isAllowedPath) {
         console.log('[MIDDLEWARE] REDIRECTING to /settings/delete-account')
-        // Redirect to delete account page to cancel deletion
         return NextResponse.redirect(new URL('/settings/delete-account', req.url))
       }
     } else {
@@ -117,76 +116,14 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
     }
   }
 
-  // PHASE 3: Dual-auth pattern - ONLY protect routes that need auth
-  // All other routes are public by default (clerkMiddleware behavior)
-  if (isProtectedRoute(req)) {
-    // STEP 1: Check for Supabase session (migrated users)
-    if (supabaseUser) {
-      // User has Supabase session - but check if they have clerk_id (unmigrated Clerk user)
-      const { data: userData } = await supabaseAdmin
-        .from('users')
-        .select('clerk_id, email')
-        .eq('auth_user_id', supabaseUser.id)
-        .maybeSingle()
-
-      // If user has clerk_id, check migration status
-      if (userData?.clerk_id && userData.clerk_id.startsWith('user_')) {
-        const { data: migrationStatus } = await supabaseAdmin
-          .from('user_migration')
-          .select('migrated')
-          .eq('email', userData.email)
-          .maybeSingle()
-
-        // If NOT migrated, force to migration page
-        if (migrationStatus && !migrationStatus.migrated) {
-          if (!req.nextUrl.pathname.startsWith('/migrate-password')) {
-            console.log('[MIDDLEWARE] User has clerk_id but not migrated - redirecting to /migrate-password')
-            return NextResponse.redirect(new URL('/migrate-password', req.url))
-          }
-        }
-      }
-      // User authenticated via Supabase - allow access
-    } else {
-      // STEP 2: No Supabase session - check Clerk
-      const { userId } = await auth()
-      console.log('[MIDDLEWARE] Clerk userId:', userId)
-
-      if (userId) {
-        // User has Clerk session - check if they need to migrate
-        // Get user email from Clerk to check migration status
-        const { clerkClient } = await import('@clerk/nextjs/server')
-        const client = await clerkClient()
-        const clerkUser = await client.users.getUser(userId)
-        const email = clerkUser.primaryEmailAddress?.emailAddress?.toLowerCase()
-
-        console.log('[MIDDLEWARE] Clerk user email:', email)
-
-        if (email) {
-          // Check migration status (use admin client to bypass RLS)
-          const { data: migrationStatus } = await supabaseAdmin
-            .from('user_migration')
-            .select('migrated')
-            .eq('email', email)
-            .maybeSingle()
-
-          console.log('[MIDDLEWARE] Migration status:', migrationStatus)
-
-          // If user is NOT migrated, force them to migrate-password page
-          if (migrationStatus && !migrationStatus.migrated) {
-            // Allow access to migrate-password page itself
-            if (!req.nextUrl.pathname.startsWith('/migrate-password')) {
-              console.log('[MIDDLEWARE] REDIRECTING unmigrated Clerk user to /migrate-password')
-              return NextResponse.redirect(new URL('/migrate-password', req.url))
-            }
-          }
-        }
-
-        // User has valid Clerk session, allow access
-      } else {
-        // No Clerk or Supabase session - require auth
-        await auth.protect()
-      }
+  // Check authentication for protected routes
+  if (isProtectedRoute(req.nextUrl.pathname)) {
+    if (!supabaseUser) {
+      // No session - redirect to login
+      console.log('[MIDDLEWARE] No session, redirecting to /login')
+      return NextResponse.redirect(new URL('/login', req.url))
     }
+    // User is authenticated via Supabase - allow access
   }
 
   // Add security headers to ALL responses
@@ -196,38 +133,38 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
   response.headers.set('X-XSS-Protection', '1; mode=block')
   response.headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
 
-  // GDPR Phase 3: Cross-Origin security headers (prevent data leakage)
+  // GDPR: Cross-Origin security headers
   response.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
   response.headers.set('Cross-Origin-Embedder-Policy', 'require-corp')
-  
+
   // Content Security Policy - Updated for Cloudflare Turnstile & Vercel Analytics
   const cspDirectives = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.multiplytools.app https://challenges.cloudflare.com https://va.vercel-scripts.com",
-    "worker-src 'self' blob: https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.multiplytools.app",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://va.vercel-scripts.com",
+    "worker-src 'self' blob:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.pinecone.io https://api.voyageai.com https://*.voyageai.com https://clerk.com https://*.clerk.accounts.dev https://*.clerk.dev https://clerk.multiplytools.app https://accounts.multiplytools.app https://challenges.cloudflare.com https://clerk-telemetry.com https://va.vercel-scripts.com https://vitals.vercel-insights.com https://*.sentry.io",
+    "connect-src 'self' https://api.openai.com https://*.supabase.co https://*.pinecone.io https://api.voyageai.com https://*.voyageai.com https://challenges.cloudflare.com https://va.vercel-scripts.com https://vitals.vercel-insights.com https://*.sentry.io",
     "frame-src 'self' https://challenges.cloudflare.com",
     "object-src 'none'",
     "base-uri 'self'"
   ]
   response.headers.set('Content-Security-Policy', cspDirectives.join('; '))
-  
+
   // HSTS only in production with HTTPS
   if (process.env.NODE_ENV === 'production') {
     response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
   }
-  
+
   return response
-})
+}
 
 export const config = {
   matcher: [
     // Skip Next.js internals and all static files
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run middleware on API routes (webhooks are excluded via early return in the middleware function)
+    // Always run middleware on API routes
     '/(api|trpc)(.*)',
   ],
 }

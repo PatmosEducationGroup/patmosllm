@@ -3,31 +3,12 @@ import { POST, GET, DELETE } from '@/app/api/admin/invite/route'
 import { NextRequest } from 'next/server'
 
 // Mock all external dependencies
-vi.mock('@clerk/nextjs/server', () => ({
-  auth: vi.fn(() => Promise.resolve({ userId: 'admin-clerk-id' })),
-  clerkClient: vi.fn(() => Promise.resolve({
-    invitations: {
-      createInvitation: vi.fn(() => Promise.resolve({
-        id: 'clerk-invitation-id',
-        url: 'https://clerk.dev/v1/tickets/accept?ticket=test-ticket-jwt'
-      })),
-      getInvitationList: vi.fn(() => Promise.resolve({
-        data: [{
-          id: 'clerk-invitation-id',
-          emailAddress: 'invited@example.com'
-        }]
-      })),
-      revokeInvitation: vi.fn(() => Promise.resolve())
-    }
-  }))
-}))
-
 vi.mock('@/lib/auth', () => ({
   getCurrentUser: vi.fn(() => Promise.resolve({
     id: 'admin-user-id',
     email: 'admin@example.com',
     name: 'Admin User',
-    clerk_user_id: 'admin-clerk-id',
+    auth_user_id: 'admin-supabase-id',
     role: 'ADMIN'
   }))
 }))
@@ -51,10 +32,9 @@ vi.mock('@/lib/supabase', () => ({
                         name: 'User 1',
                         role: 'USER',
                         created_at: '2024-01-01T00:00:00Z',
-                        clerk_id: 'clerk-user-1',
+                        auth_user_id: 'supabase-user-1',
                         invited_by: 'admin-user-id',
                         invitation_token: null,
-                        clerk_ticket: null,
                         inviter: { email: 'admin@example.com', name: 'Admin User' }
                       },
                       {
@@ -63,10 +43,9 @@ vi.mock('@/lib/supabase', () => ({
                         name: null,
                         role: 'CONTRIBUTOR',
                         created_at: '2024-01-02T00:00:00Z',
-                        clerk_id: 'invited_1234567890_abc123',
+                        auth_user_id: null,
                         invited_by: 'admin-user-id',
                         invitation_token: 'test-token-123',
-                        clerk_ticket: 'test-ticket-jwt',
                         inviter: { email: 'admin@example.com', name: 'Admin User' }
                       }
                     ],
@@ -90,7 +69,7 @@ vi.mock('@/lib/supabase', () => ({
                       data: {
                         id: 'target-user-id',
                         email: 'target@example.com',
-                        clerk_id: 'invited_1234567890_xyz',
+                        auth_user_id: null,
                         role: 'USER',
                         invitation_token: 'test-token'
                       },
@@ -110,7 +89,7 @@ vi.mock('@/lib/supabase', () => ({
                   email: 'invited@example.com',
                   name: 'Invited User',
                   role: 'USER',
-                  clerk_id: 'invited_1234567890_abc',
+                  auth_user_id: null,
                   invitation_token: 'test-token-123'
                 },
                 error: null
@@ -158,8 +137,8 @@ describe('/api/admin/invite - Integration Tests', () => {
 
   describe('POST /api/admin/invite - Create Invitation', () => {
     it('should return 401 if user is not authenticated', async () => {
-      const { auth } = await import('@clerk/nextjs/server')
-      vi.mocked(auth).mockResolvedValueOnce({ userId: null } as unknown as ReturnType<typeof auth>)
+      const { getCurrentUser } = await import('@/lib/auth')
+      vi.mocked(getCurrentUser).mockResolvedValueOnce(null)
 
       const request = new NextRequest('http://localhost:3000/api/admin/invite', {
         method: 'POST',
@@ -178,9 +157,9 @@ describe('/api/admin/invite - Integration Tests', () => {
       vi.mocked(getCurrentUser).mockResolvedValueOnce({
         id: 'user-id',
         email: 'user@example.com',
-        clerk_user_id: 'user-clerk-id',
+        auth_user_id: 'user-supabase-id',
         role: 'USER'
-      } as unknown as ReturnType<typeof auth>)
+      })
 
       const request = new NextRequest('http://localhost:3000/api/admin/invite', {
         method: 'POST',
@@ -272,29 +251,7 @@ describe('/api/admin/invite - Integration Tests', () => {
       expect(generateInvitationToken).toHaveBeenCalled()
     })
 
-    // Note: Testing Clerk client calls requires proper spy setup
-    // This test verifies the integration but may need E2E verification
-    it.skip('should create Clerk invitation', async () => {
-      const { clerkClient } = await import('@clerk/nextjs/server')
-
-      const request = new NextRequest('http://localhost:3000/api/admin/invite', {
-        method: 'POST',
-        body: JSON.stringify({ email: 'test@example.com', role: 'USER' })
-      })
-
-      await POST(request)
-
-      const client = await clerkClient()
-      expect(client.invitations.createInvitation).toHaveBeenCalledWith(
-        expect.objectContaining({
-          emailAddress: 'test@example.com',
-          notify: false,
-          publicMetadata: expect.objectContaining({
-            role: 'USER'
-          })
-        })
-      )
-    })
+    // Note: Clerk invitation creation removed - now using Supabase Auth only
 
     it('should send invitation email when sendEmail is true', async () => {
       const { sendInvitationEmail } = await import('@/lib/email')
@@ -349,7 +306,7 @@ describe('/api/admin/invite - Integration Tests', () => {
       )
     })
 
-    it('should include Clerk ticket in invitation URL', async () => {
+    it('should include invitation token in URL', async () => {
       const request = new NextRequest('http://localhost:3000/api/admin/invite', {
         method: 'POST',
         body: JSON.stringify({ email: 'test@example.com' })
@@ -358,14 +315,14 @@ describe('/api/admin/invite - Integration Tests', () => {
       const response = await POST(request)
       const data = await response.json()
 
-      expect(data.invitationUrl).toContain('__clerk_ticket=')
+      expect(data.invitationUrl).toContain('/invite/')
     })
   })
 
   describe('GET /api/admin/invite - List Users', () => {
     it('should return 401 if user is not authenticated', async () => {
-      const { auth } = await import('@clerk/nextjs/server')
-      vi.mocked(auth).mockResolvedValueOnce({ userId: null } as unknown as ReturnType<typeof auth>)
+      const { getCurrentUser } = await import('@/lib/auth')
+      vi.mocked(getCurrentUser).mockResolvedValueOnce(null)
 
       const request = new NextRequest('http://localhost:3000/api/admin/invite')
       const response = await GET(request)
@@ -380,9 +337,9 @@ describe('/api/admin/invite - Integration Tests', () => {
       vi.mocked(getCurrentUser).mockResolvedValueOnce({
         id: 'user-id',
         email: 'user@example.com',
-        clerk_user_id: 'user-clerk-id',
+        auth_user_id: 'user-supabase-id',
         role: 'CONTRIBUTOR'
-      } as unknown as ReturnType<typeof auth>)
+      })
 
       const request = new NextRequest('http://localhost:3000/api/admin/invite')
       const response = await GET(request)
@@ -410,10 +367,10 @@ describe('/api/admin/invite - Integration Tests', () => {
 
       const data = await response.json()
 
-      // First user is active (clerk_id doesn't start with 'invited_')
+      // First user is active (has auth_user_id)
       expect(data.users[0].isActive).toBe(true)
 
-      // Second user is pending (clerk_id starts with 'invited_')
+      // Second user is pending (no auth_user_id, has invitation_token)
       expect(data.users[1].isActive).toBe(false)
     })
 
@@ -429,8 +386,8 @@ describe('/api/admin/invite - Integration Tests', () => {
 
   describe('DELETE /api/admin/invite - Delete User/Invitation', () => {
     it('should return 401 if user is not authenticated', async () => {
-      const { auth } = await import('@clerk/nextjs/server')
-      vi.mocked(auth).mockResolvedValueOnce({ userId: null } as unknown as ReturnType<typeof auth>)
+      const { getCurrentUser } = await import('@/lib/auth')
+      vi.mocked(getCurrentUser).mockResolvedValueOnce(null)
 
       const request = new NextRequest('http://localhost:3000/api/admin/invite', {
         method: 'DELETE',
@@ -449,9 +406,9 @@ describe('/api/admin/invite - Integration Tests', () => {
       vi.mocked(getCurrentUser).mockResolvedValueOnce({
         id: 'user-id',
         email: 'user@example.com',
-        clerk_user_id: 'user-clerk-id',
+        auth_user_id: 'user-supabase-id',
         role: 'USER'
-      } as unknown as ReturnType<typeof auth>)
+      })
 
       const request = new NextRequest('http://localhost:3000/api/admin/invite', {
         method: 'DELETE',
@@ -505,23 +462,7 @@ describe('/api/admin/invite - Integration Tests', () => {
       expect(data.deletedUser.id).toBe('target-user-id')
     })
 
-    // Note: Testing Clerk client calls requires proper spy setup
-    // This test verifies the integration but may need E2E verification
-    it.skip('should retract Clerk invitation for pending users', async () => {
-      const { clerkClient } = await import('@clerk/nextjs/server')
-
-      const request = new NextRequest('http://localhost:3000/api/admin/invite', {
-        method: 'DELETE',
-        body: JSON.stringify({ userId: 'target-user-id' })
-      })
-
-      await DELETE(request)
-
-      const client = await clerkClient()
-      expect(client.invitations.getInvitationList).toHaveBeenCalledWith({
-        status: 'pending'
-      })
-    })
+    // Note: Clerk invitation retraction removed - now using Supabase Auth only
 
     it('should log deletion for audit trail', async () => {
       const { loggers } = await import('@/lib/logger')

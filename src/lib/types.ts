@@ -6,14 +6,14 @@ export type IngestStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
 export interface User {
   id: string
-  clerk_id: string // Will be deprecated in Phase 6 (renamed to clerk_id_deprecated)
-  auth_user_id?: string // Supabase Auth user ID (single source of truth post-migration)
+  auth_user_id: string // Supabase Auth user ID (single source of truth)
   email: string
   name?: string
   role: UserRole
   invited_by?: string
   created_at: string
   updated_at: string
+  deleted_at?: string // For GDPR soft deletion
 }
 
 export interface Document {

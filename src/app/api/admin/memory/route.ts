@@ -6,7 +6,7 @@ import { withSupabaseAdmin } from '@/lib/supabase'
 
 export async function GET(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
@@ -112,7 +112,7 @@ return NextResponse.json({
 // Test endpoint for memory functionality
 export async function POST(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })

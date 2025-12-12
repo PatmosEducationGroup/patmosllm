@@ -4,7 +4,7 @@ import { logError } from '@/lib/logger'
 
 export async function GET(_request: NextRequest) {
   try {
-    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
+    // Get authenticated user
     const user = await getCurrentUser()
 
     if (!user) {

@@ -17,7 +17,7 @@ export async function GET(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json(

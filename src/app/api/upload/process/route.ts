@@ -26,7 +26,7 @@ function cleanTextContent(content: string): string {
 
 export async function POST(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     loggers.auth({
       operation: 'upload_process_auth_check',
@@ -293,7 +293,7 @@ export async function POST(_request: NextRequest) {
     // Track onboarding milestone AFTER successful upload
     try {
       await trackOnboardingMilestone({
-        clerkUserId: user.clerk_id,
+        authUserId: user.auth_user_id,
         milestone: 'first_document_upload',
         metadata: {
           document_name: fileName,

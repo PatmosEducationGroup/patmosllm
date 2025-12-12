@@ -1,22 +1,18 @@
 /**
- * Auth Helpers - Dual auth support (Clerk + Supabase)
+ * Auth Helpers - Supabase Auth only
  *
- * Provides utilities to get user information from either Clerk or Supabase Auth
+ * Provides utilities to get user information from Supabase Auth
  */
 
-import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 /**
- * Get authenticated user ID from either Clerk or Supabase
- *
- * Priority: Supabase (migrated users) → Clerk (unmigrated users)
+ * Get authenticated user ID from Supabase
  *
  * @returns User ID string or null if not authenticated
  */
 export async function getAuthUserId(): Promise<string | null> {
-  // Check Supabase first (migrated users)
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,22 +30,15 @@ export async function getAuthUserId(): Promise<string | null> {
 
   const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
-  if (supabaseUser) {
-    return supabaseUser.id
-  }
-
-  // Fall back to Clerk (unmigrated users)
-  const { userId: clerkUserId } = await auth()
-  return clerkUserId
+  return supabaseUser?.id || null
 }
 
 /**
- * Get user email from either Clerk or Supabase
+ * Get user email from Supabase
  *
  * @returns User email string or null if not authenticated
  */
 export async function getAuthUserEmail(): Promise<string | null> {
-  // Check Supabase first
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -67,24 +56,11 @@ export async function getAuthUserEmail(): Promise<string | null> {
 
   const { data: { user: supabaseUser } } = await supabase.auth.getUser()
 
-  if (supabaseUser?.email) {
-    return supabaseUser.email
-  }
-
-  // Fall back to Clerk
-  const { userId: clerkUserId } = await auth()
-  if (clerkUserId) {
-    const { clerkClient } = await import('@clerk/nextjs/server')
-    const client = await clerkClient()
-    const clerkUser = await client.users.getUser(clerkUserId)
-    return clerkUser.primaryEmailAddress?.emailAddress || null
-  }
-
-  return null
+  return supabaseUser?.email || null
 }
 
 /**
- * Get user info from either Clerk or Supabase
+ * Get user info from Supabase
  *
  * @returns Object with userId and email, or null if not authenticated
  */

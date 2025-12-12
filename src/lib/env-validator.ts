@@ -2,8 +2,6 @@
 import { logger } from './logger'
 
 const REQUIRED_ENV_VARS = [
-  'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
-  'CLERK_SECRET_KEY',
   'OPENAI_API_KEY',
   'NEXT_PUBLIC_SUPABASE_URL',
   'SUPABASE_SERVICE_ROLE_KEY',
@@ -42,10 +40,6 @@ export function validateEnvironment(): ValidationResult {
 
   // Check for test/development keys in production
   if (process.env.NODE_ENV === 'production') {
-    if (process.env.CLERK_SECRET_KEY?.includes('test')) {
-      warnings.push('Using test Clerk keys in production');
-    }
-
     if (process.env.NEXT_PUBLIC_APP_URL === 'http://localhost:3000') {
       warnings.push('APP_URL is still set to localhost in production');
     }

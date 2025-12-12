@@ -8,7 +8,7 @@ export async function PATCH(
   context: { params: Promise<{ userId: string }> }
 ) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const currentUser = await getCurrentUser()
     if (!currentUser) {
       return NextResponse.json(

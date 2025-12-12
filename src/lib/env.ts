@@ -7,10 +7,6 @@ import { logger } from './logger';
  * Validates at startup to catch configuration errors early
  */
 const envSchema = z.object({
-  // Authentication
-  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1, 'Clerk publishable key required'),
-  CLERK_SECRET_KEY: z.string().min(1, 'Clerk secret key required'),
-
   // Database & Storage
   NEXT_PUBLIC_SUPABASE_URL: z.string().url('Invalid Supabase URL'),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, 'Supabase anon key required'),

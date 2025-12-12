@@ -6,7 +6,6 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -24,7 +23,6 @@ interface UserStats {
 
 function DeleteAccountContent() {
   const { addToast } = useToast()
-  const { signOut } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
@@ -111,8 +109,8 @@ function DeleteAccountContent() {
       // Wait a moment for the toast to be visible
       await new Promise(resolve => setTimeout(resolve, 1500))
 
-      // Sign out and redirect to home page
-      await signOut()
+      // Sign out via Supabase and redirect to home page
+      await fetch('/api/auth/signout', { method: 'POST' })
       router.push('/')
     } catch (err) {
       logError(err instanceof Error ? err : new Error('Delete failed'), {

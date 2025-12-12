@@ -48,7 +48,7 @@ interface BatchProcessResult {
 
 export async function POST(_request: NextRequest) {
   try {
-    // getCurrentUser() handles both Supabase and Clerk auth
+    // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -224,7 +224,7 @@ export async function POST(_request: NextRequest) {
     if (result.processed > 0) {
       try {
         await trackOnboardingMilestone({
-          clerkUserId: user.clerk_id,
+          authUserId: user.auth_user_id,
           milestone: 'first_document_upload',
           metadata: {
             batch_scraped: true,
@@ -237,7 +237,7 @@ export async function POST(_request: NextRequest) {
         // Non-critical: Milestone tracking failed but documents saved successfully
         logError(milestoneError instanceof Error ? milestoneError : new Error('Milestone tracking failed'), {
           operation: 'track_onboarding_milestone',
-          clerkUserId: user.clerk_id,
+          authUserId: user.auth_user_id,
           milestone: 'first_document_upload',
           pagesProcessed: result.processed,
           phase: 'onboarding_tracking',

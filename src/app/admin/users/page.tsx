@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { logError } from '@/lib/logger'
-// Clerk hooks removed - now using session-based auth
 import { useRouter } from 'next/navigation'
 import {
   UserCheck,
@@ -34,7 +33,6 @@ interface User {
   isActive: boolean
   invitedBy: string
   invitation_token?: string
-  clerk_ticket?: string
 }
 
 interface UserData {
@@ -106,8 +104,6 @@ export default function AdminUsersPage() {
 
   // Check authentication and permissions
   useEffect(() => {
-    // PHASE 3: Support dual authentication (Supabase + Clerk)
-    // Let the API handle auth check instead of client-side Clerk check
     fetchUserData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

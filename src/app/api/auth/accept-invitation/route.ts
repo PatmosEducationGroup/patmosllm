@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
     // ONBOARDING MILESTONE - Track invitation acceptance
     // =================================================================
     await trackOnboardingMilestone({
-      clerkUserId: createdUser.id,
+      authUserId: createdUser.auth_user_id,
       milestone: 'invited', // Use existing milestone type
       metadata: {
         invitation_token: token,

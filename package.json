@@ -24,8 +24,6 @@
     "migrate:prepopulate": "node -r dotenv/config node_modules/.bin/tsx scripts/prepopulate-users.ts dotenv_config_path=.env.local"
   },
   "dependencies": {
-    "@clerk/backend": "^2.17.0",
-    "@clerk/nextjs": "^6.31.2",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
     "@pinecone-database/pinecone": "^6.1.2",

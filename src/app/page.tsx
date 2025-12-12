@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
@@ -115,15 +114,11 @@ const ALL_QUESTION_OPTIONS = [
 ]
 
 export default function LandingPage() {
-  const { isLoaded, userId: clerkUserId } = useAuth()
   const router = useRouter()
-  const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [canAdmin, setCanAdmin] = useState(false)
   const [showWaitlistModal, setShowWaitlistModal] = useState(false)
   const [authLoaded, setAuthLoaded] = useState(false)
-
-  // Determine which user ID to use (Supabase takes precedence over Clerk)
-  const userId = supabaseUserId || clerkUserId
 
   // Randomly select 3 questions from the pool on each page load
   const selectedQuestions = useMemo(() => {
@@ -140,7 +135,7 @@ export default function LandingPage() {
       } = await supabase.auth.getSession()
 
       if (session?.user) {
-        setSupabaseUserId(session.user.id)
+        setUserId(session.user.id)
       }
       setAuthLoaded(true)
     }
@@ -162,7 +157,7 @@ export default function LandingPage() {
 
   // Handle question button clicks
   const handleQuestionClick = (question: string) => {
-    if (!isLoaded || !authLoaded) return
+    if (!authLoaded) return
 
     if (userId) {
       // User is authenticated, navigate to chat with the question
@@ -177,7 +172,7 @@ export default function LandingPage() {
 
 
   // Loading state
-  if (!isLoaded || !authLoaded) {
+  if (!authLoaded) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center">
         <div className="text-center">

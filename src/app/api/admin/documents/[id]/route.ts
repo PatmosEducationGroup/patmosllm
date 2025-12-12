@@ -12,7 +12,7 @@ export async function GET(
   try {
     const resolvedParams = await params
 
-    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
+    // Get authenticated user
     const user = await getCurrentUser()
     if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json(
@@ -86,7 +86,7 @@ export async function PUT(
   try {
     const resolvedParams = await params
 
-    // PHASE 3: Use getCurrentUser() which supports dual-read (Supabase + Clerk)
+    // Get authenticated user
     const user = await getCurrentUser()
     if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       return NextResponse.json(

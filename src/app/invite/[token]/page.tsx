@@ -3,39 +3,21 @@
 import { useState, useEffect } from 'react'
 import { logError } from '@/lib/logger'
 import { useParams, useRouter } from 'next/navigation'
-import { SignUp } from '@clerk/nextjs'
 import { Button } from '@/components/ui/Button'
-import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/Card'
+import { Card, CardContent, CardTitle, CardDescription } from '@/components/ui/Card'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
-
-interface InvitationData {
-  email: string
-  name?: string
-  role: string
-  invitedBy: string
-  expired: boolean
-}
 
 export default function InvitePage() {
   const params = useParams()
   const router = useRouter()
   const token = params.token as string
 
-  const [invitation, setInvitation] = useState<InvitationData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [_clerkTicket, setClerkTicket] = useState<string | null>(null)
 
   useEffect(() => {
     if (token) {
-      // Extract Clerk ticket from URL query params if present
-      const urlParams = new URLSearchParams(window.location.search)
-      const ticket = urlParams.get('__clerk_ticket')
-      if (ticket) {
-        setClerkTicket(ticket)
-      }
-
       validateInvitation()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -43,39 +25,28 @@ export default function InvitePage() {
 
   const validateInvitation = async () => {
     try {
-      // =====================================================================
-      // PHASE 7: Check if this is a Supabase invitation (new system)
-      // =====================================================================
-      const supabaseResponse = await fetch(`/api/invite/${token}/validate`)
-      if (supabaseResponse.ok) {
-        const supabaseData = await supabaseResponse.json()
-        if (supabaseData.success) {
-          // This is a Supabase invitation - redirect to new acceptance flow
+      // Validate and redirect to Supabase invitation acceptance flow
+      const response = await fetch(`/api/invite/${token}/validate`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          // Valid Supabase invitation - redirect to acceptance flow
           router.push(`/invite/${token}/accept`)
           return
         }
       }
 
-      // =====================================================================
-      // FALLBACK: Check if this is a Clerk invitation (legacy system)
-      // =====================================================================
-      const response = await fetch(`/api/invite/${token}`)
-      const data = await response.json()
-
-      if (data.success) {
-        setInvitation(data.invitation)
-      } else {
-        setError(data.error)
-      }
-    } catch (error) {
-    logError(error instanceof Error ? error : new Error('Operation failed'), {
-      operation: 'API route',
-      phase: 'request_handling',
-      severity: 'medium',
-      errorContext: 'Operation failed'
-    })
-setError('Failed to validate invitation')
-  } finally {
+      // Invalid or expired invitation
+      setError('This invitation link is invalid or has expired.')
+    } catch (err) {
+      logError(err instanceof Error ? err : new Error('Operation failed'), {
+        operation: 'validateInvitation',
+        phase: 'request_handling',
+        severity: 'medium',
+        errorContext: 'Failed to validate invitation'
+      })
+      setError('Failed to validate invitation')
+    } finally {
       setLoading(false)
     }
   }
@@ -91,108 +62,26 @@ setError('Failed to validate invitation')
     )
   }
 
-  if (error || !invitation) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center p-6">
-        <Card className="max-w-md w-full bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
-          <CardContent className="pt-8 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 text-2xl mb-6 mx-auto">
-              ⚠️
-            </div>
-            <CardTitle className="text-xl text-red-600 mb-4">Invalid Invitation</CardTitle>
-            <CardDescription className="text-neutral-600 mb-6">
-              {error || 'This invitation link is invalid or has expired.'}
-            </CardDescription>
-            <Button
-              onClick={() => router.push('/')}
-              className="w-full"
-            >
-              Go to Homepage
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (invitation.expired) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center p-6">
-        <Card className="max-w-md w-full bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
-          <CardContent className="pt-8 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-yellow-100 flex items-center justify-center text-yellow-600 text-2xl mb-6 mx-auto">
-              ⏰
-            </div>
-            <CardTitle className="text-xl text-yellow-600 mb-4">Invitation Expired</CardTitle>
-            <CardDescription className="text-neutral-600 mb-6">
-              This invitation has expired. Please contact your administrator for a new invitation.
-            </CardDescription>
-            <Button
-              onClick={() => router.push('/')}
-              className="w-full"
-            >
-              Go to Homepage
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
+  // Error state
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 flex items-center justify-center p-6">
-      <div className="max-w-lg w-full">
-        {/* Welcome Header */}
-        <Card className="mb-6 bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
-          <CardHeader className="text-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto shadow-lg">
-              MT
-            </div>
-            <CardTitle className="text-2xl text-slate-800 mb-2">
-              Welcome to Multiply Tools
-            </CardTitle>
-            <CardDescription className="text-base text-neutral-600">
-              <span className="font-medium">{invitation.invitedBy}</span> has invited you to join as a <span className="font-semibold text-primary-600">{invitation.role}</span>
-            </CardDescription>
-            <div className="mt-3 text-sm text-primary-600">
-              Please create your account using: <span className="font-semibold">{invitation.email}</span>
-            </div>
-          </CardHeader>
-        </Card>
-
-        {/* Sign Up Form */}
-        <Card className="bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
-          <CardContent className="p-8">
-            <SignUp
-              forceRedirectUrl={`/api/invite/${token}/complete`}
-              signInUrl="/sign-in"
-              routing="virtual"
-              initialValues={{
-                emailAddress: invitation.email
-              }}
-              appearance={{
-                elements: {
-                  rootBox: "w-full",
-                  card: "shadow-none border-0 p-0 bg-transparent",
-                  headerTitle: "text-xl font-bold text-slate-800 mb-2",
-                  headerSubtitle: "text-neutral-600 text-sm mb-4",
-                  socialButtonsBlockButton: "border border-neutral-200/60 hover:bg-neutral-50 rounded-xl transition-colors duration-200 text-neutral-700",
-                  formButtonPrimary: "bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-xl",
-                  formFieldInput: "border border-neutral-200/60 rounded-xl focus:border-primary-400 focus:ring-2 focus:ring-primary-200 transition-all duration-200 bg-white/50",
-                  formFieldLabel: "text-neutral-700 font-medium text-sm",
-                  footerActionLink: "text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200"
-                },
-                variables: {
-                  colorPrimary: "#6366f1",
-                  colorBackground: "transparent",
-                  colorInputBackground: "rgba(255, 255, 255, 0.5)",
-                  borderRadius: "12px"
-                }
-              }}
-            />
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="max-w-md w-full bg-white/80 backdrop-blur-xl border-slate-200/40 shadow-xl">
+        <CardContent className="pt-8 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center text-red-600 text-2xl mb-6 mx-auto">
+            ⚠️
+          </div>
+          <CardTitle className="text-xl text-red-600 mb-4">Invalid Invitation</CardTitle>
+          <CardDescription className="text-neutral-600 mb-6">
+            {error || 'This invitation link is invalid or has expired.'}
+          </CardDescription>
+          <Button
+            onClick={() => router.push('/')}
+            className="w-full"
+          >
+            Go to Homepage
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }

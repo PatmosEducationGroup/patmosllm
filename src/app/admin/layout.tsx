@@ -8,7 +8,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { UserButton } from '@clerk/nextjs'
 import {
   Menu,
   X,
@@ -22,7 +21,8 @@ import {
   ArrowLeft,
   Home,
   Upload,
-  LogOut
+  LogOut,
+  User
 } from 'lucide-react'
 
 interface AdminLayoutProps {
@@ -124,13 +124,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               <ArrowLeft className="w-4 h-4" />
               <span className="hidden sm:inline">Back to Chat</span>
             </button>
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: 'w-10 h-10 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200'
-                }
-              }}
-            />
+            <Link
+              href="/settings"
+              className="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center text-white shadow-md hover:shadow-lg transition-shadow duration-200"
+            >
+              <User className="w-5 h-5" />
+            </Link>
           </div>
         </div>
       </div>
