@@ -220,15 +220,48 @@ export async function performSearch(
   // Create embedding
   const embedding = await createEmbedding(contextualQuery, userId, requestId)
 
+  // Fetch user context to personalize search
+  let searchMaxResults = process.env.FF_K_17 === 'true' ? 17 : 20
+  let minSemanticScore = 0.5
+  let semanticWeight: number | undefined
+  let keywordWeight: number | undefined
+
+  try {
+    const userContext = await userContextManager.getUserContext(userId)
+    const expertise = userContext.behavioralInsights?.expertiseLevel
+
+    if (expertise === 'advanced') {
+      // Advanced users: cast wider net with tighter relevance
+      searchMaxResults = Math.max(searchMaxResults, 20)
+      minSemanticScore = 0.55
+    } else if (expertise === 'beginner') {
+      // Beginners: fewer, higher-confidence results
+      searchMaxResults = Math.min(searchMaxResults, 15)
+      minSemanticScore = 0.4
+      semanticWeight = 0.8
+      keywordWeight = 0.2
+    }
+
+    // Users who prefer comprehensive answers get broader search
+    if (userContext.questionPatterns?.preferredDetailLevel === 'comprehensive') {
+      searchMaxResults = Math.max(searchMaxResults, 20)
+    } else if (userContext.questionPatterns?.preferredDetailLevel === 'summary') {
+      searchMaxResults = Math.min(searchMaxResults, 12)
+    }
+  } catch (_contextError) {
+    // Non-critical: fall back to default search params
+  }
+
   // Perform hybrid search
-  const searchMaxResults = process.env.FF_K_17 === 'true' ? 17 : 20
   const searchResult = await intelligentSearch(
     contextualQuery,
     embedding,
     {
       maxResults: searchMaxResults,
-      minSemanticScore: 0.5,
+      minSemanticScore,
       minKeywordScore: 0.05,
+      ...(semanticWeight !== undefined && { semanticWeight }),
+      ...(keywordWeight !== undefined && { keywordWeight }),
       userId,
       enableCache: true
     }

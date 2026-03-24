@@ -9,6 +9,7 @@ import { processDocumentVectors } from '@/lib/ingest'
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 import { cleanTitle } from '@/lib/titleCleaner'
 import { loggers, logError } from '@/lib/logger'
+import { advancedCache, CACHE_NAMESPACES } from '@/lib/advanced-cache'
 
 // Helper function to clean text content for database storage
 function cleanTextContent(content: string): string {
@@ -272,6 +273,10 @@ export async function POST(_request: NextRequest) {
     // Start vector processing job
     try {
       await processDocumentVectors(document.id, user.id)
+      // Invalidate search and chat caches so new document appears in results
+      advancedCache.clearNamespace(CACHE_NAMESPACES.SEARCH_RESULTS)
+      advancedCache.clearNamespace(CACHE_NAMESPACES.CHAT_HISTORY)
+
       loggers.performance({
         operation: 'upload_process_vector_processing_started',
         documentId: document.id,

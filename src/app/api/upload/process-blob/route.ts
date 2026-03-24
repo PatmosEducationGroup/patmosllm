@@ -8,6 +8,7 @@ import { sanitizeInput, sanitizeEmail } from '@/lib/input-sanitizer'
 import { processDocumentVectors } from '@/lib/ingest'
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 import { loggers, logError } from '@/lib/logger'
+import { advancedCache, CACHE_NAMESPACES } from '@/lib/advanced-cache'
 
 // Helper function to clean text content for database storage
 function cleanTextContent(content: string): string {
@@ -347,6 +348,10 @@ export async function POST(_request: NextRequest) {
           mimeType: mimeType
         }
       })
+
+      // Invalidate search and chat caches so new document appears in results
+      advancedCache.clearNamespace(CACHE_NAMESPACES.SEARCH_RESULTS)
+      advancedCache.clearNamespace(CACHE_NAMESPACES.CHAT_HISTORY)
 
       loggers.performance({
         operation: 'process_blob_complete',
