@@ -16,7 +16,7 @@ import {
   cacheConversationHistory
 } from '@/lib/advanced-cache'
 import { logger, loggers, logError } from '@/lib/logger'
-import { pMap, pTimeout, retry } from '@/lib/utils/performance'
+import { pTimeout, retry } from '@/lib/utils/performance'
 import type {
   QueryIntent,
   DocumentFormat,
@@ -301,47 +301,46 @@ export async function fetchSourceMetadata(
 ): Promise<Source[]> {
   const uniqueDocumentIds = [...new Set(chunks.map(chunk => chunk.documentId))]
 
-  const documentsWithMetadata = await pMap(
-    uniqueDocumentIds,
-    async (docId) => {
-      return await retry(
-        () => pTimeout(
-          withSupabaseAdmin(async (supabase) => {
-            const { data, error } = await supabase
-              .from('documents')
-              .select(`
-                id,
-                title,
-                author,
-                storage_path,
-                file_size,
-                amazon_url,
-                resource_url,
-                download_enabled,
-                contact_person,
-                contact_email
-              `)
-              .eq('id', docId)
-              .single()
+  const documentsWithMetadata = await retry(
+    () => pTimeout(
+      withSupabaseAdmin(async (supabase) => {
+        const { data, error } = await supabase
+          .from('documents')
+          .select(`
+            id,
+            title,
+            author,
+            storage_path,
+            file_size,
+            amazon_url,
+            resource_url,
+            download_enabled,
+            contact_person,
+            contact_email
+          `)
+          .in('id', uniqueDocumentIds)
 
-            if (error) throw error
-            return data
-          }),
-          1500
-        ),
-        { retries: 1, minTimeout: 120, maxTimeout: 250 }
-      ).catch((error) => {
-        loggers.database({ docId, error: error.message }, 'Metadata fetch failed (tolerated)')
-        return null
-      })
-    },
-    { concurrency: 8 }
-  ).then(results => results.filter(r => r !== null))
+        if (error) throw error
+        return data || []
+      }),
+      3000
+    ),
+    { retries: 1, minTimeout: 200, maxTimeout: 500 }
+  ).catch((error) => {
+    logError(error instanceof Error ? error : new Error('Batch metadata fetch failed'), {
+      operation: 'fetch_source_metadata',
+      documentIds: uniqueDocumentIds.length
+    })
+    return [] as Array<{ id: string; title: string; author: string | null; storage_path: string | null; file_size: number | null; amazon_url: string | null; resource_url: string | null; download_enabled: boolean | null; contact_person: string | null; contact_email: string | null }>
+  })
+
+  // Build a Map for O(1) lookups instead of O(n) find() per chunk
+  const metadataMap = new Map(documentsWithMetadata.map(doc => [doc.id, doc]))
 
   return chunks
     .reduce((acc, chunk) => {
-      if (!acc.find(source => source.title === chunk.documentTitle)) {
-        const metadata = documentsWithMetadata?.find(doc => doc.title === chunk.documentTitle)
+      if (!acc.find(source => source.document_id === chunk.documentId)) {
+        const metadata = metadataMap.get(chunk.documentId)
         acc.push({
           title: chunk.documentTitle,
           author: chunk.documentAuthor || undefined,
