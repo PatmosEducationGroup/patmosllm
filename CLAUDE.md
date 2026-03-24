@@ -51,7 +51,7 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 
 ### Tech Stack
 - **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
-- **Backend**: Next.js API routes, Clerk auth, Supabase (PostgreSQL), Pinecone vectors
+- **Backend**: Next.js API routes, Supabase Auth, Supabase (PostgreSQL), Pinecone vectors
 - **AI**: GPT-4o-mini chat, Voyage-3-large embeddings, hybrid search
 - **Storage**: Vercel Blob (>50MB), Supabase Storage (<50MB)
 - **Processing**: OCR, multimedia extraction, 25+ file formats
@@ -68,14 +68,14 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 
 **Donation Tracking**: daily_donation_estimates, api_usage_internal_log, usage_tracking_consent (see [`completed.md`](completed.md) for implementation details)
 
-**System Tables**: ingest_jobs, clerk_webhook_events, idempotency_keys
+**System Tables**: ingest_jobs, idempotency_keys
 
-**Architecture Note**: All tables use `auth_user_id` (references `auth.users.id` from Supabase Auth) denormalized for Row-Level Security (RLS) and query performance. Migration from Clerk to Supabase Auth in progress.
+**Architecture Note**: All tables use `auth_user_id` (references `auth.users.id` from Supabase Auth) denormalized for Row-Level Security (RLS) and query performance.
 
 ### Core Data Flow
 1. **Upload**: File → Process → Chunk → Embed → Pinecone
 2. **Query**: User → Embed → Hybrid Search → Context → LLM → Stream
-3. **Auth**: Clerk → Middleware → Role validation
+3. **Auth**: Supabase Auth → Middleware → Role validation
 
 ### Key API Routes
 
@@ -108,9 +108,8 @@ Next.js 15 RAG application with hybrid search, real-time chat, and multimedia pr
 **Application**:
 - `NEXT_PUBLIC_APP_URL`
 
-**Authentication**:
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-- `CLERK_SECRET_KEY`
+**Authentication** (Supabase Auth):
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 **Database & Storage**:
 - `NEXT_PUBLIC_SUPABASE_URL`

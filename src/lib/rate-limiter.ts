@@ -228,12 +228,16 @@ export function createRateLimit(options: RateLimitOptions = {}) {
           }
         }
       } catch (error) {
-        console.error('[RATE LIMITER] Upstash error, falling back to in-memory:', error)
-        // Fall through to in-memory on error
+        console.error('[RATE LIMITER] Upstash error, failing closed:', error)
+        return {
+          success: false,
+          message: 'Service temporarily unavailable. Please try again shortly.',
+          remaining: 0
+        }
       }
     }
 
-    // Fall back to in-memory rate limiting
+    // Fall back to in-memory rate limiting (only when Upstash is not configured)
     return inMemoryRateLimit(identifier, windowMs, max, message, role)
   }
 }

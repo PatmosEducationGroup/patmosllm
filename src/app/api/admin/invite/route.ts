@@ -121,7 +121,7 @@ export async function POST(_request: NextRequest) {
       adminEmail: user.email,
       inviteeEmail: email,
       inviteeRole: role,
-      invitationToken,
+      invitationTokenPrefix: invitationToken.substring(0, 8) + '...',
       emailSent: sendEmail
     }, 'Admin invited new user')
 

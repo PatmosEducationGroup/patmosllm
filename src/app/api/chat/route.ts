@@ -564,8 +564,14 @@ export async function POST(_request: NextRequest) {
                 }
               }, 'Chat request completed')
 
-            } catch (_postStreamError) {
-              // Silently tolerate - don't break chat
+            } catch (postStreamError) {
+              logError(postStreamError instanceof Error ? postStreamError : new Error('Post-stream operation failed'), {
+                operation: 'chat_post_stream',
+                phase: 'save_and_track',
+                userId: currentUserId,
+                sessionId,
+                severity: 'high'
+              })
             }
           }
         }
