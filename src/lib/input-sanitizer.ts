@@ -31,6 +31,19 @@ export function sanitizeInput(input: unknown): string {
 }
 
 /**
+ * Sanitize and validate an email address
+ * Returns the sanitized email if valid, or null if invalid/empty
+ */
+export function sanitizeEmail(input: unknown): string | null {
+  if (!input || typeof input !== 'string') return null
+  const sanitized = sanitizeInput(input).toLowerCase()
+  if (!sanitized) return null
+  // Basic email format check: has exactly one @, something before and after, and a dot after @
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(sanitized) ? sanitized : null
+}
+
+/**
  * Recursively sanitize all string values in an object
  *
  * @param obj - The object to sanitize

@@ -398,63 +398,64 @@ Should create `src/lib/constants.ts` for all shared values.
 
 | # | Task | Impact |
 |---|------|--------|
-| 1 | Stop logging invitation tokens in plaintext | Prevents credential leak |
-| 2 | Fix rate limiter to fail closed | Prevents abuse during Redis outage |
-| 3 | Fix silent catch block in chat post-stream (line 567) | Prevents silent data loss |
+| ~~1~~ | ~~Stop logging invitation tokens in plaintext~~ | ~~Done (fc340c4)~~ |
+| ~~2~~ | ~~Fix rate limiter to fail closed~~ | ~~Done (fc340c4)~~ |
+| ~~3~~ | ~~Fix silent catch block in chat post-stream~~ | ~~Done (fc340c4)~~ |
 | 4 | Remove Clerk references from CI/CD | Fixes build pipeline |
 | 5 | Re-enable ESLint `no-unused-vars` and `exhaustive-deps` | Catches dead code and stale closures |
+| 6 | Add email format validation on upload `contact_email` field | Prevents broken author contact info for users |
 
-### Week 2 — High Priority (Performance)
+### Week 2 — High Priority (Performance & RAG Quality)
 
 | # | Task | Impact |
 |---|------|--------|
-| 6 | Add `React.memo` to ChatMessages, ChatSidebar, SourceCard | Eliminates unnecessary re-renders |
-| 7 | Fix N+1 query in chatService (batch `.in()` instead of pMap) | Reduces DB calls by ~8x per chat |
-| 8 | Cache middleware `deleted_at` check (5-min TTL) | Eliminates DB query on every request |
-| 9 | Replace 59 console.logs with structured logging | Cleaner production output |
-| 10 | Add Suspense boundaries to admin and settings pages | Progressive loading |
-| 11 | Reduce Sentry `tracesSampleRate` to 0.1 | Reduces monitoring overhead 10x |
-| 12 | Add pagination to admin document and user list endpoints | Prevents response size explosion |
+| 7 | Fix N+1 query in chatService (batch `.in()` instead of pMap) | Reduces DB calls by ~8x per chat — gets worse as document library grows |
+| 8 | Implement cache invalidation on document upload | New resources appear in search immediately instead of serving stale results |
+| 9 | Feed memory system into search personalization | Returning users get progressively better, topic-aware results instead of starting from zero |
+| 10 | Add `React.memo` to ChatMessages, ChatSidebar, SourceCard | Eliminates unnecessary re-renders |
+| 11 | Cache middleware `deleted_at` check (5-min TTL) | Eliminates DB query on every request |
+| 12 | Replace 59 console.logs with structured logging | Cleaner production output |
+| 13 | Reduce Sentry `tracesSampleRate` to 0.1 | Reduces monitoring overhead 10x |
+| 14 | Add pagination to admin document and user list endpoints | Prevents response size explosion |
 
 ### Week 3 — Architecture
 
 | # | Task | Impact |
 |---|------|--------|
-| 13 | Split chat route into ChatService, StreamingService, ConversationRepository | Testability, maintainability |
-| 14 | Split upload page into 4-5 subcomponents | Reduces 3,460-line monolith |
-| 15 | Create custom hooks: useChat, useSessions, useAdmin | Eliminates prop drilling |
-| 16 | Implement SWR/React Query for data fetching | Request deduplication, caching |
-| 17 | Consolidate duplicate types into `src/types/` | Single source of truth |
-| 18 | Create `src/lib/constants.ts` for magic numbers/strings | Centralized configuration |
-| 19 | Add `@next/bundle-analyzer` | Visibility into bundle composition |
+| 15 | Split chat route into ChatService, StreamingService, ConversationRepository | Testability, maintainability |
+| 16 | Split upload page into 4-5 subcomponents | Reduces 3,460-line monolith |
+| 17 | Create custom hooks: useChat, useSessions, useAdmin | Eliminates prop drilling |
+| 18 | Implement SWR/React Query for data fetching | Request deduplication, caching |
+| 19 | Consolidate duplicate types into `src/types/` | Single source of truth |
+| 20 | Create `src/lib/constants.ts` for magic numbers/strings | Centralized configuration |
+| 21 | Add `@next/bundle-analyzer` | Visibility into bundle composition |
+| 22 | Add Suspense boundaries to admin and settings pages | Progressive loading |
 
 ### Week 4 — AI Pipeline & Quality
 
 | # | Task | Impact |
 |---|------|--------|
-| 20 | Replace `length/4` token estimation with actual tokenizer | Accurate cost tracking, context sizing |
-| 21 | Add token budget enforcement for context window | Prevents context overflow |
-| 22 | Fix exponential backoff off-by-one bug | Correct retry behavior |
-| 23 | Add circuit breaker for external API calls | Prevents cascade failures |
-| 24 | Cache document metadata fetches | Reduces redundant DB queries |
-| 25 | Add stream timeout and abort signal support | Prevents hanging requests |
-| 26 | Implement cache invalidation on document upload | Prevents stale search results |
-| 27 | Add streaming backpressure (check `controller.desiredSize`) | Prevents resource waste on disconnect |
+| 23 | Replace `length/4` token estimation with actual tokenizer | Accurate cost tracking, context sizing (critical for Hebrew/Greek text) |
+| 24 | Add token budget enforcement for context window | Prevents context overflow |
+| 25 | Fix exponential backoff off-by-one bug | Correct retry behavior |
+| 26 | Add circuit breaker for external API calls | Prevents cascade failures |
+| 27 | Cache document metadata fetches | Reduces redundant DB queries |
+| 28 | Add stream timeout and abort signal support | Prevents hanging requests |
+| 29 | Add streaming backpressure (check `controller.desiredSize`) | Prevents resource waste on disconnect |
 
 ### Month 2 — Polish
 
 | # | Task | Impact |
 |---|------|--------|
-| 28 | Add `reactStrictMode: true` to Next.js config | Catches side effect bugs in dev |
-| 29 | Add TypeScript `noUnusedLocals`/`noUnusedParameters` | Catches dead code at compile time |
-| 30 | Implement skeleton loading screens | Better perceived performance |
-| 31 | Add deep linking for chat sessions (`/chat/[sessionId]`) | Shareable/bookmarkable conversations |
-| 32 | Delete dead code (CleanChatInterface, unused Select/Textarea exports) | Reduces codebase noise |
-| 33 | Add form validation library (react-hook-form + Zod) | Consistent validation patterns |
-| 34 | Use memory system to personalize search/context | Currently write-only |
-| 35 | Add accessibility: aria-live regions, keyboard nav, focus indicators | WCAG 2.1 AA compliance |
-| 36 | Fix sentence splitting for abbreviations | Better chunking quality |
-| 37 | Add CI coverage thresholds, Lighthouse CI, dependency scanning | Automated quality gates |
+| 30 | Add `reactStrictMode: true` to Next.js config | Catches side effect bugs in dev |
+| 31 | Add TypeScript `noUnusedLocals`/`noUnusedParameters` | Catches dead code at compile time |
+| 32 | Implement skeleton loading screens | Better perceived performance |
+| 33 | Add deep linking for chat sessions (`/chat/[sessionId]`) | Shareable/bookmarkable conversations |
+| 34 | Delete dead code (CleanChatInterface, unused Select/Textarea exports) | Reduces codebase noise |
+| 35 | Add form validation library (react-hook-form + Zod) | Consistent validation patterns |
+| 36 | Add accessibility: aria-live regions, keyboard nav, focus indicators | WCAG 2.1 AA compliance |
+| 37 | Fix sentence splitting for abbreviations | Better chunking quality |
+| 38 | Add CI coverage thresholds, Lighthouse CI, dependency scanning | Automated quality gates |
 
 ---
 

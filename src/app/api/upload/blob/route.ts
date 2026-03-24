@@ -6,7 +6,7 @@ import { getIdentifier } from '@/lib/get-identifier'
 import { SUPPORTED_MIME_TYPES, SUPPORTED_EXTENSIONS } from '@/lib/clientValidation'
 import { supabaseAdmin } from '@/lib/supabase'
 import { extractTextFromFile } from '@/lib/fileProcessors'
-import { sanitizeInput } from '@/lib/input-sanitizer'
+import { sanitizeInput, sanitizeEmail } from '@/lib/input-sanitizer'
 import { processDocumentVectors } from '@/lib/ingest'
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 import { loggers, logError } from '@/lib/logger'
@@ -168,7 +168,7 @@ export async function POST(_request: NextRequest) {
     const cleanAmazonUrl = amazon_url ? sanitizeInput(amazon_url) : null
     const cleanResourceUrl = resource_url ? sanitizeInput(resource_url) : null
     const cleanContactPerson = contact_person ? sanitizeInput(contact_person) : null
-    const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
+    const cleanContactEmail = sanitizeEmail(contact_email)
 
     // Check if document with same title already exists
     const { data: existingDoc } = await supabaseAdmin

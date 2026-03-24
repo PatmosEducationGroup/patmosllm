@@ -4,7 +4,7 @@ import { extractTextFromFile } from '@/lib/fileProcessors'
 import { getCurrentUser } from '@/lib/auth'
 import { uploadRateLimit } from '@/lib/rate-limiter'
 import { getIdentifier } from '@/lib/get-identifier'
-import { sanitizeInput } from '@/lib/input-sanitizer'
+import { sanitizeInput, sanitizeEmail } from '@/lib/input-sanitizer'
 import { processDocumentVectors } from '@/lib/ingest'
 import { trackOnboardingMilestone } from '@/lib/onboardingTracker'
 import { cleanTitle } from '@/lib/titleCleaner'
@@ -105,7 +105,7 @@ export async function POST(_request: NextRequest) {
     const cleanAuthor = author ? sanitizeInput(author) : null
     const cleanAmazonUrl = amazon_url ? sanitizeInput(amazon_url) : null
     const cleanContactPerson = contact_person ? sanitizeInput(contact_person) : null
-    const cleanContactEmail = contact_email ? sanitizeInput(contact_email) : null
+    const cleanContactEmail = sanitizeEmail(contact_email)
 
     loggers.performance({
       operation: 'upload_process_start',
