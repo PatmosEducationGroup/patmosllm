@@ -28,10 +28,26 @@ export interface DocumentDownload {
 }
 
 export interface Message {
-  role: 'user' | 'assistant'
+  /** Unique message identifier (used by page-level state management) */
+  id?: string
+  /**
+   * Message role - preferred field name for hook-based state management.
+   * Either `role` or `type` must be present to indicate the message sender.
+   */
+  role?: 'user' | 'assistant'
+  /**
+   * Message type - legacy field name used by page-level components.
+   * Equivalent to `role`; one or both may be set.
+   */
+  type?: 'user' | 'assistant'
   content: string
   sources?: Source[]
+  /** Generated document download info (hook-based field name) */
   documentDownload?: DocumentDownload
+  /** Generated document download info (page-component field name) */
+  document?: DocumentDownload
+  /** Client-side creation time (used by page-level state management) */
+  timestamp?: Date
   isStreaming?: boolean
 }
 

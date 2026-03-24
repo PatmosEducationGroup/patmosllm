@@ -328,7 +328,7 @@ export async function createEmbeddings(
         if (retryCount < EMBEDDING_CONFIG.MAX_RETRIES) {
           const newRetryCount = retryCount + 1
           const { base, multiplier } = EMBEDDING_CONFIG.BACKOFF_STRATEGIES.TOKEN_LIMIT
-          const waitTime = Math.pow(multiplier, newRetryCount) * base
+          const waitTime = Math.pow(multiplier, retryCount) * base
 
           loggers.ai({
             operation: 'embedding_retry',

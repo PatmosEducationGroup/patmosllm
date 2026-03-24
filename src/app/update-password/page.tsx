@@ -10,6 +10,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { DELAY_COPY_FEEDBACK_MS } from '@/lib/constants'
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('')
@@ -56,10 +57,10 @@ export default function UpdatePasswordPage() {
       setSuccess(true)
       setLoading(false)
 
-      // Redirect to chat after 2 seconds
+      // Redirect to chat after a brief delay
       setTimeout(() => {
         router.push('/chat')
-      }, 2000)
+      }, DELAY_COPY_FEEDBACK_MS)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err) || 'Failed to update password')
       setLoading(false)

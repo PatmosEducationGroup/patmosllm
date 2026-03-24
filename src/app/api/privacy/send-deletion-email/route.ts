@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { getCurrentUser } from '@/lib/auth'
 import { logError } from '@/lib/logger'
+import { EMAIL_FROM } from '@/lib/constants'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     // Send email via Resend
     const { data, error } = await resend.emails.send({
-      from: 'Multiply Tools <noreply@multiplytools.app>',
+      from: EMAIL_FROM,
       to: [email],
       subject: 'Account Deletion Scheduled - You can still cancel',
       html: `

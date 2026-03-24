@@ -1,25 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Plus, Search, User, Settings, Menu, Globe, ShoppingCart, Download, Clock, Zap, Send } from 'lucide-react';
-
-// TypeScript interfaces
-interface Source {
-  title: string;
-  author?: string;
-  chunk_id: string;
-  amazon_url?: string;
-  resource_url?: string;
-  download_enabled: boolean;
-  contact_person?: string;
-  contact_email?: string;
-}
-
-interface Message {
-  id: number;
-  type: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  sources?: Source[];
-}
+import type { Source, Message } from '@/types/chat';
 
 interface Session {
   id: string;
@@ -36,11 +17,13 @@ const sampleSessions: Session[] = [
   { id: '4', title: 'Prayer for healing', updatedAt: '2024-01-13', messageCount: 15 },
 ];
 
-const sampleSources = [
+const sampleSources: Source[] = [
   {
     title: "Prayer Guide for Modern Christians",
     author: "Dr. Sarah Johnson",
     chunk_id: "123",
+    document_id: "doc-1",
+    has_file: false,
     amazon_url: "https://amazon.com/prayer-guide",
     download_enabled: true,
     contact_person: "Dr. Johnson",
@@ -50,6 +33,8 @@ const sampleSources = [
     title: "Healing Through Faith",
     author: "Rev. Michael Chen",
     chunk_id: "456",
+    document_id: "doc-2",
+    has_file: true,
     resource_url: "https://example.com/healing-faith.pdf",
     download_enabled: true
   }
@@ -75,8 +60,9 @@ export default function CleanChatInterface() {
     if (!input.trim()) return;
 
     const userMessage: Message = {
-      id: Date.now(),
+      id: String(Date.now()),
       type: 'user',
+      role: 'user',
       content: input,
       timestamp: new Date()
     };
@@ -88,8 +74,9 @@ export default function CleanChatInterface() {
     // Simulate AI response
     setTimeout(() => {
       const aiMessage: Message = {
-        id: Date.now() + 1,
+        id: String(Date.now() + 1),
         type: 'assistant',
+        role: 'assistant',
         content: "Prayer is one of the most powerful spiritual practices available to us. Based on the documents in our knowledge base, here are some effective approaches to prayer that can deepen your spiritual connection...",
         sources: sampleSources,
         timestamp: new Date()
@@ -330,12 +317,14 @@ export default function CleanChatInterface() {
                         )}
 
                         {/* Timestamp */}
-                        <div className={`flex items-center space-x-1 mt-3 text-xs ${
-                          message.type === 'user' ? 'text-blue-100' : 'text-gray-400'
-                        }`}>
-                          <Clock size={12} />
-                          <span>{message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
+                        {message.timestamp && (
+                          <div className={`flex items-center space-x-1 mt-3 text-xs ${
+                            message.type === 'user' ? 'text-blue-100' : 'text-gray-400'
+                          }`}>
+                            <Clock size={12} />
+                            <span>{message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -37,6 +37,7 @@
 import React from 'react'
 import { logError } from '@/lib/logger'
 import { AlertCircle, RefreshCw, Home } from 'lucide-react'
+import { EMAIL_ADMIN } from '@/lib/constants'
 
 interface ErrorBoundaryProps {
   children: React.ReactNode
@@ -194,10 +195,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                 <p className="text-sm text-gray-600">
                   If this problem persists, please contact support at{' '}
                   <a
-                    href="mailto:admin@multiplytools.app"
+                    href={`mailto:${EMAIL_ADMIN}`}
                     className="text-primary-600 hover:text-primary-700 font-medium underline"
                   >
-                    admin@multiplytools.app
+                    {EMAIL_ADMIN}
                   </a>
                 </p>
               </div>

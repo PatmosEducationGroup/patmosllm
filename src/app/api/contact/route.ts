@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 import { Resend } from 'resend'
 import { logger, logError } from '@/lib/logger'
+import { EMAIL_FROM, BRAND_NAME } from '@/lib/constants'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -74,10 +75,10 @@ export async function POST(_request: NextRequest) {
 
     // Send email using Resend
     const emailResult = await resend.emails.send({
-      from: 'Multiply Tools <noreply@multiplytools.app>',
+      from: EMAIL_FROM,
       to: [to],
       replyTo: senderEmail,
-      subject: `[Multiply Tools] ${cleanSubject}`,
+      subject: `[${BRAND_NAME}] ${cleanSubject}`,
       html: emailHtml,
     })
 

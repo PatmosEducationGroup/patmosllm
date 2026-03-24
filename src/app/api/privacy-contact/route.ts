@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sanitizeInput } from '@/lib/input-sanitizer'
 import { Resend } from 'resend'
 import { logger, logError } from '@/lib/logger'
+import { EMAIL_FROM, EMAIL_PRIVACY } from '@/lib/constants'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -56,8 +57,8 @@ export async function POST(request: NextRequest) {
 
     // Send email using Resend
     const emailResult = await resend.emails.send({
-      from: 'Multiply Tools <noreply@multiplytools.app>',
-      to: ['privacy@multiplytools.app'],
+      from: EMAIL_FROM,
+      to: [EMAIL_PRIVACY],
       replyTo: email,
       subject: `[Privacy Inquiry] ${cleanSubject}`,
       html: emailHtml,

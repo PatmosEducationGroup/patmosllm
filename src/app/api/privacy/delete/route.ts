@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { withSupabaseAdmin } from '@/lib/supabase'
 import { logError } from '@/lib/logger'
 import { Resend } from 'resend'
+import { EMAIL_FROM } from '@/lib/constants'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
 
       // Send email via Resend
       const { error: resendError } = await resend.emails.send({
-        from: 'Multiply Tools <noreply@multiplytools.app>',
+        from: EMAIL_FROM,
         to: [user.email],
         subject: 'Account Deletion Scheduled - You can still cancel',
         html: `

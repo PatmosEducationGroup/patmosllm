@@ -5,20 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import { Clock, Globe, Download, Zap, Shield } from 'lucide-react'
 import { formatFileSize } from '@/lib/chatUtils'
 import { SourceCard } from './SourceCard'
-import type { Source, DocumentDownload } from '@/types/chat'
-
-// =================================================================
-// LOCAL MESSAGE INTERFACE (matches page.tsx structure)
-// =================================================================
-interface Message {
-  id: string
-  type: 'user' | 'assistant'
-  content: string
-  sources?: Source[]
-  timestamp: Date
-  isStreaming?: boolean
-  document?: DocumentDownload
-}
+import type { Message } from '@/types/chat'
 
 interface ChatMessagesProps {
   messages: Message[]
@@ -92,7 +79,7 @@ export function ChatMessages({
         {/* Chat Messages */}
         {messages.map((message, index) => (
           <div
-            key={message.id}
+            key={message.id ?? index}
             className={`flex w-full animate-slide-up ${
               message.type === 'user' ? 'justify-end' : 'justify-start'
             }`}
@@ -175,7 +162,7 @@ export function ChatMessages({
                       Sources ({message.sources.length}):
                     </div>
                     <div className="flex flex-col gap-3">
-                      {(expandedSources.has(message.id)
+                      {(message.id && expandedSources.has(message.id)
                         ? message.sources
                         : message.sources.slice(0, 3)
                       ).map((source, i) => (
@@ -192,10 +179,10 @@ export function ChatMessages({
                     {/* Show More/Less Button */}
                     {message.sources.length > 3 && (
                       <button
-                        onClick={() => toggleSourcesExpansion(message.id)}
+                        onClick={() => message.id && toggleSourcesExpansion(message.id)}
                         className="mt-3 w-full py-2 px-4 text-sm font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
                       >
-                        {expandedSources.has(message.id) ? (
+                        {message.id && expandedSources.has(message.id) ? (
                           <>
                             Show less
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -216,12 +203,14 @@ export function ChatMessages({
                 )}
 
                 {/* Message Timestamp */}
-                <div className={`text-xs mt-3 flex items-center gap-1 ${
-                  message.type === 'user' ? 'text-white/70' : 'text-neutral-400'
-                }`}>
-                  <Clock className="w-3 h-3" />
-                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
+                {message.timestamp && (
+                  <div className={`text-xs mt-3 flex items-center gap-1 ${
+                    message.type === 'user' ? 'text-white/70' : 'text-neutral-400'
+                  }`}>
+                    <Clock className="w-3 h-3" />
+                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                )}
               </div>
             </div>
           </div>

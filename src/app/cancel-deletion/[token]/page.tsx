@@ -13,6 +13,7 @@ import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { CheckCircle, XCircle, Shield } from 'lucide-react'
+import { DELAY_REDIRECT_MS } from '@/lib/constants'
 
 export default function CancelDeletionPage() {
   const params = useParams()
@@ -77,10 +78,10 @@ export default function CancelDeletionPage() {
       if (response.ok) {
         setStatus('cancelled')
 
-        // Redirect to login after 3 seconds
+        // Redirect to login after a short delay
         setTimeout(() => {
           router.push('/login')
-        }, 3000)
+        }, DELAY_REDIRECT_MS)
       } else {
         throw new Error(data.error || 'Failed to cancel deletion')
       }

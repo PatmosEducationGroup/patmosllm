@@ -2,6 +2,17 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+// Cache for the `deleted_at` DB check.
+// Key: auth_user_id, Value: { deletedAt: string | null, expiresAt: number }
+const DELETION_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+interface DeletionCacheEntry {
+  deletedAt: string | null
+  expiresAt: number
+}
+
+const deletionCache = new Map<string, DeletionCacheEntry>()
+
 // Routes that require authentication
 const protectedRoutes = [
   '/chat',
@@ -81,17 +92,33 @@ export default async function middleware(req: NextRequest) {
 
   // CRITICAL: Check for scheduled deletion BEFORE any other checks
   if (supabaseUser) {
-    console.log('[MIDDLEWARE] Querying users table for auth_user_id:', supabaseUser.id)
-    const { data: userData, error: queryError } = await supabaseAdmin
-      .from('users')
-      .select('deleted_at')
-      .eq('auth_user_id', supabaseUser.id)
-      .maybeSingle()
+    const userId = supabaseUser.id
+    const now = Date.now()
+    const cached = deletionCache.get(userId)
 
-    console.log('[MIDDLEWARE] Deletion check - userData:', JSON.stringify(userData), 'error:', JSON.stringify(queryError))
+    let deletedAt: string | null
 
-    if (userData?.deleted_at) {
-      console.log('[MIDDLEWARE] User has deletion scheduled:', userData.deleted_at)
+    if (cached && now < cached.expiresAt) {
+      // Cache hit - skip the DB query
+      console.log('[MIDDLEWARE] Deletion check cache hit for user:', userId)
+      deletedAt = cached.deletedAt
+    } else {
+      // Cache miss - query the DB and store the result
+      console.log('[MIDDLEWARE] Querying users table for auth_user_id:', userId)
+      const { data: userData, error: queryError } = await supabaseAdmin
+        .from('users')
+        .select('deleted_at')
+        .eq('auth_user_id', userId)
+        .maybeSingle()
+
+      console.log('[MIDDLEWARE] Deletion check - userData:', JSON.stringify(userData), 'error:', JSON.stringify(queryError))
+
+      deletedAt = userData?.deleted_at ?? null
+      deletionCache.set(userId, { deletedAt, expiresAt: now + DELETION_CACHE_TTL_MS })
+    }
+
+    if (deletedAt) {
+      console.log('[MIDDLEWARE] User has deletion scheduled:', deletedAt)
 
       // User has scheduled deletion - only allow access to deletion-related pages
       const allowedPaths = [

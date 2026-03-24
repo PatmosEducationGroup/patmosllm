@@ -14,6 +14,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { ToastProvider, useToast } from '@/components/ui/Toast'
 import { Trash2, AlertTriangle, Shield, Info } from 'lucide-react'
 import { logError } from '@/lib/logger'
+import { DELAY_TOAST_VISIBLE_MS } from '@/lib/constants'
 
 interface UserStats {
   totalConversations: number
@@ -107,7 +108,7 @@ function DeleteAccountContent() {
       setConfirmText('')
 
       // Wait a moment for the toast to be visible
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      await new Promise(resolve => setTimeout(resolve, DELAY_TOAST_VISIBLE_MS))
 
       // Sign out via Supabase and redirect to home page
       await fetch('/api/auth/signout', { method: 'POST' })

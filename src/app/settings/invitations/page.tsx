@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Gift, Copy, XCircle, CheckCircle, Clock, Ban } from 'lucide-react'
+import { DELAY_REDIRECT_MS } from '@/lib/constants'
 
 interface Invitation {
   id: string
@@ -121,7 +122,7 @@ export default function InvitationsPage() {
     const url = `${window.location.origin}/invite/${invitation.invitation_token}/accept`
     navigator.clipboard.writeText(url)
     setSuccess('Invitation link copied to clipboard')
-    setTimeout(() => setSuccess(null), 3000)
+    setTimeout(() => setSuccess(null), DELAY_REDIRECT_MS)
   }
 
   function getStatusBadge(status: string) {

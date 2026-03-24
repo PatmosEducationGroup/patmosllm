@@ -13,6 +13,12 @@ import { ToastProvider, useToast } from '@/components/ui/Toast'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Modal } from '@/components/ui/Modal'
 import { AlertCircle } from 'lucide-react'
+import {
+  TOAST_DURATION_SUCCESS_BRIEF_MS,
+  TOAST_DURATION_ERROR_MS,
+  TOAST_DURATION_DEFAULT_MS,
+  DELAY_BETWEEN_UPLOADS_MS,
+} from '@/lib/constants'
 import { AdminErrorBoundary } from '@/components/ErrorBoundary'
 
 interface Document {
@@ -864,7 +870,7 @@ if (attempt === maxRetries) throw error
           type: 'success',
           title: 'Upload Complete',
           message: `"${queueItem.metadata.title}" uploaded successfully`,
-          duration: 3000
+          duration: TOAST_DURATION_SUCCESS_BRIEF_MS
         })
       } catch (error) {
     logError(error instanceof Error ? error : new Error('Operation failed'), {
@@ -888,13 +894,13 @@ if (attempt === maxRetries) throw error
           type: 'error',
           title: 'Upload Failed',
           message: `"${queueItem.metadata.title}": ${errorMessage}`,
-          duration: 8000
+          duration: TOAST_DURATION_ERROR_MS
         })
   }
 
       // Add delay between uploads to avoid rate limiting
       if (i < uploadQueue.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000)) // 2 second delay (increased)
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_UPLOADS_MS))
       }
     }
 
@@ -912,21 +918,21 @@ if (attempt === maxRetries) throw error
           type: 'success',
           title: 'All Uploads Complete',
           message: `Successfully uploaded ${completedCount} file${completedCount > 1 ? 's' : ''}`,
-          duration: 5000
+          duration: TOAST_DURATION_DEFAULT_MS
         })
       } else if (completedCount === 0) {
         addToast({
           type: 'error',
           title: 'All Uploads Failed',
           message: `${errorCount} file${errorCount > 1 ? 's' : ''} failed to upload`,
-          duration: 8000
+          duration: TOAST_DURATION_ERROR_MS
         })
       } else {
         addToast({
           type: 'warning',
           title: 'Upload Complete with Errors',
           message: `${completedCount} successful, ${errorCount} failed`,
-          duration: 8000
+          duration: TOAST_DURATION_ERROR_MS
         })
       }
     }

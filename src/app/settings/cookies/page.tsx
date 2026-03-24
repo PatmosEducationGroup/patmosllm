@@ -10,6 +10,7 @@ import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { ToastProvider, useToast } from '@/components/ui/Toast'
 import { Cookie, Shield, BarChart, Settings as SettingsIcon } from 'lucide-react'
+import { DELAY_SIMULATED_MS } from '@/lib/constants'
 
 function CookiesContent() {
   const { addToast } = useToast()
@@ -28,7 +29,7 @@ function CookiesContent() {
 
     try {
       // TODO: Implement cookie preferences API
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulated delay
+      await new Promise(resolve => setTimeout(resolve, DELAY_SIMULATED_MS)) // Simulated delay
 
       addToast({
         title: 'Preferences Saved',

@@ -3,6 +3,10 @@ import * as cheerio from 'cheerio'
 import puppeteer, { Browser } from 'puppeteer'
 import robotsParser from 'robots-parser'
 import { logger, loggers, logError } from '@/lib/logger'
+import {
+  TIMEOUT_SCRAPE_HTTP_MS,
+  TIMEOUT_SCRAPE_LIGHTWEIGHT_MS,
+} from '@/lib/constants'
 
 // Browser pool for efficient Puppeteer reuse
 class BrowserPool {
@@ -318,13 +322,13 @@ async function scrapePage(url: string): Promise<{ success: boolean; content?: st
 async function parseSitemapFile(sitemapUrl: string, baseUrl: string): Promise<string[]> {
   try {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 8000)
-    
-    const response = await fetch(sitemapUrl, { 
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_SCRAPE_HTTP_MS)
+
+    const response = await fetch(sitemapUrl, {
       headers: { 'User-Agent': 'Multiply Tools Web Scraper' },
       signal: controller.signal
     })
-    
+
     clearTimeout(timeoutId)
     
     if (!response.ok) return []
@@ -363,13 +367,13 @@ async function parseRobotsForSitemaps(baseUrl: string): Promise<string[]> {
     const robotsUrl = `${origin}/robots.txt`
     
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 8000)
-    
-    const response = await fetch(robotsUrl, { 
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_SCRAPE_HTTP_MS)
+
+    const response = await fetch(robotsUrl, {
       headers: { 'User-Agent': 'Multiply Tools Web Scraper' },
       signal: controller.signal
     })
-    
+
     clearTimeout(timeoutId)
     
     if (!response.ok) return []
@@ -411,7 +415,7 @@ async function parseRobotsForSitemaps(baseUrl: string): Promise<string[]> {
 async function scrapePageLightweight(url: string, baseUrl: string): Promise<{ title: string; content: string; links: string[] } | null> {
   try {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout for HTTP (ASP.NET sites)
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_SCRAPE_LIGHTWEIGHT_MS) // 10s timeout for HTTP (ASP.NET sites)
 
     const response = await fetch(url, {
       headers: {
@@ -782,15 +786,15 @@ async function parseSitemap(baseUrl: string): Promise<string[]> {
     for (const sitemapUrl of uniqueSitemapUrls) {
       try {
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 8000)
-        
-        const response = await fetch(sitemapUrl, { 
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_SCRAPE_HTTP_MS)
+
+        const response = await fetch(sitemapUrl, {
           headers: { 'User-Agent': 'Multiply Tools Web Scraper' },
           signal: controller.signal
         })
-        
+
         clearTimeout(timeoutId)
-        
+
         if (response.ok) {
           foundSitemaps++
           const xml = await response.text()

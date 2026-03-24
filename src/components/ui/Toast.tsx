@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  TOAST_DURATION_DEFAULT_MS,
+  TOAST_DURATION_ERROR_MS,
+  TOAST_DURATION_WARNING_MS,
+} from '@/lib/constants'
 
 export interface Toast {
   id: string
@@ -42,7 +47,7 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
     const newToast: Toast = {
       ...toast,
       id,
-      duration: toast.duration ?? 5000,
+      duration: toast.duration ?? TOAST_DURATION_DEFAULT_MS,
       closable: toast.closable ?? true
     }
 
@@ -276,10 +281,10 @@ export const useToastActions = () => {
       addToast({ type: 'success', message, ...options }),
 
     error: (message: string, options?: Partial<Omit<Toast, 'id' | 'type' | 'message'>>) =>
-      addToast({ type: 'error', message, duration: 8000, ...options }),
+      addToast({ type: 'error', message, duration: TOAST_DURATION_ERROR_MS, ...options }),
 
     warning: (message: string, options?: Partial<Omit<Toast, 'id' | 'type' | 'message'>>) =>
-      addToast({ type: 'warning', message, duration: 6000, ...options }),
+      addToast({ type: 'warning', message, duration: TOAST_DURATION_WARNING_MS, ...options }),
 
     info: (message: string, options?: Partial<Omit<Toast, 'id' | 'type' | 'message'>>) =>
       addToast({ type: 'info', message, ...options }),
@@ -310,7 +315,7 @@ export const useToastActions = () => {
         })
         .catch((err) => {
           const errorMessage = typeof error === 'function' ? error(err) : error
-          addToast({ type: 'error', message: errorMessage, duration: 8000 })
+          addToast({ type: 'error', message: errorMessage, duration: TOAST_DURATION_ERROR_MS })
         })
         .finally(() => {
           // Remove loading toast

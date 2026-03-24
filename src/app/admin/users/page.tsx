@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
+import { DELAY_COPY_FEEDBACK_MS } from '@/lib/constants'
 
 interface User {
   id: string
@@ -409,7 +410,7 @@ setError('Failed to invite user')
     if (generatedInviteUrl) {
       navigator.clipboard.writeText(generatedInviteUrl)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setTimeout(() => setCopied(false), DELAY_COPY_FEEDBACK_MS)
     }
   }
 
@@ -420,7 +421,7 @@ setError('Failed to invite user')
 
       navigator.clipboard.writeText(inviteUrl)
       setCopiedUserId(user.id)
-      setTimeout(() => setCopiedUserId(null), 2000)
+      setTimeout(() => setCopiedUserId(null), DELAY_COPY_FEEDBACK_MS)
     }
   }
 

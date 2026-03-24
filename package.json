@@ -21,7 +21,8 @@
     "test:memory:health": "node scripts/test-memory-health-integration.js",
     "type-check": "tsc --noEmit",
     "prepare": "husky",
-    "migrate:prepopulate": "node -r dotenv/config node_modules/.bin/tsx scripts/prepopulate-users.ts dotenv_config_path=.env.local"
+    "migrate:prepopulate": "node -r dotenv/config node_modules/.bin/tsx scripts/prepopulate-users.ts dotenv_config_path=.env.local",
+    "analyze": "ANALYZE=true next build"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
@@ -69,6 +70,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@next/bundle-analyzer": "^16.2.1",
     "@supabase/supabase-js": "^2.58.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",

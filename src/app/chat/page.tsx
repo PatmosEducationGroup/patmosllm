@@ -6,6 +6,7 @@ import { Menu, X, User, Settings, Shield, LogOut } from 'lucide-react'
 import Link from 'next/link'
 import { logError } from '@/lib/logger'
 import { ToastProvider, useToastActions } from '@/components/ui/Toast'
+import { TIMEOUT_CHAT_STREAM_MS, EMAIL_ADMIN } from '@/lib/constants'
 import { ChatErrorBoundary } from '@/components/ErrorBoundary'
 
 // Import extracted components
@@ -13,57 +14,7 @@ import { ChatSidebar } from '@/components/chat/ChatSidebar'
 import { ChatMessages } from '@/components/chat/ChatMessages'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { FeedbackModal, ContactModal } from '@/components/chat/ChatModals'
-
-// =================================================================
-// LOCAL TYPES (matching page structure)
-// =================================================================
-interface Source {
-  title: string
-  author?: string
-  chunk_id: string
-  document_id: string
-  has_file: boolean
-  file_size?: number
-  amazon_url?: string
-  resource_url?: string
-  download_enabled: boolean
-  contact_person?: string
-  contact_email?: string
-}
-
-interface DocumentDownload {
-  format: 'pdf' | 'pptx' | 'xlsx'
-  filename: string
-  downloadUrl: string
-  size: number
-  expiresAt: string
-}
-
-interface Message {
-  id: string
-  type: 'user' | 'assistant'
-  content: string
-  sources?: Source[]
-  timestamp: Date
-  isStreaming?: boolean
-  document?: DocumentDownload
-}
-
-interface ChatSession {
-  id: string
-  title: string
-  createdAt: string
-  updatedAt: string
-  messageCount: number
-}
-
-interface Conversation {
-  id: string
-  question: string
-  answer: string
-  sources: Source[]
-  created_at: string
-}
+import type { Source, DocumentDownload, Message, ChatSession, Conversation } from '@/types/chat'
 
 // =================================================================
 // MAIN CHAT COMPONENT
@@ -306,7 +257,7 @@ function ChatPageContent() {
 
     try {
       const abortController = new AbortController()
-      timeoutId = setTimeout(() => abortController.abort(), 120000)
+      timeoutId = setTimeout(() => abortController.abort(), TIMEOUT_CHAT_STREAM_MS)
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -451,7 +402,7 @@ function ChatPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: 'admin@multiplytools.app',
+          to: EMAIL_ADMIN,
           contactPerson: 'Multiply Tools Team',
           documentTitle: 'Beta Testing Feedback',
           senderName: feedbackForm.name,
