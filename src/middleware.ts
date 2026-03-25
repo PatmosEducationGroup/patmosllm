@@ -36,6 +36,11 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
+  // Skip middleware for Sentry tunnel route (no auth needed, just proxies to Sentry)
+  if (req.nextUrl.pathname.startsWith('/monitoring')) {
+    return NextResponse.next()
+  }
+
   // Request size limit (prevent DoS attacks) - 10MB limit for API requests
   const contentLength = req.headers.get('content-length')
   if (contentLength && parseInt(contentLength) > 10_000_000) {
