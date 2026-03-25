@@ -3,6 +3,8 @@ import { withSentryConfig } from '@sentry/nextjs'
 import withBundleAnalyzer from '@next/bundle-analyzer'
 
 const nextConfig: NextConfig = {
+  reactStrictMode: true,
+
   serverExternalPackages: [
     'pdf2pic',
     'mammoth',

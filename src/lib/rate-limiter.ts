@@ -20,6 +20,7 @@
 
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
+import { logger, logError } from '@/lib/logger'
 
 // In-memory fallback for development
 const rateLimitMap = new Map<string, number[]>()
@@ -190,9 +191,9 @@ export function createRateLimit(options: RateLimitOptions = {}) {
   const usingUpstash = isUpstashConfigured()
 
   if (!usingUpstash) {
-    console.warn(
-      '[RATE LIMITER] Upstash Redis not configured. Using in-memory fallback. ' +
-      'Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN for production.'
+    logger.warn(
+      { component: 'rate-limiter' },
+      '[RATE LIMITER] Upstash Redis not configured. Using in-memory fallback. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN for production.'
     )
   }
 
@@ -228,7 +229,7 @@ export function createRateLimit(options: RateLimitOptions = {}) {
           }
         }
       } catch (error) {
-        console.error('[RATE LIMITER] Upstash error, falling back to in-memory:', error)
+        logError(error instanceof Error ? error : new Error('Upstash rate limit error'), { component: 'rate-limiter', fallback: 'in-memory' })
         // Fall through to in-memory rate limiting (still enforced, just per-process)
       }
     }

@@ -5,7 +5,7 @@
  * Provides consistent navigation across all settings pages
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -119,7 +119,9 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
         </div>
 
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {children}
+          <Suspense fallback={<div>Loading...</div>}>
+            {children}
+          </Suspense>
         </div>
       </div>
     )
@@ -230,7 +232,9 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
 
           {/* Main Content Area */}
           <div className="flex-1 min-w-0">
-            {children}
+            <Suspense fallback={<div>Loading...</div>}>
+              {children}
+            </Suspense>
           </div>
         </div>
       </div>

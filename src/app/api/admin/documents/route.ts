@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
 
 // GET - List documents based on user role
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     // getCurrentUser() handles Supabase auth
     const user = await getCurrentUser()
@@ -21,6 +21,12 @@ export async function GET(_request: NextRequest) {
         { status: 403 }
       )
     }
+
+    // Parse pagination query params — defaults: page=1, limit=50
+    const { searchParams } = new URL(request.url)
+    const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
+    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') ?? '50', 10)))
+    const offset = (page - 1) * limit
 
     let query = supabaseAdmin
       .from('documents')
@@ -44,8 +50,9 @@ export async function GET(_request: NextRequest) {
         source_url,
         users!documents_uploaded_by_fkey(email, name),
         chunks(count)
-      `)
+      `, { count: 'exact' })
       .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
 
     // If CONTRIBUTOR, only show their own documents
     // If ADMIN or SUPER_ADMIN, show all documents
@@ -53,7 +60,7 @@ export async function GET(_request: NextRequest) {
       query = query.eq('uploaded_by', user.id)
     }
 
-    const { data: documents, error } = await query
+    const { data: documents, error, count } = await query
 
     if (error) {
       return NextResponse.json(
@@ -95,7 +102,13 @@ export async function GET(_request: NextRequest) {
     return NextResponse.json({
       success: true,
       documents: transformedDocuments,
-      userRole: user.role
+      userRole: user.role,
+      pagination: {
+        page,
+        limit,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / limit)
+      }
     })
 
   } catch (error) {

@@ -1,5 +1,5 @@
 export { ChatInput } from './ChatInput'
-export { SourceCard } from './SourceCard'
+export { default as SourceCard } from './SourceCard'
 export { FeedbackModal, ContactModal } from './ChatModals'
-export { ChatMessages } from './ChatMessages'
-export { ChatSidebar } from './ChatSidebar'
+export { default as ChatMessages } from './ChatMessages'
+export { default as ChatSidebar } from './ChatSidebar'

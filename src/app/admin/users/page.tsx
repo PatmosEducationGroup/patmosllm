@@ -463,7 +463,6 @@ setError('Failed to invite user')
       const data = await response.json()
 
       if (data.success) {
-        console.log(`Invitation resent to ${userEmail}`)
       } else {
         setError(data.error)
       }

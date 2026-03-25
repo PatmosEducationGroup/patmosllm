@@ -1,7 +1,7 @@
 // File: src/app/api/onboarding/track/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
-import { logError } from '@/lib/logger'
+import { logger, logError } from '@/lib/logger'
 import { getCurrentUser } from '@/lib/auth'
 import { trackOnboardingMilestone, MilestoneType } from '@/lib/onboardingTracker'
 
@@ -101,12 +101,7 @@ return NextResponse.json(
       severity: 'medium',
       errorContext: 'Internal server error'
     })
-// Fix 6: Better error logging with context
-    console.error('Request details:', {
-      method: _request.method,
-      url: _request.url,
-      headers: Object.fromEntries(_request.headers.entries())
-    })
+    logger.debug({ method: _request.method, url: _request.url }, 'Onboarding track request details on error')
     
     return NextResponse.json(
       { error: 'Internal server error' },

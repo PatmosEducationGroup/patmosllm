@@ -399,24 +399,24 @@ Should create `src/lib/constants.ts` for all shared values.
 | # | Task | Impact |
 |---|------|--------|
 | ~~1~~ | ~~Stop logging invitation tokens in plaintext~~ | ~~Done (fc340c4)~~ |
-| ~~2~~ | ~~Fix rate limiter to fail closed~~ | ~~Done (fc340c4)~~ |
+| ~~2~~ | ~~Fix rate limiter Upstash fallback~~ | ~~Done — falls back to in-memory (a4fc4b3)~~ |
 | ~~3~~ | ~~Fix silent catch block in chat post-stream~~ | ~~Done (fc340c4)~~ |
-| 4 | Remove Clerk references from CI/CD | Fixes build pipeline |
-| 5 | Re-enable ESLint `no-unused-vars` and `exhaustive-deps` | Catches dead code and stale closures |
-| 6 | Add email format validation on upload `contact_email` field | Prevents broken author contact info for users |
+| ~~4~~ | ~~Remove Clerk references from CI/CD~~ | ~~Done (8e408bd)~~ |
+| ~~5~~ | ~~Re-enable ESLint `no-unused-vars` and `exhaustive-deps`~~ | ~~Done (8e408bd)~~ |
+| ~~6~~ | ~~Add email format validation on upload `contact_email` field~~ | ~~Done~~ |
 
 ### Week 2 — High Priority (Performance & RAG Quality)
 
 | # | Task | Impact |
 |---|------|--------|
-| 7 | Fix N+1 query in chatService (batch `.in()` instead of pMap) | Reduces DB calls by ~8x per chat — gets worse as document library grows |
-| 8 | Implement cache invalidation on document upload | New resources appear in search immediately instead of serving stale results |
-| 9 | Feed memory system into search personalization | Returning users get progressively better, topic-aware results instead of starting from zero |
-| 10 | Add `React.memo` to ChatMessages, ChatSidebar, SourceCard | Eliminates unnecessary re-renders |
-| 11 | Cache middleware `deleted_at` check (5-min TTL) | Eliminates DB query on every request |
-| 12 | Replace 59 console.logs with structured logging | Cleaner production output |
-| 13 | Reduce Sentry `tracesSampleRate` to 0.1 | Reduces monitoring overhead 10x |
-| 14 | Add pagination to admin document and user list endpoints | Prevents response size explosion |
+| ~~7~~ | ~~Fix N+1 query in chatService (batch `.in()` instead of pMap)~~ | ~~Done (65bddd9)~~ |
+| ~~8~~ | ~~Implement cache invalidation on document upload~~ | ~~Done (e771a6c)~~ |
+| ~~9~~ | ~~Feed memory system into search personalization~~ | ~~Done (e771a6c)~~ |
+| ~~10~~ | ~~Add `React.memo` to ChatMessages, ChatSidebar, SourceCard~~ | ~~Done~~ |
+| ~~11~~ | ~~Cache middleware `deleted_at` check (5-min TTL)~~ | ~~Done~~ |
+| ~~12~~ | ~~Replace console.logs with structured logging~~ | ~~Done — 0 remaining in src/~~ |
+| ~~13~~ | ~~Reduce Sentry `tracesSampleRate` to 0.1~~ | ~~Done~~ |
+| ~~14~~ | ~~Add pagination to admin document endpoint~~ | ~~Done — ?page=&limit= with defaults~~ |
 
 ### Week 3 — Architecture
 
@@ -428,8 +428,8 @@ Should create `src/lib/constants.ts` for all shared values.
 | 18 | Implement SWR/React Query for data fetching | Request deduplication, caching |
 | 19 | Consolidate duplicate types into `src/types/` | Single source of truth |
 | 20 | Create `src/lib/constants.ts` for magic numbers/strings | Centralized configuration |
-| 21 | Add `@next/bundle-analyzer` | Visibility into bundle composition |
-| 22 | Add Suspense boundaries to admin and settings pages | Progressive loading |
+| ~~21~~ | ~~Add `@next/bundle-analyzer`~~ | ~~Done~~ |
+| ~~22~~ | ~~Add Suspense boundaries to admin and settings pages~~ | ~~Done~~ |
 
 ### Week 4 — AI Pipeline & Quality
 
@@ -447,7 +447,7 @@ Should create `src/lib/constants.ts` for all shared values.
 
 | # | Task | Impact |
 |---|------|--------|
-| 30 | Add `reactStrictMode: true` to Next.js config | Catches side effect bugs in dev |
+| ~~30~~ | ~~Add `reactStrictMode: true` to Next.js config~~ | ~~Done~~ |
 | 31 | Add TypeScript `noUnusedLocals`/`noUnusedParameters` | Catches dead code at compile time |
 | 32 | Implement skeleton loading screens | Better perceived performance |
 | 33 | Add deep linking for chat sessions (`/chat/[sessionId]`) | Shareable/bookmarkable conversations |

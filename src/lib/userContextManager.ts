@@ -1,6 +1,6 @@
 import { withSupabaseAdmin } from '@/lib/supabase'
 import { advancedCache, CACHE_NAMESPACES, CACHE_TTL } from '@/lib/advanced-cache'
-import { logError } from '@/lib/logger'
+import { logger, logError } from '@/lib/logger'
 
 // =================================================================
 // TYPE DEFINITIONS - Memory system interfaces
@@ -250,7 +250,7 @@ class UserContextManager {
       const { openai } = await import('@/lib/openai')
 
       if (!openai) {
-        console.error('OpenAI instance not available for topic extraction')
+        logger.error({ operation: 'topicExtraction' }, 'OpenAI instance not available for topic extraction')
         return this.fallbackTopicExtraction(question, response)
       }
 

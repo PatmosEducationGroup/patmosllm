@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import Link from 'next/link'
 import {
   MessageCircle,
@@ -32,7 +33,7 @@ interface ChatSidebarProps {
   onFeedbackClick: () => void
 }
 
-export function ChatSidebar({
+function ChatSidebar({
   sidebarOpen,
   setSidebarOpen,
   sessions,
@@ -258,3 +259,5 @@ export function ChatSidebar({
     </>
   )
 }
+
+export default React.memo(ChatSidebar)

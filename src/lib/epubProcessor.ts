@@ -1,6 +1,6 @@
 import EPub from 'epub2'
 import { load } from 'cheerio'
-import { logError } from './logger'
+import { logger, logError } from './logger'
 
 interface EPubMetadata {
   title: string
@@ -113,7 +113,7 @@ export class EPubProcessor {
     const chaptersToProcess = Math.min(flow.length, maxChapters)
 
     if (flow.length > maxChapters) {
-      console.warn(`EPUB has ${flow.length} chapters, limiting to ${maxChapters}`)
+      logger.warn({ chapterCount: flow.length, limit: maxChapters }, 'EPUB chapter count exceeds limit, truncating')
     }
 
     for (let i = 0; i < chaptersToProcess; i++) {

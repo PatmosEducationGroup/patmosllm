@@ -485,7 +485,7 @@ Format as JSON:
           improved: Array.isArray(parsed.improved) ? parsed.improved.slice(0, 2) : []
         }
       } catch (parseError) {
-        console.error('Failed to parse question examples:', parseError)
+        logError(parseError instanceof Error ? parseError : new Error('Failed to parse question examples'), { operation: 'generateQuestionExamples', phase: 'json_parse' })
         return { current: question, improved: [] }
       }
 

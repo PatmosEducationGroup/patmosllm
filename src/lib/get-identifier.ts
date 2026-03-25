@@ -1,6 +1,7 @@
 // lib/get-identifier.ts
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { logError } from '@/lib/logger'
 
 /**
  * Truncate IP address for GDPR compliance (data minimization).
@@ -54,7 +55,7 @@ export async function getIdentifier(request: Request): Promise<string> {
     }
   } catch (error) {
     // Log auth failures for debugging
-    console.error('Auth failed in getIdentifier:', error)
+    logError(error instanceof Error ? error : new Error('Auth failed in getIdentifier'), { operation: 'getIdentifier' })
   }
 
   // Fall back to IP address (GDPR: truncated for privacy)

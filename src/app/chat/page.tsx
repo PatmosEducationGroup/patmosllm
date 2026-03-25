@@ -10,8 +10,8 @@ import { TIMEOUT_CHAT_STREAM_MS, EMAIL_ADMIN } from '@/lib/constants'
 import { ChatErrorBoundary } from '@/components/ErrorBoundary'
 
 // Import extracted components
-import { ChatSidebar } from '@/components/chat/ChatSidebar'
-import { ChatMessages } from '@/components/chat/ChatMessages'
+import ChatSidebar from '@/components/chat/ChatSidebar'
+import ChatMessages from '@/components/chat/ChatMessages'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { FeedbackModal, ContactModal } from '@/components/chat/ChatModals'
 import type { Source, DocumentDownload, Message, ChatSession, Conversation } from '@/types/chat'

@@ -9,6 +9,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import type { NextRequest } from 'next/server'
+import { logError } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
-      console.error('Auth callback error:', error)
+      logError(error instanceof Error ? error : new Error('Auth callback error'), { operation: 'auth/callback', type })
       return NextResponse.redirect(`${requestUrl.origin}/sign-in?error=auth_failed`)
     }
 

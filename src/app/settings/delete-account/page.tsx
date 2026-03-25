@@ -46,11 +46,7 @@ function DeleteAccountContent() {
       const profileResponse = await fetch('/api/user/profile')
       if (profileResponse.ok) {
         const profileData = await profileResponse.json()
-        console.log('[DeleteAccount] Profile data:', profileData)
-        console.log('[DeleteAccount] deleted_at:', profileData.profile?.deleted_at)
         setDeletionScheduledFor(profileData.profile?.deleted_at || null)
-      } else {
-        console.log('[DeleteAccount] Profile fetch failed:', profileResponse.status)
       }
 
       // Fetch real user statistics
@@ -197,8 +193,6 @@ function DeleteAccountContent() {
       </div>
     )
   }
-
-  console.log('[DeleteAccount] Render - deletionScheduledFor:', deletionScheduledFor)
 
   return (
     <div className="space-y-6">

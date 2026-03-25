@@ -5,7 +5,7 @@
  * Provides consistent sidebar navigation across all admin pages
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -212,7 +212,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
           {/* Main Content Area */}
           <div className="flex-1 min-w-0">
-            {children}
+            <Suspense fallback={<div>Loading...</div>}>
+              {children}
+            </Suspense>
           </div>
         </div>
       </div>

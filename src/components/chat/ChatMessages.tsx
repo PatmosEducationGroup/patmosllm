@@ -1,10 +1,10 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Clock, Globe, Download, Zap, Shield } from 'lucide-react'
 import { formatFileSize } from '@/lib/chatUtils'
-import { SourceCard } from './SourceCard'
+import SourceCard from './SourceCard'
 import type { Message } from '@/types/chat'
 
 interface ChatMessagesProps {
@@ -16,7 +16,7 @@ interface ChatMessagesProps {
   onDownloadClick: (documentId: string, title: string) => void
 }
 
-export function ChatMessages({
+function ChatMessages({
   messages,
   loading,
   isStreaming,
@@ -264,3 +264,5 @@ export function ChatMessages({
     </div>
   )
 }
+
+export default React.memo(ChatMessages)

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
+import { logError } from '@/lib/logger'
 
 /**
  * Check if current user has admin access
@@ -20,7 +21,7 @@ export async function GET() {
 
     return NextResponse.json({ canAdmin }, { status: 200 })
   } catch (error) {
-    console.error('Error checking admin access:', error)
+    logError(error instanceof Error ? error : new Error('Failed to check admin access'), { operation: 'GET /api/user/can-admin' })
     return NextResponse.json({ canAdmin: false }, { status: 200 })
   }
 }

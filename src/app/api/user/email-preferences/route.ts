@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { withSupabaseAdmin } from '@/lib/supabase'
-import { logError } from '@/lib/logger'
+import { logger, logError } from '@/lib/logger'
 
 interface EmailPreferences {
   productUpdates: boolean
@@ -30,14 +30,14 @@ export async function GET() {
     const user = await getCurrentUser()
 
     if (!user) {
-      console.log('[Email Preferences GET] No authenticated user found')
+      logger.debug({ operation: 'GET /api/user/email-preferences' }, 'No authenticated user found')
       return NextResponse.json({
         success: false,
         error: 'Authentication required'
       }, { status: 401 })
     }
 
-    console.log('[Email Preferences GET] User authenticated:', { userId: user.id, email: user.email })
+    logger.debug({ userId: user.id, email: user.email }, 'Email Preferences GET user authenticated')
 
     // Fetch user preferences from database
     const preferences = await withSupabaseAdmin(async (supabase) => {
@@ -48,20 +48,15 @@ export async function GET() {
         .single()
 
       if (error) {
-        console.log('[Email Preferences GET] Database error:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        })
+        logger.debug({ code: error.code, message: error.message, details: error.details, hint: error.hint }, 'Email Preferences GET database error')
         // If no preferences exist yet, return defaults
         if (error.code === 'PGRST116') {
-          console.log('[Email Preferences GET] No existing preferences found, returning defaults')
+          logger.debug({ userId: user.id }, 'Email Preferences GET no existing preferences, returning defaults')
           return null
         }
         throw error
       }
-      console.log('[Email Preferences GET] Found existing preferences:', data)
+      logger.debug({ userId: user.id }, 'Email Preferences GET found existing preferences')
       return data
     })
 
@@ -74,7 +69,7 @@ export async function GET() {
     })
 
   } catch (error) {
-    console.error('[Email Preferences GET] Caught error:', error)
+    // logError below already handles structured error output
     logError(error instanceof Error ? error : new Error('Email preferences fetch failed'), {
       operation: 'GET /api/user/email-preferences',
       severity: 'medium'
@@ -93,14 +88,14 @@ export async function POST(request: NextRequest) {
     const user = await getCurrentUser()
 
     if (!user) {
-      console.log('[Email Preferences POST] No authenticated user found')
+      logger.debug({ operation: 'POST /api/user/email-preferences' }, 'No authenticated user found')
       return NextResponse.json({
         success: false,
         error: 'Authentication required'
       }, { status: 401 })
     }
 
-    console.log('[Email Preferences POST] User authenticated:', { userId: user.id, email: user.email })
+    logger.debug({ userId: user.id, email: user.email }, 'Email Preferences POST user authenticated')
 
     // Parse request body
     const body = await request.json()

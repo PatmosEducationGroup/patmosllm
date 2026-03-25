@@ -1,3 +1,5 @@
+import { logger } from '@/lib/logger'
+
 /**
  * Donation Cost Calculator
  *
@@ -31,7 +33,7 @@ const env = (key: string, defaultValue: number): number => {
 
   const parsed = Number(value)
   if (isNaN(parsed)) {
-    console.warn(`[donation-calculator] Invalid ${key}=${value}, using default ${defaultValue}`)
+    logger.warn({ key, value, defaultValue }, `[donation-calculator] Invalid env value, using default`)
     return defaultValue
   }
 
@@ -278,8 +280,9 @@ export function estimateSupabaseCost(operationCount: number = 1): number {
  * //   - Infrastructure overhead: 1.10x (10%)
  */
 export function logPricingConfig(): void {
-  console.log('[donation-calculator] Pricing configuration:')
-  console.log(`  - LLM rate: $${PRICING.llm_per_10k_tokens} per 10k tokens`)
-  console.log(`  - Operation equiv: ${PRICING.op_equiv_tokens} tokens`)
-  console.log(`  - Infrastructure overhead: ${PRICING.infrastructure_overhead}x (${((PRICING.infrastructure_overhead - 1) * 100).toFixed(0)}%)`)
+  logger.info({
+    llmPer10kTokens: PRICING.llm_per_10k_tokens,
+    opEquivTokens: PRICING.op_equiv_tokens,
+    infrastructureOverhead: PRICING.infrastructure_overhead
+  }, '[donation-calculator] Pricing configuration')
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { ShoppingCart, Download, User } from 'lucide-react'
 import { ensureHttps, formatFileSize } from '@/lib/chatUtils'
 import type { Source } from '@/types/chat'
@@ -11,7 +12,7 @@ interface SourceCardProps {
   onDownloadClick: (documentId: string, title: string) => void
 }
 
-export function SourceCard({
+function SourceCard({
   source,
   index,
   onContactClick,
@@ -77,3 +78,5 @@ export function SourceCard({
     </div>
   )
 }
+
+export default React.memo(SourceCard)

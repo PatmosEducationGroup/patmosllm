@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { logError } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
       { status: 200, headers: responseHeaders }
     )
   } catch (error) {
-    console.error('Error during Supabase login:', error)
+    logError(error instanceof Error ? error : new Error('Supabase login failed'), { operation: 'POST /api/auth/login-supabase' })
     return NextResponse.json(
       { error: 'Authentication failed' },
       { status: 500 }

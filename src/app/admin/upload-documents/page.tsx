@@ -846,7 +846,6 @@ setScrapingMessage('Failed to save scraped content')
         if (response.status === 429 && attempt < maxRetries) {
           // Rate limited, wait with exponential backoff
           const delay = Math.min(1000 * Math.pow(2, attempt), 10000) // Max 10 seconds
-          console.log(`Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`)
           await new Promise(resolve => setTimeout(resolve, delay))
           continue
         }
@@ -984,7 +983,6 @@ if (attempt === maxRetries) throw error
 
     if (useBlob) {
       // Use Vercel Blob for large files
-      console.log(`Using Vercel Blob for large file: ${file.name} (${file.size} bytes)`)
       
       // Create FormData for blob upload with metadata
       const formData = new FormData()
@@ -1009,7 +1007,6 @@ if (attempt === maxRetries) throw error
 
     } else {
       // Use Supabase for smaller files (existing logic)
-      console.log(`Using Supabase for regular file: ${file.name} (${file.size} bytes)`)
 
       // Get presigned URL with retry logic
       const presignedResponse = await retryWithBackoff(() => fetch('/api/upload/presigned', {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { logError } from '@/lib/logger'
 
 /**
  * API Route: Sign Out
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     return response
 
   } catch (error) {
-    console.error('[Signout Error]', error)
+    logError(error instanceof Error ? error : new Error('Signout failed'), { operation: 'POST /api/auth/signout' })
     return NextResponse.json(
       { error: 'Failed to sign out' },
       { status: 500 }

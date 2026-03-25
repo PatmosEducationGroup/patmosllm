@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { logger } from '@/lib/logger'
 
 // Cache for the `deleted_at` DB check.
 // Key: auth_user_id, Value: { deletedAt: string | null, expiresAt: number }
@@ -93,7 +94,7 @@ export default async function middleware(req: NextRequest) {
 
   const { data: { user: supabaseUser } } = await supabaseAnon.auth.getUser()
 
-  console.log('[MIDDLEWARE] Path:', req.nextUrl.pathname, 'Has Supabase user:', !!supabaseUser, 'User ID:', supabaseUser?.id)
+  logger.debug({ path: req.nextUrl.pathname, hasUser: !!supabaseUser, userId: supabaseUser?.id }, '[MIDDLEWARE] Path check')
 
   // CRITICAL: Check for scheduled deletion BEFORE any other checks
   if (supabaseUser) {
@@ -105,25 +106,25 @@ export default async function middleware(req: NextRequest) {
 
     if (cached && now < cached.expiresAt) {
       // Cache hit - skip the DB query
-      console.log('[MIDDLEWARE] Deletion check cache hit for user:', userId)
+      logger.debug({ userId }, '[MIDDLEWARE] Deletion check cache hit')
       deletedAt = cached.deletedAt
     } else {
       // Cache miss - query the DB and store the result
-      console.log('[MIDDLEWARE] Querying users table for auth_user_id:', userId)
+      logger.debug({ userId }, '[MIDDLEWARE] Querying users table for deletion status')
       const { data: userData, error: queryError } = await supabaseAdmin
         .from('users')
         .select('deleted_at')
         .eq('auth_user_id', userId)
         .maybeSingle()
 
-      console.log('[MIDDLEWARE] Deletion check - userData:', JSON.stringify(userData), 'error:', JSON.stringify(queryError))
+      logger.debug({ userId, hasData: !!userData, hasError: !!queryError }, '[MIDDLEWARE] Deletion check result')
 
       deletedAt = userData?.deleted_at ?? null
       deletionCache.set(userId, { deletedAt, expiresAt: now + DELETION_CACHE_TTL_MS })
     }
 
     if (deletedAt) {
-      console.log('[MIDDLEWARE] User has deletion scheduled:', deletedAt)
+      logger.debug({ userId, deletedAt }, '[MIDDLEWARE] User has deletion scheduled')
 
       // User has scheduled deletion - only allow access to deletion-related pages
       const allowedPaths = [
@@ -137,14 +138,14 @@ export default async function middleware(req: NextRequest) {
 
       const isAllowedPath = allowedPaths.some(path => req.nextUrl.pathname.startsWith(path))
 
-      console.log('[MIDDLEWARE] Is allowed path:', isAllowedPath, 'for path:', req.nextUrl.pathname)
+      logger.debug({ isAllowedPath, path: req.nextUrl.pathname }, '[MIDDLEWARE] Deletion path check')
 
       if (!isAllowedPath) {
-        console.log('[MIDDLEWARE] REDIRECTING to /settings/delete-account')
+        logger.debug({ userId, path: req.nextUrl.pathname }, '[MIDDLEWARE] Redirecting to delete-account')
         return NextResponse.redirect(new URL('/settings/delete-account', req.url))
       }
     } else {
-      console.log('[MIDDLEWARE] No deletion scheduled for user')
+      logger.debug({ userId }, '[MIDDLEWARE] No deletion scheduled for user')
     }
   }
 
@@ -152,7 +153,7 @@ export default async function middleware(req: NextRequest) {
   if (isProtectedRoute(req.nextUrl.pathname)) {
     if (!supabaseUser) {
       // No session - redirect to login
-      console.log('[MIDDLEWARE] No session, redirecting to /login')
+      logger.debug({ path: req.nextUrl.pathname }, '[MIDDLEWARE] No session, redirecting to /login')
       return NextResponse.redirect(new URL('/login', req.url))
     }
     // User is authenticated via Supabase - allow access

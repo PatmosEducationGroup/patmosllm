@@ -64,7 +64,7 @@ export async function GET(
       .createSignedUrl(document.storage_path, 60)
 
     if (signedUrlError || !signedUrlData) {
-      console.error('Failed to generate signed URL:', signedUrlError)
+      logError(signedUrlError instanceof Error ? signedUrlError : new Error('Failed to generate signed URL'), { operation: 'createSignedUrl', documentId })
       return NextResponse.json(
         { error: 'Failed to generate download URL' },
         { status: 500 }

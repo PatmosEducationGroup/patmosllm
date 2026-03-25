@@ -23,46 +23,33 @@ export function AuthRefreshHandler({ children }: { children: React.ReactNode }) 
     // Listen for auth state changes
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      const timestamp = new Date().toISOString()
-
-      // Log auth events for debugging (will be removed in production by next.config.ts)
-      console.log(`[Auth Event ${timestamp}]`, event, session?.user?.email)
-
+    } = supabase.auth.onAuthStateChange(async (event) => {
       // Handle different auth events
       switch (event) {
         case 'TOKEN_REFRESHED':
-          console.log(
-            '[Auth] Token refreshed successfully. New expiry:',
-            session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'unknown'
-          )
           // Refresh server components to update with new token
           router.refresh()
           break
 
         case 'SIGNED_OUT':
-          console.log('[Auth] User signed out')
           // Redirect to login page
           router.push('/login')
           break
 
         case 'SIGNED_IN':
-          console.log('[Auth] User signed in')
           // Refresh server components to update auth state
           router.refresh()
           break
 
         case 'USER_UPDATED':
-          console.log('[Auth] User data updated')
           router.refresh()
           break
 
         case 'PASSWORD_RECOVERY':
-          console.log('[Auth] Password recovery initiated')
           break
 
         default:
-          console.log('[Auth] Unknown event:', event)
+          break
       }
     })
 
