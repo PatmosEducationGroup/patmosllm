@@ -1065,7 +1065,7 @@ async function discoverAllPages(
       discovered = new Set(checkpoint.discovered)
       visited = new Set(checkpoint.visited)
       queue = checkpoint.queue
-      startTime = checkpoint.startTime
+      startTime = Date.now() // Reset timer so this run gets a fresh 4.5 minutes
       logger.info({
         checkpointId,
         pagesFound: discovered.size,
