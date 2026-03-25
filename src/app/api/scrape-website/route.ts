@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as cheerio from 'cheerio'
 import puppeteer, { Browser } from 'puppeteer'
+import chromium from '@sparticuz/chromium'
 import robotsParser from 'robots-parser'
 import { logger, loggers, logError } from '@/lib/logger'
 import {
   TIMEOUT_SCRAPE_HTTP_MS,
   TIMEOUT_SCRAPE_LIGHTWEIGHT_MS,
 } from '@/lib/constants'
+
+const IS_VERCEL = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME
 
 // Browser pool for efficient Puppeteer reuse
 class BrowserPool {
@@ -16,18 +19,21 @@ class BrowserPool {
 
   async getBrowser(): Promise<Browser> {
     if (this.browsers.length < this.maxBrowsers) {
+      const launchArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu',
+        '--ignore-certificate-errors',
+        '--ignore-ssl-errors',
+        '--ignore-certificate-errors-spki-list'
+      ]
+
       const browser = await puppeteer.launch({
         headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--disable-gpu',
-          '--ignore-certificate-errors',
-          '--ignore-ssl-errors',
-          '--ignore-certificate-errors-spki-list'
-        ]
+        args: IS_VERCEL ? chromium.args : launchArgs,
+        executablePath: IS_VERCEL ? await chromium.executablePath() : undefined,
       })
       this.browsers.push(browser)
       loggers.performance({
@@ -503,7 +509,10 @@ async function scrapePageLightweight(url: string, baseUrl: string): Promise<{ ti
 
     // Validate content quality (lower threshold for ASP.NET)
     const minLength = url.includes('.aspx') ? 50 : 100
-    if (content.length < minLength || title.length < 3) {
+    // CJK/Arabic/Devanagari titles can be valid at 1-2 characters (e.g. "资源" = Resources)
+    const hasCJKOrNonLatin = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af\u0600-\u06ff\u0900-\u097f]/.test(title)
+    const minTitleLength = hasCJKOrNonLatin ? 1 : 3
+    if (content.length < minLength || title.length < minTitleLength) {
       logger.warn({
         url,
         contentLength: content.length,
