@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio'
 import puppeteer, { Browser } from 'puppeteer'
 import chromium from '@sparticuz/chromium'
 import robotsParser from 'robots-parser'
+import { Redis } from '@upstash/redis'
 import { logger, loggers, logError } from '@/lib/logger'
 import {
   TIMEOUT_SCRAPE_HTTP_MS,
@@ -971,24 +972,71 @@ interface DiscoveryCheckpoint {
   }
 }
 
-// In-memory checkpoint storage (could be extended to use Redis/database for persistence)
-const checkpointStorage = new Map<string, DiscoveryCheckpoint>()
+// Redis-backed checkpoint storage with in-memory fallback
+const memoryCheckpointStorage = new Map<string, DiscoveryCheckpoint>()
+const CHECKPOINT_TTL_SECONDS = 3600 // 1 hour
+
+function getCheckpointRedis(): Redis | null {
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) return null
+  try {
+    return new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN
+    })
+  } catch {
+    return null
+  }
+}
 
 // Save checkpoint progress
-function saveCheckpoint(checkpointId: string, checkpoint: DiscoveryCheckpoint): void {
+async function saveCheckpoint(checkpointId: string, checkpoint: DiscoveryCheckpoint): Promise<void> {
   checkpoint.lastSaveTime = Date.now()
-  checkpointStorage.set(checkpointId, checkpoint)
+
+  // Try Redis first, fall back to in-memory
+  const redis = getCheckpointRedis()
+  if (redis) {
+    try {
+      await redis.set(checkpointId, JSON.stringify(checkpoint), { ex: CHECKPOINT_TTL_SECONDS })
+    } catch (err) {
+      logger.warn({ checkpointId, error: (err as Error).message, operation: 'checkpoint_redis_save_failed' }, 'Redis checkpoint save failed, using in-memory fallback')
+      memoryCheckpointStorage.set(checkpointId, checkpoint)
+    }
+  } else {
+    memoryCheckpointStorage.set(checkpointId, checkpoint)
+  }
+
   logger.info({
     checkpointId,
     pagesDiscovered: checkpoint.discovered.length,
     queueLength: checkpoint.queue.length,
+    storage: redis ? 'redis' : 'memory',
     operation: 'checkpoint_save'
   }, `Checkpoint saved: ${checkpoint.discovered.length} pages discovered, ${checkpoint.queue.length} in queue`)
 }
 
 // Load checkpoint if exists
-function loadCheckpoint(checkpointId: string): DiscoveryCheckpoint | null {
-  return checkpointStorage.get(checkpointId) || null
+async function loadCheckpoint(checkpointId: string): Promise<DiscoveryCheckpoint | null> {
+  const redis = getCheckpointRedis()
+  if (redis) {
+    try {
+      const data = await redis.get<string>(checkpointId)
+      if (data) {
+        return typeof data === 'string' ? JSON.parse(data) : data as unknown as DiscoveryCheckpoint
+      }
+    } catch (err) {
+      logger.warn({ checkpointId, error: (err as Error).message, operation: 'checkpoint_redis_load_failed' }, 'Redis checkpoint load failed, trying in-memory fallback')
+    }
+  }
+  return memoryCheckpointStorage.get(checkpointId) || null
+}
+
+// Delete checkpoint after successful completion
+async function deleteCheckpoint(checkpointId: string): Promise<void> {
+  const redis = getCheckpointRedis()
+  if (redis) {
+    try { await redis.del(checkpointId) } catch { /* ignore */ }
+  }
+  memoryCheckpointStorage.delete(checkpointId)
 }
 
 // Generate checkpoint ID from base URL
@@ -1002,7 +1050,7 @@ async function discoverAllPages(
   maxDepth: number = 3,
   maxPages: number = 50,
   resumeFromCheckpoint: boolean = false
-): Promise<string[]> {
+): Promise<{ urls: string[], timedOut: boolean, queueRemaining: number }> {
   const checkpointId = generateCheckpointId(baseUrl)
   
   let discovered = new Set<string>()
@@ -1012,7 +1060,7 @@ async function discoverAllPages(
   
   // Try to resume from checkpoint if requested
   if (resumeFromCheckpoint) {
-    const checkpoint = loadCheckpoint(checkpointId)
+    const checkpoint = await loadCheckpoint(checkpointId)
     if (checkpoint) {
       discovered = new Set(checkpoint.discovered)
       visited = new Set(checkpoint.visited)
@@ -1095,7 +1143,7 @@ async function discoverAllPages(
           avgPagesPerSecond: discovered.size / (elapsed / 1000)
         }
       }
-      saveCheckpoint(checkpointId, timeoutCheckpoint)
+      await saveCheckpoint(checkpointId, timeoutCheckpoint)
       break
     }
     const currentBatch: { url: string, depth: number }[] = []
@@ -1186,24 +1234,32 @@ async function discoverAllPages(
           avgPagesPerSecond: discovered.size / ((Date.now() - startTime) / 1000)
         }
       }
-      saveCheckpoint(checkpointId, currentCheckpoint)
+      await saveCheckpoint(checkpointId, currentCheckpoint)
     }
-    
+
     // Minimal delay between batches for optimal performance
     await new Promise(resolve => setTimeout(resolve, 50))
   }
 
+  // If discovery completed (queue empty), clean up checkpoint
+  if (queue.length === 0) {
+    await deleteCheckpoint(checkpointId)
+  }
+
   const result = Array.from(discovered)
+  const timedOut = queue.length > 0
   const totalTime = (Date.now() - startTime) / 1000
   loggers.performance({
     baseUrl,
     totalTimeSeconds: totalTime,
     pagesFound: result.length,
     pagesVisited: visited.size,
+    timedOut,
+    queueRemaining: queue.length,
     operation: 'discovery_complete'
-  }, `Parallel discovery complete in ${totalTime}s. Found ${result.length} total pages (visited ${visited.size} for crawling)`)
+  }, `Parallel discovery complete in ${totalTime}s. Found ${result.length} total pages (visited ${visited.size} for crawling)${timedOut ? ` - timed out with ${queue.length} URLs remaining` : ''}`)
 
-  return result
+  return { urls: result, timedOut, queueRemaining: queue.length }
 }
 
 // Allow up to 300s for recursive website crawling (Vercel Pro limit)
@@ -1270,36 +1326,30 @@ export async function POST(_request: NextRequest) {
       const maxDepth = 5  // Crawl up to 5 levels deep for comprehensive discovery
       const maxPages = 10000 // Very high limit (effectively no limit)
 
-      const allLinks = await discoverAllPages(normalizedUrl, maxDepth, maxPages, resumeFromCheckpoint)
+      const discovery = await discoverAllPages(normalizedUrl, maxDepth, maxPages, resumeFromCheckpoint)
 
       logger.info({
         url: normalizedUrl,
-        pagesFound: allLinks.length,
+        pagesFound: discovery.urls.length,
+        timedOut: discovery.timedOut,
+        queueRemaining: discovery.queueRemaining,
         operation: 'discovery_complete'
-      }, `Discovery complete. Found ${allLinks.length} pages`)
+      }, `Discovery complete. Found ${discovery.urls.length} pages${discovery.timedOut ? ` (timed out, ${discovery.queueRemaining} URLs remaining)` : ''}`)
 
-      // Check if there's a saved checkpoint for additional info
-      const checkpointId = `discovery_${Buffer.from(normalizedUrl).toString('base64').replace(/[/+=]/g, '')}`
-      const checkpoint = checkpointStorage.get(checkpointId)
-      
       return NextResponse.json({
         success: true,
-        links: allLinks,
-        totalFound: allLinks.length,
-        discoveryMethod: allLinks.length > 10 ? 'parallel_crawl' : 'single_page',
+        links: discovery.urls,
+        totalFound: discovery.urls.length,
+        timedOut: discovery.timedOut,
+        queueRemaining: discovery.queueRemaining,
+        discoveryMethod: discovery.urls.length > 10 ? 'parallel_crawl' : 'single_page',
         crawlDepth: maxDepth,
         maxPages: maxPages,
         resumedFromCheckpoint: resumeFromCheckpoint,
-        checkpoint: checkpoint ? {
-          hasCheckpoint: true,
-          lastSaved: checkpoint.lastSaveTime,
-          progress: checkpoint.progress,
-          canResume: checkpoint.queue.length > 0
-        } : { hasCheckpoint: false },
         performance: {
-          foundPages: allLinks.length,
+          foundPages: discovery.urls.length,
           maxLimit: maxPages,
-          limitReached: allLinks.length >= maxPages,
+          limitReached: discovery.urls.length >= maxPages,
           optimizedForLargeSites: true,
           checkpointSystemEnabled: true
         }

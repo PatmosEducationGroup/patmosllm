@@ -118,6 +118,7 @@ function AdminPageContent() {
   // Web scraping states
   const [websiteUrl, setWebsiteUrl] = useState('')
   const [isDiscovering, setIsDiscovering] = useState(false)
+  const [discoveryTimedOut, setDiscoveryTimedOut] = useState(false)
   const [discoveredPages, setDiscoveredPages] = useState<{url: string, selected: boolean}[]>([])
   const [scrapingProgress, setScrapingProgress] = useState(0)
   const [isScrapingPages, setIsScrapingPages] = useState(false)
@@ -419,17 +420,17 @@ addToast({
   }
 
   // Web scraping functions
-  const discoverWebsitePages = async () => {
+  const discoverWebsitePages = async (resumeFromCheckpoint = false) => {
     if (!websiteUrl.trim()) return
-    
+
     setIsDiscovering(true)
     setScrapingMessage(null)
-    
+
     let normalizedUrl = websiteUrl.trim()
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
       normalizedUrl = 'https://' + normalizedUrl
     }
-    
+
     try {
       const response = await fetch('/api/scrape-website', {
         method: 'POST',
@@ -438,7 +439,8 @@ addToast({
         },
         body: JSON.stringify({
           url: normalizedUrl,
-          action: 'discover'
+          action: 'discover',
+          resumeFromCheckpoint
         })
       })
 
@@ -450,22 +452,33 @@ addToast({
       const data = await response.json()
 
       if (data.success) {
-        const pages = data.links.map((url: string) => ({ url, selected: false }))
-        setDiscoveredPages(pages)
+        const newPages = data.links.map((url: string) => ({ url, selected: false }))
+
+        if (resumeFromCheckpoint && discoveredPages.length > 0) {
+          // Merge new pages with existing, avoiding duplicates
+          const existingUrls = new Set(discoveredPages.map((p: { url: string }) => p.url))
+          const uniqueNewPages = newPages.filter((p: { url: string }) => !existingUrls.has(p.url))
+          setDiscoveredPages(prev => [...prev, ...uniqueNewPages])
+        } else {
+          setDiscoveredPages(newPages)
+        }
         setCurrentPage(1)
         setShowAllPages(false)
 
-        const discoveryMethod = data.discoveryMethod === 'recursive_crawl' ? 'Enhanced Crawling' : 'Single Page'
-        const methodDetails = data.discoveryMethod === 'recursive_crawl'
-          ? ` (depth: ${data.crawlDepth} levels)`
-          : ''
+        setDiscoveryTimedOut(!!data.timedOut)
 
-        const message = data.totalFound > 1 ?
-          `Found ${data.totalFound} pages using ${discoveryMethod}${methodDetails}.` :
-          null
-
-        setScrapingMessage(message)
-        setScrapingMessageType('info')
+        if (data.timedOut) {
+          setScrapingMessage(
+            `Found ${data.totalFound} pages so far. Discovery timed out with more pages remaining. Click "Continue Discovery" to find more pages.`
+          )
+          setScrapingMessageType('info')
+        } else {
+          const message = data.totalFound > 1
+            ? `Discovery complete. Found ${data.totalFound} pages total.`
+            : null
+          setScrapingMessage(message)
+          setScrapingMessageType('info')
+        }
         setIsDiscovering(false)
       } else {
         setScrapingMessage(data.error || 'Failed to discover pages')
@@ -473,16 +486,16 @@ addToast({
         setIsDiscovering(false)
       }
     } catch (error) {
-    logError(error instanceof Error ? error : new Error('Operation failed'), {
-      operation: 'API route',
-      phase: 'request_handling',
-      severity: 'high',
-      errorContext: 'Operation failed'
-    })
-setScrapingMessage('Failed to discover website pages')
+      logError(error instanceof Error ? error : new Error('Operation failed'), {
+        operation: 'API route',
+        phase: 'request_handling',
+        severity: 'high',
+        errorContext: 'Operation failed'
+      })
+      setScrapingMessage('Failed to discover website pages')
       setScrapingMessageType('error')
       setIsDiscovering(false)
-  }
+    }
   }
 
   const scrapeSelectedPages = async () => {
@@ -1793,6 +1806,7 @@ setError('Failed to delete document')
                       setScrapingMessage(null)
                       setCurrentPage(1)
                       setShowAllPages(false)
+                      setDiscoveryTimedOut(false)
                     }
                   }}
                   disabled={isDiscovering || isScrapingPages || uploading}
@@ -1808,23 +1822,49 @@ setError('Failed to delete document')
                 />
               </div>
 
-              <button
-                onClick={discoverWebsitePages}
-                disabled={!websiteUrl.trim() || isDiscovering || isScrapingPages || uploading}
-                style={{
-                  background: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? '#cbd5e1' : 'linear-gradient(135deg, rgb(158, 205, 85) 0%, rgb(132, 204, 22) 100%)',
-                  color: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? '#64748b' : 'white',
-                  padding: '12px 24px',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? 'not-allowed' : 'pointer',
-                  width: 'fit-content'
-                }}
-              >
-                {isDiscovering ? '🔍 Discovering Pages... (up to 5 minutes)' : 'Discover Pages'}
-              </button>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => discoverWebsitePages(false)}
+                  disabled={!websiteUrl.trim() || isDiscovering || isScrapingPages || uploading}
+                  style={{
+                    background: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? '#cbd5e1' : 'linear-gradient(135deg, rgb(158, 205, 85) 0%, rgb(132, 204, 22) 100%)',
+                    color: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? '#64748b' : 'white',
+                    padding: '12px 24px',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: !websiteUrl.trim() || isDiscovering || isScrapingPages || uploading ? 'not-allowed' : 'pointer',
+                    width: 'fit-content'
+                  }}
+                >
+                  {isDiscovering ? 'Discovering Pages... (up to 5 minutes)' : 'Discover Pages'}
+                </button>
+
+                {discoveryTimedOut && !isDiscovering && (
+                  <button
+                    onClick={() => discoverWebsitePages(true)}
+                    disabled={isScrapingPages || uploading}
+                    style={{
+                      background: isScrapingPages || uploading ? '#cbd5e1' : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                      color: isScrapingPages || uploading ? '#64748b' : 'white',
+                      padding: '12px 24px',
+                      border: 'none',
+                      borderRadius: '12px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      cursor: isScrapingPages || uploading ? 'not-allowed' : 'pointer',
+                      width: 'fit-content'
+                    }}
+                  >
+                    Continue Discovery
+                  </button>
+                )}
+              </div>
+
+              <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>
+                Page discovery is limited to 5 minutes per run. For large sites, click &quot;Continue Discovery&quot; to resume where it left off.
+              </p>
               
               {isDiscovering && (
                 <div style={{
