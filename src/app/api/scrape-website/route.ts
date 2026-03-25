@@ -1029,7 +1029,7 @@ async function discoverAllPages(
     }
   }
 
-  const maxTimeoutMs = 600000 // 10 minutes maximum discovery time for comprehensive discovery
+  const maxTimeoutMs = 270000 // 4.5 minutes - fits within Vercel's 300s maxDuration with margin
 
   logger.info({
     baseUrl,
@@ -1205,6 +1205,9 @@ async function discoverAllPages(
 
   return result
 }
+
+// Allow up to 300s for recursive website crawling (Vercel Pro limit)
+export const maxDuration = 300
 
 export async function POST(_request: NextRequest) {
   try {

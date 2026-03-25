@@ -46,6 +46,9 @@ interface BatchProcessResult {
   errors: string[]
 }
 
+// Allow up to 300s for processing and embedding scraped pages
+export const maxDuration = 300
+
 export async function POST(_request: NextRequest) {
   try {
     // getCurrentUser() handles Supabase auth
