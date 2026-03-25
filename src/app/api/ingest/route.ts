@@ -23,6 +23,15 @@ export async function GET(_request: NextRequest) {
       )
     }
 
+    // Auto-reset jobs stuck in "processing" for more than 10 minutes
+    // (serverless function died before updating status)
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    await supabaseAdmin
+      .from('ingest_jobs')
+      .update({ status: 'failed', error_message: 'Processing timed out' })
+      .eq('status', 'processing')
+      .lt('created_at', tenMinutesAgo)
+
     // Get all ingest jobs
     const { data: jobs, error } = await supabaseAdmin
       .from('ingest_jobs')
