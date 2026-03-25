@@ -441,9 +441,14 @@ addToast({
           action: 'discover'
         })
       })
-      
+
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || `Server error: ${response.status}`)
+      }
+
       const data = await response.json()
-      
+
       if (data.success) {
         const pages = data.links.map((url: string) => ({ url, selected: false }))
         setDiscoveredPages(pages)
@@ -505,6 +510,11 @@ setScrapingMessage('Failed to discover website pages')
         })
       })
 
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || `Server error: ${response.status}`)
+      }
+
       const data = await response.json()
 
       if (data.success) {
@@ -562,13 +572,14 @@ setScrapingMessage('Failed to scrape website pages')
         })
       })
 
-      const data = await response.json()
-      
       setUploadProgress(100)
-      
+
       if (!response.ok) {
-        throw new Error(data.error || `Server error: ${response.status}`)
+        const text = await response.text()
+        throw new Error(text || `Server error: ${response.status}`)
       }
+
+      const data = await response.json()
 
       if (data.success) {
         const { result } = data
