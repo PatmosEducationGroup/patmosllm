@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { POST } from '@/app/api/chat/route'
 import { NextRequest } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Mock all external dependencies
 vi.mock('@/lib/supabase', () => ({
@@ -17,6 +18,9 @@ vi.mock('@/lib/supabase', () => ({
                   })
                 })
               })
+            }),
+            update: () => ({
+              eq: () => Promise.resolve({ error: null })
             })
           }
         }
@@ -40,6 +44,9 @@ vi.mock('@/lib/supabase', () => ({
                   error: null
                 })
               })
+            }),
+            update: () => ({
+              eq: () => Promise.resolve({ error: null })
             })
           }
         }
@@ -75,12 +82,15 @@ vi.mock('@/lib/auth', () => ({
   getCurrentUser: vi.fn(() => Promise.resolve({
     id: 'test-user-uuid',
     email: 'test@example.com',
-    auth_user_id: 'test-supabase-user-123'
+    auth_user_id: 'test-supabase-user-123',
+    role: 'USER',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z'
   }))
 }))
 
 vi.mock('@/lib/rate-limiter', () => ({
-  chatRateLimit: vi.fn(() => ({ success: true, remaining: 10, resetTime: Date.now() + 60000 }))
+  chatRateLimit: vi.fn(() => Promise.resolve({ success: true, remaining: 10, resetTime: (Date.now() + 60000).toString() }))
 }))
 
 vi.mock('@/lib/get-identifier', () => ({
@@ -143,16 +153,33 @@ vi.mock('@/lib/advanced-cache', () => ({
   advancedCache: {
     get: vi.fn(() => null),
     set: vi.fn(),
-    delete: vi.fn()
+    delete: vi.fn(),
+    clearNamespace: vi.fn()
   },
   CACHE_NAMESPACES: {
-    CHAT_HISTORY: 'chat-history'
+    CHAT_HISTORY: 'chat-history',
+    SEARCH_RESULTS: 'search-results'
   },
   CACHE_TTL: {
     MEDIUM: 1800
   },
   getCachedConversationHistory: vi.fn(() => null),
   cacheConversationHistory: vi.fn()
+}))
+
+vi.mock('@/lib/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn()
+  },
+  loggers: {
+    ai: vi.fn(),
+    performance: vi.fn(),
+    database: vi.fn(),
+    security: vi.fn(),
+    cache: vi.fn()
+  },
+  logError: vi.fn()
 }))
 
 // Mock OpenAI streaming
@@ -191,6 +218,19 @@ vi.mock('openai', () => {
   }
 })
 
+// Helper to drain a streaming response
+async function drainStream(response: Response): Promise<string> {
+  const reader = response.body?.getReader()
+  if (!reader) return ''
+  const chunks: string[] = []
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(new TextDecoder().decode(value))
+  }
+  return chunks.join('')
+}
+
 describe('/api/chat - Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -220,7 +260,9 @@ describe('/api/chat - Integration Tests', () => {
     expect(data.error).toBe('Authentication required')
   })
 
-  it('should return 403 if user not found in database', async () => {
+  // The chat route returns 401 (not 403) when getCurrentUser returns null.
+  // There is no separate "user not found in database" 403 check.
+  it('should return 401 if user not found in database', async () => {
     const { getCurrentUser } = await import('@/lib/auth')
     vi.mocked(getCurrentUser).mockResolvedValueOnce(null)
 
@@ -233,10 +275,10 @@ describe('/api/chat - Integration Tests', () => {
     })
 
     const response = await POST(request)
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(401)
 
     const data = await response.json()
-    expect(data.error).toBe('User not found in database')
+    expect(data.error).toBe('Authentication required')
   })
 
   it('should return 400 if question is missing', async () => {
@@ -271,7 +313,7 @@ describe('/api/chat - Integration Tests', () => {
 
   it('should return 429 if rate limit exceeded', async () => {
     const { chatRateLimit } = await import('@/lib/rate-limiter')
-    vi.mocked(chatRateLimit).mockReturnValueOnce({
+    vi.mocked(chatRateLimit).mockResolvedValueOnce({
       success: false,
       message: 'Rate limit exceeded. Please try again later.',
       remaining: 0,
@@ -309,7 +351,7 @@ describe('/api/chat - Integration Tests', () => {
           })
         })
       }
-      return callback(mockSupabase as unknown as ReturnType<typeof auth>)
+      return callback(mockSupabase as unknown as SupabaseClient)
     })
 
     const request = new NextRequest('http://localhost:3000/api/chat', {
@@ -346,7 +388,7 @@ describe('/api/chat - Integration Tests', () => {
 
     // Read and collect all chunks
     const chunks: string[] = []
-     
+
     while (true) {
       const { done, value } = await reader!.read()
       if (done) break
@@ -384,7 +426,7 @@ describe('/api/chat - Integration Tests', () => {
     // Read all chunks from the stream
     const reader = response.body?.getReader()
     const chunks: string[] = []
-     
+
     while (true) {
       const { done, value } = await reader!.read()
       if (done) break
@@ -420,7 +462,7 @@ describe('/api/chat - Integration Tests', () => {
     // Read all chunks from the stream
     const reader = response.body?.getReader()
     const chunks: string[] = []
-     
+
     while (true) {
       const { done, value } = await reader!.read()
       if (done) break
@@ -446,14 +488,10 @@ describe('/api/chat - Integration Tests', () => {
     const response = await POST(request)
 
     // Drain the stream to ensure all async operations complete
-    const reader = response.body?.getReader()
-     
-    while (true) {
-      const { done } = await reader!.read()
-      if (done) break
-    }
+    await drainStream(response)
 
-    expect(createEmbedding).toHaveBeenCalledWith('What is machine learning?')
+    // createEmbedding is called with (query, userId, requestId) in chatService
+    expect(createEmbedding).toHaveBeenCalledWith('What is machine learning?', expect.any(String), expect.any(String))
   })
 
   it('should perform hybrid search with correct parameters', async () => {
@@ -495,9 +533,11 @@ describe('/api/chat - Integration Tests', () => {
 
     await POST(request)
 
+    // Route calls trackOnboardingMilestone({ authUserId: user.auth_user_id, milestone: 'first_chat', ... })
+    // This happens synchronously before streaming begins (line 167 in route.ts)
     expect(trackOnboardingMilestone).toHaveBeenCalledWith(
       expect.objectContaining({
-        visitorId: 'test-supabase-user-123',
+        authUserId: 'test-supabase-user-123',
         milestone: 'first_chat'
       })
     )
@@ -521,7 +561,7 @@ describe('/api/chat - Integration Tests', () => {
 
     // Wait for stream to complete
     const reader = response.body?.getReader()
-     
+
     while (true) {
       const { done } = await reader!.read()
       if (done) break

@@ -8,12 +8,14 @@ vi.mock('@/lib/auth', () => ({
     id: 'test-user-uuid',
     email: 'test@example.com',
     auth_user_id: 'test-supabase-user-123',
-    role: 'ADMIN'
+    role: 'ADMIN',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z'
   }))
 }))
 
 vi.mock('@/lib/rate-limiter', () => ({
-  uploadRateLimit: vi.fn(() => ({ success: true, remaining: 5, resetTime: Date.now() + 60000 }))
+  uploadRateLimit: vi.fn(() => Promise.resolve({ success: true, remaining: 5, resetTime: (Date.now() + 60000).toString() }))
 }))
 
 vi.mock('@/lib/get-identifier', () => ({
@@ -21,7 +23,8 @@ vi.mock('@/lib/get-identifier', () => ({
 }))
 
 vi.mock('@/lib/input-sanitizer', () => ({
-  sanitizeInput: vi.fn((input) => input?.trim())
+  sanitizeInput: vi.fn((input) => input?.trim()),
+  sanitizeEmail: vi.fn((input) => input ? String(input).toLowerCase() : null)
 }))
 
 vi.mock('@vercel/blob', () => ({
@@ -97,6 +100,19 @@ vi.mock('@/lib/logger', () => ({
   logError: vi.fn()
 }))
 
+vi.mock('@/lib/advanced-cache', () => ({
+  advancedCache: {
+    get: vi.fn(() => null),
+    set: vi.fn(),
+    delete: vi.fn(),
+    clearNamespace: vi.fn()
+  },
+  CACHE_NAMESPACES: {
+    SEARCH_RESULTS: 'search-results',
+    CHAT_HISTORY: 'chat-history'
+  }
+}))
+
 // Mock global fetch for blob download
 global.fetch = vi.fn(() =>
   Promise.resolve({
@@ -110,6 +126,13 @@ describe('/api/upload/blob - Integration Tests', () => {
     vi.clearAllMocks()
     // Set up environment variable for blob token
     process.env.BLOB_READ_WRITE_TOKEN = 'test-blob-token'
+    // Re-setup fetch mock after clearAllMocks
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(1024))
+      }) as Promise<Response>
+    )
   })
 
   it('should return 401 if user is not authenticated', async () => {
@@ -137,7 +160,9 @@ describe('/api/upload/blob - Integration Tests', () => {
       id: 'test-user-uuid',
       email: 'test@example.com',
       auth_user_id: 'test-supabase-user-123',
-      role: 'USER'
+      role: 'USER',
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z'
     })
 
     const formData = new FormData()
@@ -213,7 +238,7 @@ describe('/api/upload/blob - Integration Tests', () => {
 
   it('should return 429 if rate limit is exceeded', async () => {
     const { uploadRateLimit } = await import('@/lib/rate-limiter')
-    vi.mocked(uploadRateLimit).mockReturnValueOnce({
+    vi.mocked(uploadRateLimit).mockResolvedValueOnce({
       success: false,
       message: 'Rate limit exceeded',
       remaining: 0,
@@ -261,7 +286,13 @@ describe('/api/upload/blob - Integration Tests', () => {
     vi.mocked(head).mockResolvedValueOnce({
       url: 'https://blob.vercel-storage.com/existing-file.pdf',
       size: 1024,
-      uploadedAt: new Date()
+      uploadedAt: new Date(),
+      pathname: 'existing-file.pdf',
+      contentType: 'application/pdf',
+      contentDisposition: 'attachment; filename="existing-file.pdf"',
+      downloadUrl: 'https://blob.vercel-storage.com/existing-file.pdf?download=1',
+      cacheControl: 'public, max-age=31536000',
+      etag: '"abc123"'
     })
 
     const formData = new FormData()
@@ -409,9 +440,10 @@ describe('/api/upload/blob - Integration Tests', () => {
 
     await POST(request)
 
+    // Route calls processDocumentVectors(document.id, user.id)
     expect(processDocumentVectors).toHaveBeenCalledWith(
       'doc-uuid-123',
-      'test-supabase-user-123'
+      'test-user-uuid'
     )
   }, 15000)
 
@@ -429,9 +461,10 @@ describe('/api/upload/blob - Integration Tests', () => {
 
     await POST(request)
 
+    // Route calls trackOnboardingMilestone({ authUserId: user.auth_user_id, milestone: 'first_document_upload', ... })
     expect(trackOnboardingMilestone).toHaveBeenCalledWith(
       expect.objectContaining({
-        visitorId: 'test-supabase-user-123',
+        authUserId: 'test-supabase-user-123',
         milestone: 'first_document_upload'
       })
     )
