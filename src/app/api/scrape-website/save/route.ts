@@ -156,34 +156,23 @@ export async function POST(_request: NextRequest) {
           file_size: Buffer.byteLength(cleanedContent, 'utf8')
         }
 
-        // Start vector processing (don't wait for completion)
+        // Process vectors synchronously so the ingest job completes before
+        // the serverless function shuts down (fire-and-forget caused stuck jobs)
         try {
-          processDocumentVectors(document.id, user.id).catch(vectorError => {
-            // CRITICAL: Vector processing failed - document saved but not searchable
-            logError(vectorError instanceof Error ? vectorError : new Error('Vector processing failed'), {
-              operation: 'process_document_vectors',
-              documentId: document.id,
-              userId: user.id,
-              title: document.title,
-              url: page.url,
-              phase: 'vector_embedding',
-              severity: 'critical',
-              impact: 'Document saved but not searchable - manual reprocessing required'
-            })
-          })
-        } catch (ingestError) {
-          // Error initiating vector processing
-          logError(ingestError instanceof Error ? ingestError : new Error('Failed to initiate vector processing'), {
-            operation: 'initiate_vector_processing',
+          await processDocumentVectors(document.id, user.id)
+        } catch (vectorError) {
+          // Vector processing failed - document saved but not searchable
+          // Don't fail the entire batch, just log and continue
+          logError(vectorError instanceof Error ? vectorError : new Error('Vector processing failed'), {
+            operation: 'process_document_vectors',
             documentId: document.id,
             userId: user.id,
             title: document.title,
             url: page.url,
-            phase: 'vector_init',
-            severity: 'high',
-            impact: 'Document saved but vector processing not started'
+            phase: 'vector_embedding',
+            severity: 'critical',
+            impact: 'Document saved but not searchable - retry from admin page'
           })
-          // Don't fail the entire operation for vector processing errors
         }
 
         result.processed++
