@@ -68,11 +68,11 @@ export function useAdminAuth(options: UseAdminAuthOptions = {}): UseAdminAuthRet
         return
       }
 
-      if (onAuthenticated) {
-        await onAuthenticated(userData.user)
-      }
-
       setLoading(false)
+
+      if (onAuthenticated) {
+        onAuthenticated(userData.user)
+      }
     } catch (err) {
       logError(err instanceof Error ? err : new Error('Operation failed'), {
         operation: 'useAdminAuth',
