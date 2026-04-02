@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') ?? '50', 10)))
     const offset = (page - 1) * limit
+    const sourceType = searchParams.get('source_type') // 'upload', 'web_scraped', or null for all
 
     let query = supabaseAdmin
       .from('documents')
@@ -53,6 +54,11 @@ export async function GET(request: NextRequest) {
       `, { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
+
+    // Filter by source_type if provided
+    if (sourceType) {
+      query = query.eq('source_type', sourceType)
+    }
 
     // If CONTRIBUTOR, only show their own documents
     // If ADMIN or SUPER_ADMIN, show all documents
@@ -94,6 +100,7 @@ export async function GET(request: NextRequest) {
         uploaded_by: doc.uploaded_by,
         source_type: doc.source_type,
         source_url: doc.source_url,
+        storagePath: doc.storage_path,
         users: doc.users,
         chunkCount
       }

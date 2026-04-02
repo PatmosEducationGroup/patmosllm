@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { RefreshCw, UserPlus, Users, Gift } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { logError } from '@/lib/logger'
+import { useAdminAuth } from '@/hooks/useAdminAuth'
+import { AdminLoadingScreen } from '@/components/admin/AdminLoadingScreen'
+import { AdminAccessDenied } from '@/components/admin/AdminAccessDenied'
 
 interface UserQuota {
   user_id: string
@@ -17,20 +19,16 @@ interface UserQuota {
   invites_remaining: number
 }
 
-interface UserData {
-  id: string
-  role: string
-  email: string
-}
-
 export default function InvitationQuotasPage() {
-  const router = useRouter()
+  const { user: currentUser, loading, error, accessDenied, setError } = useAdminAuth({
+    requiredRoles: ['ADMIN', 'SUPER_ADMIN'],
+    onAuthenticated: async () => {
+      await loadQuotas()
+    }
+  })
+
   const [quotas, setQuotas] = useState<UserQuota[]>([])
-  const [currentUser, setCurrentUser] = useState<UserData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [accessDenied, setAccessDenied] = useState(false)
 
   // Grant to specific user
   const [selectedUserId, setSelectedUserId] = useState('')
@@ -46,57 +44,6 @@ export default function InvitationQuotasPage() {
   const [setQuotaRole, setSetQuotaRole] = useState<string>('all')
   const [setQuotaValue, setSetQuotaValue] = useState(0)
   const [settingQuota, setSettingQuota] = useState(false)
-
-  useEffect(() => {
-    fetchUserData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const fetchUserData = async () => {
-    try {
-      const userResponse = await fetch('/api/auth')
-
-      if (userResponse.status === 401) {
-        router.push('/login')
-        return
-      }
-
-      if (userResponse.status === 404) {
-        setAccessDenied(true)
-        setError('Access denied: Your account has not been properly set up.')
-        setLoading(false)
-        return
-      }
-
-      const userData = await userResponse.json()
-
-      if (!userData.success) {
-        setAccessDenied(true)
-        setError('Access denied: Unable to verify your permissions.')
-        setLoading(false)
-        return
-      }
-
-      setCurrentUser(userData.user)
-
-      if (!['ADMIN', 'SUPER_ADMIN'].includes(userData.user.role)) {
-        setAccessDenied(true)
-        setError('Access denied: You need admin permissions to manage quotas.')
-        setLoading(false)
-        return
-      }
-
-      loadQuotas()
-    } catch (err) {
-      logError(err instanceof Error ? err : new Error('Failed to fetch user data'), {
-        operation: 'fetch_user_data',
-        severity: 'critical'
-      })
-      setAccessDenied(true)
-      setError('Access denied: Unable to verify your permissions.')
-      setLoading(false)
-    }
-  }
 
   const loadQuotas = async () => {
     try {
@@ -114,8 +61,6 @@ export default function InvitationQuotasPage() {
         severity: 'high'
       })
       setError('Failed to load invitation quotas')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -269,39 +214,11 @@ export default function InvitationQuotasPage() {
   }
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
-        <RefreshCw className="animate-spin" />
-      </div>
-    )
+    return <AdminLoadingScreen />
   }
 
   if (accessDenied) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '2rem' }}>
-        <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#dc2626', marginBottom: '1rem' }}>
-          Access Denied
-        </h1>
-        <p style={{ color: '#6b7280', textAlign: 'center', marginBottom: '2rem', maxWidth: '500px' }}>
-          {error}
-        </p>
-        <button
-          onClick={() => router.push('/')}
-          style={{
-            backgroundColor: '#2563eb',
-            color: 'white',
-            padding: '0.75rem 1.5rem',
-            border: 'none',
-            borderRadius: '0.375rem',
-            cursor: 'pointer',
-            fontSize: '0.875rem',
-            fontWeight: '500'
-          }}
-        >
-          Go to Chat
-        </button>
-      </div>
-    )
+    return <AdminAccessDenied error={error} />
   }
 
   return (

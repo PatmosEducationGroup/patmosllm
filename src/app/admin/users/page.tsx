@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { logError } from '@/lib/logger'
-import { useRouter } from 'next/navigation'
 import {
   UserCheck,
   AlertCircle,
@@ -24,6 +23,9 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { DELAY_COPY_FEEDBACK_MS } from '@/lib/constants'
+import { useAdminAuth } from '@/hooks/useAdminAuth'
+import { AdminLoadingScreen } from '@/components/admin/AdminLoadingScreen'
+import { AdminAccessDenied } from '@/components/admin/AdminAccessDenied'
 
 interface User {
   id: string
@@ -34,13 +36,6 @@ interface User {
   isActive: boolean
   invitedBy: string
   invitation_token?: string
-}
-
-interface UserData {
-  id: string
-  role: string
-  email: string
-  name?: string
 }
 
 interface TimelineEvent {
@@ -71,16 +66,18 @@ interface UserTimeline {
 }
 
 export default function AdminUsersPage() {
-  const router = useRouter()
+  const { user: currentUser, loading, error, accessDenied, setError } = useAdminAuth({
+    requiredRoles: ['ADMIN', 'SUPER_ADMIN'],
+    onAuthenticated: async () => {
+      await loadUsers()
+    }
+  })
+
   const [users, setUsers] = useState<User[]>([])
-  const [currentUser, setCurrentUser] = useState<UserData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
   const [showInviteForm, setShowInviteForm] = useState(false)
   const [updatingRole, setUpdatingRole] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [accessDenied, setAccessDenied] = useState(false)
 
   // Form state
   const [inviteEmail, setInviteEmail] = useState('')
@@ -102,63 +99,6 @@ export default function AdminUsersPage() {
   const [loadingTimeline, setLoadingTimeline] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [userToDelete, setUserToDelete] = useState<{id: string, email: string, isActive: boolean} | null>(null)
-
-  // Check authentication and permissions
-  useEffect(() => {
-    fetchUserData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const fetchUserData = async () => {
-    try {
-      // Call API without Bearer token - it uses session cookies automatically
-      const userResponse = await fetch('/api/auth')
-
-      if (userResponse.status === 401) {
-        // Not authenticated - redirect to login
-        router.push('/login')
-        return
-      }
-
-      if (userResponse.status === 404) {
-        setAccessDenied(true)
-        setError('Access denied: Your account has not been properly set up.')
-        setLoading(false)
-        return
-      }
-
-      const userData = await userResponse.json()
-
-      if (!userData.success) {
-        setAccessDenied(true)
-        setError('Access denied: Unable to verify your permissions.')
-        setLoading(false)
-        return
-      }
-      
-      setCurrentUser(userData.user)
-      
-      if (!['ADMIN', 'SUPER_ADMIN'].includes(userData.user.role)) {
-        setAccessDenied(true)
-        setError('Access denied: You need admin permissions to manage users.')
-        setLoading(false)
-        return
-      }
-      
-      loadUsers()
-      
-    } catch (error) {
-    logError(error instanceof Error ? error : new Error('Operation failed'), {
-      operation: 'API route',
-      phase: 'request_handling',
-      severity: 'critical',
-      errorContext: 'Operation failed'
-    })
-setAccessDenied(true)
-      setError('Access denied: Unable to verify your permissions.')
-      setLoading(false)
-  }
-  }
 
   const loadUsers = async () => {
     try {
@@ -205,10 +145,8 @@ setAccessDenied(true)
       severity: 'critical',
       errorContext: 'Operation failed'
     })
-setError('Failed to load users')
-  } finally {
-      setLoading(false)
-    }
+    setError('Failed to load users')
+  }
   }
 
   const fetchUserTimeline = async (userId: string) => {
@@ -551,39 +489,11 @@ setError('Failed to resend invitation')
   }
 
   if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading...</div>
+    return <AdminLoadingScreen />
   }
 
   if (accessDenied) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '2rem' }}>
-        <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#dc2626', marginBottom: '1rem' }}>
-          Access Denied
-        </h1>
-        <p style={{ color: '#6b7280', textAlign: 'center', marginBottom: '2rem', maxWidth: '500px' }}>
-          {error}
-        </p>
-        <button
-          onClick={() => router.push('/')}
-          style={{
-            backgroundColor: '#2563eb',
-            color: 'white',
-            padding: '0.75rem 1.5rem',
-            border: 'none',
-            borderRadius: '0.375rem',
-            cursor: 'pointer',
-            fontSize: '0.875rem',
-            fontWeight: '500'
-          }}
-        >
-          Go to Chat
-        </button>
-      </div>
-    )
-  }
-
-  if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading...</div>
+    return <AdminAccessDenied error={error} />
   }
 
   return (
