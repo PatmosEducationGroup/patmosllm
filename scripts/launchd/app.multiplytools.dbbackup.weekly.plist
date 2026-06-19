@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS launchd job: weekly FULL database backup (schema + data).
+
+  Schedule : Friday 06:00 local. If the Mac is asleep/off at that time, launchd
+             runs the job at the next wake/login (built-in missed-run behavior).
+  Output   : EnvironmentVariables -> BACKUP_DIR sends dumps to the custom folder.
+  Secrets  : none in this file; the script sources the connection info from
+             /Users/ecc311/secrets/multiplytools/.env itself.
+
+  INSTALL:
+    plutil -lint "/Users/ecc311/projects/multiplytools/scripts/launchd/app.multiplytools.dbbackup.weekly.plist"
+    mkdir -p ~/Library/LaunchAgents
+    cp "/Users/ecc311/projects/multiplytools/scripts/launchd/app.multiplytools.dbbackup.weekly.plist" ~/Library/LaunchAgents/
+    launchctl load -w ~/Library/LaunchAgents/app.multiplytools.dbbackup.weekly.plist
+  TEST NOW (don't wait for Friday):
+    launchctl start app.multiplytools.dbbackup.weekly
+  UNINSTALL:
+    launchctl unload ~/Library/LaunchAgents/app.multiplytools.dbbackup.weekly.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>app.multiplytools.dbbackup.weekly</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/ecc311/projects/multiplytools/scripts/backup-db-local.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BACKUP_DIR</key>
+    <string>/Users/ecc311/projects/Database Backups/Multiplytools</string>
+  </dict>
+
+  <!-- Weekday 5 = Friday, 06:00. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>5</integer>
+    <key>Hour</key>
+    <integer>6</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/ecc311/Library/Logs/multiplytools-dbbackup.out</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ecc311/Library/Logs/multiplytools-dbbackup.err</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
