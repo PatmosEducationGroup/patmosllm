@@ -15,15 +15,49 @@
 - `name` (text, nullable) - User's display name
 - `role` (text) - ADMIN, CONTRIBUTOR, or USER
 - `deleted_at` (timestamptz, nullable) - Soft delete timestamp (NULL = active, non-NULL = deleted)
-- `invitation_token` (uuid, nullable) - Token for invite-only registration
-- `invitation_expires_at` (timestamptz, nullable)
-- `invitation_sent_at` (timestamptz, nullable)
+- `invitation_token` (uuid, nullable) - **DEPRECATED** (2026-06-19). Legacy invite token; the
+  invitation flow now uses the `invitation_tokens` table as the single source of truth. Retained
+  for back-compat / pending-user display; safe to drop after old placeholder rows are purged.
+- `invitation_expires_at` (timestamptz, nullable) - **DEPRECATED** (2026-06-19), see above.
+- `invitation_sent_at` (timestamptz, nullable) - **DEPRECATED** (2026-06-19), see above.
 - **GDPR Consent Fields**:
   - `terms_accepted_at` (timestamptz) - When user accepted Terms of Service
   - `privacy_accepted_at` (timestamptz) - When user accepted Privacy Policy
   - `cookies_accepted_at` (timestamptz, nullable) - When user accepted Cookie Policy
   - `consent_version` (text) - Version of T&C/Privacy Policy user agreed to (e.g., "1.0")
   - `age_confirmed` (boolean) - User confirmed 13+ years old (COPPA compliance)
+
+### invitation_tokens - Invitation source of truth (redemption reads this)
+The single source of truth for pending invitations. Both admin invites (`POST /api/admin/invitations`)
+and user-sent invites (`POST /api/user/invitations` → `invitation-service.createInvitation`) write here;
+acceptance (`POST /api/auth/accept-invitation`) and `…/validate` read here.
+- `id` (uuid, PK)
+- `email` (text, **UNIQUE**, NOT NULL) - Invitee email; one live invite per address
+- `token` (text, **UNIQUE**, NOT NULL) - Secret token used in the `/invite/{token}` link
+- `name` (text, nullable) - Optional invitee name
+- `role` (text, NOT NULL) - CHECK in (ADMIN, CONTRIBUTOR, USER)
+- `invited_by` (uuid, NOT NULL) - Inviting user's `users.id`
+- `expires_at` (timestamptz, NOT NULL) - 7 days from creation
+- `accepted_at` (timestamptz, nullable) - Set on acceptance
+- `created_at` / `updated_at` (timestamptz) - `updated_at` maintained by trigger
+
+### user_sent_invitations_log - Audit log of user-sent invitations (quota tracking)
+Records invitations a user sends (for quota accounting + the "your invitations" UI). Admin-originated
+invites do not create rows here.
+- `id` (uuid, PK)
+- `sender_user_id` (uuid, NOT NULL, FK → users) - Who sent it
+- `sender_auth_user_id` (uuid, nullable) - Denormalized `auth.users.id`
+- `invitation_token_id` (uuid, nullable, FK → invitation_tokens ON DELETE CASCADE) - **Added 2026-06-19.**
+  Links the log row to its invitation token (the unification fix). Deleting/replacing a stale token
+  cascade-deletes its log rows. Indexed (`idx_invitations_token_id`).
+- `invited_user_id` (uuid, nullable, FK → users ON DELETE SET NULL) - NULL until accepted; back-filled
+  with the new user's id on acceptance
+- `invitee_email` (text, NOT NULL) - CHECK contains `@`
+- `status` (text, default `pending`) - CHECK in (pending, accepted, expired, revoked)
+- `sent_by_admin` (boolean, default false)
+- `sent_at` / `expires_at` (timestamptz) - `expires_at` defaults now()+7d
+- `accepted_at` / `revoked_at` (timestamptz, nullable)
+- `created_at` (timestamptz)
 
 ### conversations - Chat history and message threads
 - `id` (uuid, PK)
