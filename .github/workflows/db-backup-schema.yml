@@ -34,7 +34,10 @@ jobs:
           sudo apt-get install -y postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y "postgresql-client-${POSTGRES_MAJOR}"
-          pg_dump --version
+          # The runner ships an older pg_dump (v16) that wins on PATH; pin the
+          # freshly-installed v17 bindir so `pg_dump` matches the PG17 server.
+          # (pg_dump < server major aborts with a version-mismatch error.)
+          echo "/usr/lib/postgresql/${POSTGRES_MAJOR}/bin" >> "$GITHUB_PATH"
 
       - name: Dump schema
         env:
@@ -42,6 +45,7 @@ jobs:
           # runners are IPv4-only and Supabase direct hosts are often IPv6).
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
+          pg_dump --version   # must report 17.x (not the runner's default 16.x)
           if [ -z "$SUPABASE_DB_URL" ]; then
             echo "::error::SUPABASE_DB_URL repo secret is not set."; exit 1
           fi
