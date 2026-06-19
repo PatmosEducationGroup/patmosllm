@@ -52,10 +52,13 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- db/schema.sql; then
+          # Stage first: `git diff` alone ignores untracked files, so the very
+          # first run (schema.sql brand new) would otherwise report "no change"
+          # and never commit. Compare the staged tree against HEAD instead.
+          git add db/schema.sql
+          if git diff --cached --quiet; then
             echo "No schema changes this week."
           else
-            git add db/schema.sql
             git commit -m "chore(db): weekly schema snapshot"
             git push
           fi
