@@ -1,0 +1,61 @@
+name: Weekly DB Schema Backup
+
+# Dumps the database SCHEMA ONLY (no rows / no PII) once a week and commits it
+# to db/schema.sql. The commit diff is your structural-drift log. Full DATA
+# backups are NOT done here — they run locally (scripts/backup-db-local.sh) and
+# never touch git, to preserve GDPR posture.
+
+on:
+  schedule:
+    - cron: "0 6 * * 0"      # every Sunday 06:00 UTC
+  workflow_dispatch: {}        # allow manual runs from the Actions tab
+
+permissions:
+  contents: write              # needed to commit the refreshed schema
+
+concurrency:
+  group: db-backup-schema
+  cancel-in-progress: false
+
+jobs:
+  schema-dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Install a pg_dump whose major version is >= the Supabase server.
+      # Bump POSTGRES_MAJOR to match your project's Postgres major version.
+      - name: Install PostgreSQL client (PGDG)
+        env:
+          POSTGRES_MAJOR: "17"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y "postgresql-client-${POSTGRES_MAJOR}"
+          pg_dump --version
+
+      - name: Dump schema
+        env:
+          # Use the SESSION-pooler connection string (IPv4-friendly; GitHub
+          # runners are IPv4-only and Supabase direct hosts are often IPv6).
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL repo secret is not set."; exit 1
+          fi
+          chmod +x scripts/backup-db-schema.sh
+          ./scripts/backup-db-schema.sh db/schema.sql
+
+      - name: Commit if schema changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- db/schema.sql; then
+            echo "No schema changes this week."
+          else
+            git add db/schema.sql
+            git commit -m "chore(db): weekly schema snapshot"
+            git push
+          fi
