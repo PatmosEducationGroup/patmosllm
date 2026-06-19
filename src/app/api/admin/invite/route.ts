@@ -1,171 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
-import { sendInvitationEmail, generateInvitationToken } from '@/lib/email'
 import { loggers, logError } from '@/lib/logger'
 
 // =================================================================
-// POST - Create new user invitation
-// Updated: 2025-10-02 - Force rebuild to clear serverless cache
+// NOTE: Invitation creation lives at POST /api/admin/invitations, which writes
+// to the invitation_tokens table that the redemption flow actually reads. The
+// old POST here wrote to users.invitation_token (never read on acceptance) and
+// has been removed. This route keeps only the user-listing GET and the
+// active-user DELETE that the admin UI still uses.
 // =================================================================
-export async function POST(_request: NextRequest) {
-  try {
-    // =================================================================
-    // Get authenticated user
-    // =================================================================
-    const user = await getCurrentUser()
-    if (!user || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
-      return NextResponse.json(
-        { success: false, error: 'Admin access required' },
-        { status: 403 }
-      )
-    }
-
-    // =================================================================
-    // INPUT VALIDATION - Get and validate invitation details
-    // =================================================================
-    const { email, name, role = 'USER', sendEmail = true } = await _request.json()
-
-    if (!email || !email.includes('@')) {
-      return NextResponse.json(
-        { success: false, error: 'Valid email address required' },
-        { status: 400 }
-      )
-    }
-
-    if (!['USER', 'CONTRIBUTOR', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid role. Must be USER, CONTRIBUTOR, ADMIN, or SUPER_ADMIN' },
-        { status: 400 }
-      )
-    }
-
-    // =================================================================
-    // DUPLICATE CHECK - Ensure user doesn't already exist
-    // =================================================================
-    const { data: existingUser } = await supabaseAdmin
-      .from('users')
-      .select('id, email')
-      .eq('email', email.toLowerCase())
-      .single()
-
-    if (existingUser) {
-      return NextResponse.json(
-        { success: false, error: 'User with this email already exists' },
-        { status: 400 }
-      )
-    }
-
-    // =================================================================
-    // INVITATION TOKEN GENERATION - Create secure invitation link
-    // =================================================================
-    const invitationToken = generateInvitationToken()
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
-
-    // =================================================================
-    // DATABASE CREATION - Create invitation record in database (Supabase Auth only)
-    // =================================================================
-    const { data: invitedUser, error: inviteError } = await supabaseAdmin
-      .from('users')
-      .insert({
-        email: email.toLowerCase(),
-        name: name || null,
-        role: role,
-        invited_by: user.id,
-        invitation_token: invitationToken,
-        invitation_expires_at: expiresAt.toISOString()
-        // auth_user_id will be set when user accepts invitation via Supabase Auth
-      })
-      .select()
-      .single()
-
-    if (inviteError) {
-      logError(inviteError, {
-        operation: 'create_invitation',
-        adminUserId: user.id,
-        adminEmail: user.email,
-        inviteeEmail: email.toLowerCase(),
-        inviteeRole: role
-      })
-      return NextResponse.json(
-        { success: false, error: 'Failed to create invitation' },
-        { status: 500 }
-      )
-    }
-
-    // =================================================================
-    // NOTE: Onboarding milestone tracking removed (was Clerk-dependent)
-    // If needed in future, track via Supabase Auth user_id instead
-    // =================================================================
-
-    // =================================================================
-    // EMAIL SENDING - Conditionally send invitation email to new user
-    // =================================================================
-    let emailResult = { success: false }
-    if (sendEmail) {
-      emailResult = await sendInvitationEmail(
-        email.toLowerCase(),
-        name || '',
-        role,
-        user.name || user.email,
-        invitationToken
-      )
-    }
-
-    // Build invitation URL (Supabase Auth only)
-    const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}`
-
-    loggers.security({
-      operation: 'admin_invite_user',
-      adminUserId: user.id,
-      adminEmail: user.email,
-      inviteeEmail: email,
-      inviteeRole: role,
-      invitationTokenPrefix: invitationToken.substring(0, 8) + '...',
-      emailSent: sendEmail
-    }, 'Admin invited new user')
-
-    // =================================================================
-    // SUCCESS RESPONSE - Return invitation success details
-    // =================================================================
-    return NextResponse.json({
-      success: true,
-      message: sendEmail
-        ? (emailResult.success
-            ? `Invitation sent to ${email}. They will receive an email with a secure setup link.`
-            : `User ${email} has been created but email delivery failed.`)
-        : `Invitation created for ${email}. Copy the link below to share manually.`,
-      emailSent: emailResult.success,
-      invitationToken: invitationToken,
-      invitationUrl: invitationUrl,
-      user: {
-        id: invitedUser.id,
-        email: invitedUser.email,
-        name: invitedUser.name,
-        role: invitedUser.role,
-        invitedBy: user.email
-      }
-    })
-
-  } catch (error) {
-    logError(error instanceof Error ? error : new Error('Internal server error'), {
-      operation: 'API admin/invite',
-      phase: 'request_handling',
-      severity: 'high',
-      errorContext: 'Internal server error'
-    })
-// =================================================================
-    // ERROR HANDLING - Log errors and return user-friendly message
-    // =================================================================
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Invitation failed' 
-      },
-      { status: 500 }
-    )
-  }
-}
 
 // =================================================================
 // GET - Retrieve all users for admin management
@@ -241,9 +85,9 @@ export async function GET(_request: NextRequest) {
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to fetch users' 
+      {
+        success: false,
+        error: 'Failed to fetch users'
       },
       { status: 500 }
     )
@@ -353,7 +197,7 @@ export async function DELETE(_request: NextRequest) {
     // =================================================================
     return NextResponse.json({
       success: true,
-      message: isPendingInvitation 
+      message: isPendingInvitation
         ? `Invitation for ${targetUser.email} has been retracted`
         : `User ${targetUser.email} has been deleted`,
       deletedUser: {
@@ -374,9 +218,9 @@ export async function DELETE(_request: NextRequest) {
     // ERROR HANDLING - Log errors and return user-friendly message
     // =================================================================
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to delete user' 
+      {
+        success: false,
+        error: 'Failed to delete user'
       },
       { status: 500 }
     )

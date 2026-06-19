@@ -219,6 +219,31 @@ export async function POST(request: NextRequest) {
     }
 
     // =================================================================
+    // LINK SENDER'S INVITATION LOG - close out user_sent_invitations_log
+    // =================================================================
+    // User-sent invitations record a row in user_sent_invitations_log linked
+    // via invitation_token_id. Mark it accepted and back-fill invited_user_id.
+    // No-op for admin-originated invites (they create no log row). Quota is NOT
+    // refunded/changed on accept.
+    const { error: logUpdateError } = await supabaseAdmin
+      .from('user_sent_invitations_log')
+      .update({
+        status: 'accepted',
+        invited_user_id: createdUser.id,
+        accepted_at: new Date().toISOString()
+      })
+      .eq('invitation_token_id', invitation.id)
+
+    if (logUpdateError) {
+      logError(logUpdateError, {
+        operation: 'mark_sent_invitation_accepted',
+        invitationId: invitation.id,
+        userId: createdUser.id
+      })
+      // Don't fail the request - user was created successfully
+    }
+
+    // =================================================================
     // ONBOARDING MILESTONE - Track invitation acceptance
     // =================================================================
     await trackOnboardingMilestone({

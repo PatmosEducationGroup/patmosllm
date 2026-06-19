@@ -163,8 +163,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       invitation: {
-        id: invitation.user.id,
-        email: invitation.user.email,
+        id: invitation.invitation.id,
+        email: invitation.invitation.email,
         token: invitation.token,
         expires_at: invitation.expiresAt.toISOString()
       }
