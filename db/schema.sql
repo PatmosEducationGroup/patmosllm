@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict TQMNODFKJ7M8VY0waJJfDEkaYcfcS39o663lN0kL7KJdFzSUB8dOKuDCpueqxOw
+\restrict 6E2Oh11K7GngXMBx4WS7yVvF5afx10p8HI2wnGKIkQ3cq6AbsYXq7qm7oQghGs4
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -2125,6 +2125,7 @@ CREATE TABLE public.user_sent_invitations_log (
     accepted_at timestamp with time zone,
     revoked_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
+    invitation_token_id uuid,
     CONSTRAINT check_email_format CHECK ((POSITION(('@'::text) IN (invitee_email)) > 1)),
     CONSTRAINT check_status CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'expired'::text, 'revoked'::text])))
 );
@@ -3052,6 +3053,13 @@ CREATE INDEX idx_invitations_status ON public.user_sent_invitations_log USING bt
 
 
 --
+-- Name: idx_invitations_token_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_invitations_token_id ON public.user_sent_invitations_log USING btree (invitation_token_id);
+
+
+--
 -- Name: idx_migration_alerts_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3755,6 +3763,14 @@ ALTER TABLE ONLY public.user_preferences
 
 
 --
+-- Name: user_sent_invitations_log user_sent_invitations_log_invitation_token_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_sent_invitations_log
+    ADD CONSTRAINT user_sent_invitations_log_invitation_token_id_fkey FOREIGN KEY (invitation_token_id) REFERENCES public.invitation_tokens(id) ON DELETE CASCADE;
+
+
+--
 -- Name: user_sent_invitations_log user_sent_invitations_log_invited_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4305,5 +4321,5 @@ CREATE POLICY webhook_events_admin_select ON public.clerk_webhook_events FOR SEL
 -- PostgreSQL database dump complete
 --
 
-\unrestrict TQMNODFKJ7M8VY0waJJfDEkaYcfcS39o663lN0kL7KJdFzSUB8dOKuDCpueqxOw
+\unrestrict 6E2Oh11K7GngXMBx4WS7yVvF5afx10p8HI2wnGKIkQ3cq6AbsYXq7qm7oQghGs4
 
