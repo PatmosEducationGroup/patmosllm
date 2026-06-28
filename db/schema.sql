@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 6E2Oh11K7GngXMBx4WS7yVvF5afx10p8HI2wnGKIkQ3cq6AbsYXq7qm7oQghGs4
+\restrict MIoNA2uAbuuwbzLOxbB233XbEMkcUNR5QnrgnUha0IEwmBQi6IGyBf4tuZtNnfg
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -313,24 +313,6 @@ $$;
 
 
 --
--- Name: ensure_user_mapping(text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.ensure_user_mapping(p_email text, p_clerk_id text, p_supabase_id uuid) RETURNS uuid
-    LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'pg_catalog', 'public', 'pg_temp'
-    AS $$
-    INSERT INTO user_migration (email, supabase_id, clerk_id, migrated)
-    VALUES (p_email, p_supabase_id, p_clerk_id, false)
-    ON CONFLICT (email)
-    DO UPDATE SET
-      supabase_id = EXCLUDED.supabase_id,
-      clerk_id = EXCLUDED.clerk_id
-    RETURNING supabase_id;
-  $$;
-
-
---
 -- Name: expire_invitations_and_refund(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -399,62 +381,6 @@ $$;
 
 
 --
--- Name: find_user_for_auth(uuid, text); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.find_user_for_auth(p_auth_user_id uuid DEFAULT NULL::uuid, p_clerk_id text DEFAULT NULL::text) RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'pg_catalog', 'public', 'pg_temp'
-    AS $$
-DECLARE
-  v_user RECORD;
-  v_result JSONB;
-BEGIN
-  -- Try dual-read lookup
-  SELECT * INTO v_user
-  FROM public.get_user_by_auth_or_clerk(p_auth_user_id, p_clerk_id)
-  LIMIT 1;
-
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'error', 'User not found',
-      'tried_auth_user_id', p_auth_user_id,
-      'tried_clerk_id', p_clerk_id
-    );
-  END IF;
-
-  -- Build result
-  v_result := jsonb_build_object(
-    'success', true,
-    'user', jsonb_build_object(
-      'id', v_user.id,
-      'auth_user_id', v_user.auth_user_id,
-      'clerk_id', v_user.clerk_id,
-      'email', v_user.email,
-      'name', v_user.name,
-      'role', v_user.role
-    ),
-    'source', CASE
-      WHEN v_user.auth_user_id IS NOT NULL THEN 'auth.users'
-      ELSE 'clerk'
-    END,
-    'migrated', v_user.auth_user_id IS NOT NULL
-  );
-
-  RETURN v_result;
-END;
-$$;
-
-
---
--- Name: FUNCTION find_user_for_auth(p_auth_user_id uuid, p_clerk_id text); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.find_user_for_auth(p_auth_user_id uuid, p_clerk_id text) IS 'Application-facing dual-read function with JSON response';
-
-
---
 -- Name: get_auth_user_id_by_email(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -464,109 +390,6 @@ CREATE FUNCTION public.get_auth_user_id_by_email(p_email text) RETURNS uuid
     AS $$
     SELECT id FROM auth.users WHERE email = p_email LIMIT 1;
   $$;
-
-
---
--- Name: get_migration_timeline(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.get_migration_timeline() RETURNS TABLE(hour timestamp with time zone, migrations_count bigint)
-    LANGUAGE plpgsql STABLE
-    SET search_path TO 'pg_catalog', 'public', 'pg_temp'
-    AS $$
-BEGIN
-  RETURN QUERY
-  SELECT
-    date_trunc('hour', created_at) AS hour,
-    COUNT(*) AS migrations_count
-  FROM public.migration_events
-  WHERE event_type = 'user_migrated'
-    AND created_at >= now() - interval '24 hours'
-  GROUP BY 1
-  ORDER BY 1 DESC;
-END;
-$$;
-
-
---
--- Name: get_user_by_auth_or_clerk(uuid, text); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.get_user_by_auth_or_clerk(p_auth_user_id uuid DEFAULT NULL::uuid, p_clerk_id text DEFAULT NULL::text) RETURNS TABLE(id uuid, auth_user_id uuid, clerk_id text, email text, name text, role text)
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
-    SET search_path TO 'pg_catalog', 'public', 'pg_temp'
-    AS $$
-BEGIN
-  -- Priority 1: Try auth_user_id (migrated users)
-  IF p_auth_user_id IS NOT NULL THEN
-    RETURN QUERY
-    SELECT
-      u.id,
-      u.auth_user_id,
-      u.clerk_id,
-      u.email,
-      u.name,
-      u.role::TEXT
-    FROM public.users u
-    WHERE u.auth_user_id = p_auth_user_id
-      AND u.deleted_at IS NULL
-    LIMIT 1;
-
-    IF FOUND THEN
-      RETURN;
-    END IF;
-  END IF;
-
-  -- Priority 2: Fallback to clerk_id (unmigrated users)
-  IF p_clerk_id IS NOT NULL THEN
-    RETURN QUERY
-    SELECT
-      u.id,
-      u.auth_user_id,
-      u.clerk_id,
-      u.email,
-      u.name,
-      u.role::TEXT
-    FROM public.users u
-    WHERE u.clerk_id = p_clerk_id
-      AND u.deleted_at IS NULL
-    LIMIT 1;
-  END IF;
-END;
-$$;
-
-
---
--- Name: FUNCTION get_user_by_auth_or_clerk(p_auth_user_id uuid, p_clerk_id text); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.get_user_by_auth_or_clerk(p_auth_user_id uuid, p_clerk_id text) IS 'Dual-read helper: lookup user by auth_user_id (preferred) or clerk_id (fallback)';
-
-
---
--- Name: get_users_needing_migration(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.get_users_needing_migration() RETURNS TABLE(id uuid, email text, clerk_id text, role text, created_at timestamp with time zone, days_since_creation integer)
-    LANGUAGE plpgsql STABLE
-    SET search_path TO 'pg_catalog', 'public', 'pg_temp'
-    AS $$
-BEGIN
-  RETURN QUERY
-  SELECT
-    u.id,
-    u.email,
-    u.clerk_id,
-    u.role::TEXT,
-    u.created_at,
-    EXTRACT(DAY FROM now() - u.created_at)::INTEGER AS days_since_creation
-  FROM public.users u
-  WHERE u.auth_user_id IS NULL
-    AND NOT u.clerk_id LIKE 'invited_%'
-    AND u.deleted_at IS NULL
-  ORDER BY u.created_at ASC;
-END;
-$$;
 
 
 --
@@ -773,41 +596,6 @@ CREATE FUNCTION public.log_conversation_transaction(p_user_id uuid, p_session_id
     RETURN v_result;
   END;
   $$;
-
-
---
--- Name: log_user_migration_event(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.log_user_migration_event() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'pg_catalog', 'public', 'pg_temp'
-    AS $$
-BEGIN
-  -- User just got auth_user_id populated (migrated)
-  IF OLD.auth_user_id IS NULL AND NEW.auth_user_id IS NOT NULL THEN
-    INSERT INTO public.migration_events (
-      event_type,
-      user_id,
-      auth_user_id,
-      clerk_id,
-      metadata
-    ) VALUES (
-      'user_migrated',
-      NEW.id,
-      NEW.auth_user_id,
-      NEW.clerk_id,
-      jsonb_build_object(
-        'email', NEW.email,
-        'role', NEW.role,
-        'previous_auth_user_id', OLD.auth_user_id
-      )
-    );
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
 
 
 --
@@ -1152,29 +940,6 @@ $$;
 
 
 --
--- Name: sync_auth_user_id_on_clerk_change(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.sync_auth_user_id_on_clerk_change() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'pg_catalog', 'public', 'pg_temp'
-    AS $$
-BEGIN
-  -- If clerk_id changed and auth_user_id exists, log warning
-  IF OLD.clerk_id IS DISTINCT FROM NEW.clerk_id AND NEW.auth_user_id IS NOT NULL THEN
-    RAISE WARNING 'clerk_id changed for user % from % to %. auth_user_id may be stale.',
-      NEW.id, OLD.clerk_id, NEW.clerk_id;
-
-    -- Optional: Clear auth_user_id to force remapping
-    -- NEW.auth_user_id := NULL;
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
---
 -- Name: track_onboarding_milestone(uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1195,21 +960,6 @@ BEGIN
   END IF;
   
   RETURN TRUE;
-END;
-$$;
-
-
---
--- Name: update_clerk_to_auth_map_updated_at(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.update_clerk_to_auth_map_updated_at() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'pg_catalog', 'public', 'pg_temp'
-    AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
 END;
 $$;
 
@@ -1298,7 +1048,6 @@ CREATE TABLE public.account_lockouts (
 
 CREATE TABLE public.users (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    clerk_id text,
     email text NOT NULL,
     name text,
     role public.user_role DEFAULT 'USER'::public.user_role,
@@ -1307,9 +1056,7 @@ CREATE TABLE public.users (
     updated_at timestamp with time zone DEFAULT now(),
     invitation_token text,
     invitation_expires_at timestamp with time zone,
-    clerk_ticket text,
     deleted_at timestamp with time zone,
-    clerk_user_id text,
     deletion_requested_at timestamp with time zone,
     deletion_token_hash character varying(255),
     deletion_token_expires_at timestamp with time zone,
@@ -1333,24 +1080,10 @@ CREATE TABLE public.users (
 
 
 --
--- Name: COLUMN users.clerk_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.users.clerk_id IS 'Clerk user ID (nullable for Supabase-only users created via invitations)';
-
-
---
 -- Name: COLUMN users.deleted_at; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.users.deleted_at IS 'Soft delete timestamp - NULL means active, non-NULL means deleted';
-
-
---
--- Name: COLUMN users.clerk_user_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.users.clerk_user_id IS 'Clerk user ID (nullable for Supabase-only users created via invitations)';
 
 
 --
@@ -1401,7 +1134,6 @@ COMMENT ON COLUMN public.users.consent_version IS 'Version of T&C/Privacy Policy
 
 CREATE VIEW public.active_users WITH (security_invoker='true') AS
  SELECT id,
-    clerk_id,
     email,
     name,
     role,
@@ -1410,13 +1142,12 @@ CREATE VIEW public.active_users WITH (security_invoker='true') AS
     updated_at,
     invitation_token,
     invitation_expires_at,
-    clerk_ticket,
     deleted_at,
-    clerk_user_id,
     deletion_requested_at,
     deletion_token_hash,
     deletion_token_expires_at,
-    deletion_confirmed
+    deletion_confirmed,
+    auth_user_id
    FROM public.users
   WHERE (deleted_at IS NULL);
 
@@ -1524,43 +1255,6 @@ CREATE TABLE public.chunks (
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT chunks_content_not_empty CHECK ((length(content) > 0)),
     CONSTRAINT chunks_positive_index CHECK ((chunk_index >= 0))
-);
-
-
---
--- Name: clerk_to_auth_map; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.clerk_to_auth_map (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    clerk_id text NOT NULL,
-    auth_user_id uuid NOT NULL,
-    public_user_id uuid NOT NULL,
-    migrated_at timestamp with time zone DEFAULT now(),
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
-
---
--- Name: TABLE clerk_to_auth_map; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.clerk_to_auth_map IS 'Mapping between Clerk IDs and Supabase Auth user IDs for zero-downtime migration';
-
-
---
--- Name: clerk_webhook_events; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.clerk_webhook_events (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    event_type character varying(100) NOT NULL,
-    clerk_user_id text NOT NULL,
-    event_data jsonb NOT NULL,
-    processed_at timestamp with time zone,
-    error_message text,
-    created_at timestamp with time zone DEFAULT now()
 );
 
 
@@ -1826,21 +1520,6 @@ CREATE TABLE public.migration_alerts (
 
 
 --
--- Name: migration_events; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.migration_events (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    event_type text NOT NULL,
-    user_id uuid,
-    auth_user_id uuid,
-    clerk_id text,
-    metadata jsonb,
-    created_at timestamp with time zone DEFAULT now()
-);
-
-
---
 -- Name: migration_log; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2009,22 +1688,6 @@ CREATE TABLE public.user_invitation_quotas (
 
 
 --
--- Name: user_migration; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.user_migration (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    email text NOT NULL,
-    supabase_id uuid NOT NULL,
-    clerk_id text NOT NULL,
-    migrated boolean DEFAULT false,
-    migrated_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now(),
-    deleted_at timestamp with time zone
-);
-
-
---
 -- Name: user_onboarding_milestones; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2052,8 +1715,7 @@ COMMENT ON COLUMN public.user_onboarding_milestones.auth_user_id IS 'Denormalize
 --
 
 CREATE VIEW public.user_onboarding_status WITH (security_invoker='on') AS
- SELECT clerk_id,
-    clerk_id AS user_id,
+ SELECT id AS user_id,
     email,
     name,
     role,
@@ -2067,15 +1729,15 @@ CREATE VIEW public.user_onboarding_status WITH (security_invoker='on') AS
     NULL::timestamp without time zone AS onboarding_complete_at,
     created_at AS invited_at,
         CASE
-            WHEN (clerk_id ~~ 'invited_%'::text) THEN 'invited'::text
+            WHEN ((auth_user_id IS NULL) AND (invitation_token IS NOT NULL)) THEN 'invited'::text
             ELSE 'completed'::text
         END AS current_stage,
         CASE
-            WHEN (clerk_id ~~ 'invited_%'::text) THEN 0
+            WHEN ((auth_user_id IS NULL) AND (invitation_token IS NOT NULL)) THEN 0
             ELSE 100
         END AS progress_percentage,
         CASE
-            WHEN (clerk_id ~~ 'invited_%'::text) THEN (EXTRACT(epoch FROM (now() - created_at)) / (86400)::numeric)
+            WHEN ((auth_user_id IS NULL) AND (invitation_token IS NOT NULL)) THEN (EXTRACT(epoch FROM (now() - created_at)) / (86400)::numeric)
             ELSE (0)::numeric
         END AS days_stuck
    FROM public.users;
@@ -2294,46 +1956,6 @@ ALTER TABLE ONLY public.chunks
 
 
 --
--- Name: clerk_to_auth_map clerk_to_auth_map_auth_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.clerk_to_auth_map
-    ADD CONSTRAINT clerk_to_auth_map_auth_user_id_key UNIQUE (auth_user_id);
-
-
---
--- Name: clerk_to_auth_map clerk_to_auth_map_clerk_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.clerk_to_auth_map
-    ADD CONSTRAINT clerk_to_auth_map_clerk_id_key UNIQUE (clerk_id);
-
-
---
--- Name: clerk_to_auth_map clerk_to_auth_map_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.clerk_to_auth_map
-    ADD CONSTRAINT clerk_to_auth_map_pkey PRIMARY KEY (id);
-
-
---
--- Name: clerk_to_auth_map clerk_to_auth_map_public_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.clerk_to_auth_map
-    ADD CONSTRAINT clerk_to_auth_map_public_user_id_key UNIQUE (public_user_id);
-
-
---
--- Name: clerk_webhook_events clerk_webhook_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.clerk_webhook_events
-    ADD CONSTRAINT clerk_webhook_events_pkey PRIMARY KEY (id);
-
-
---
 -- Name: conversation_memory conversation_memory_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2422,14 +2044,6 @@ ALTER TABLE ONLY public.migration_alerts
 
 
 --
--- Name: migration_events migration_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.migration_events
-    ADD CONSTRAINT migration_events_pkey PRIMARY KEY (id);
-
-
---
 -- Name: migration_log migration_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2510,22 +2124,6 @@ ALTER TABLE ONLY public.user_invitation_quotas
 
 
 --
--- Name: user_migration user_migration_email_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_migration
-    ADD CONSTRAINT user_migration_email_key UNIQUE (email);
-
-
---
--- Name: user_migration user_migration_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_migration
-    ADD CONSTRAINT user_migration_pkey PRIMARY KEY (id);
-
-
---
 -- Name: user_onboarding_milestones user_onboarding_milestones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2563,14 +2161,6 @@ ALTER TABLE ONLY public.user_preferences
 
 ALTER TABLE ONLY public.user_sent_invitations_log
     ADD CONSTRAINT user_sent_invitations_log_pkey PRIMARY KEY (id);
-
-
---
--- Name: users users_clerk_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_clerk_id_key UNIQUE (clerk_id);
 
 
 --
@@ -2665,48 +2255,6 @@ CREATE INDEX idx_chunks_document_id ON public.chunks USING btree (document_id);
 --
 
 CREATE INDEX idx_chunks_document_index ON public.chunks USING btree (document_id, chunk_index);
-
-
---
--- Name: idx_clerk_events_processed; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_clerk_events_processed ON public.clerk_webhook_events USING btree (processed_at) WHERE (processed_at IS NULL);
-
-
---
--- Name: idx_clerk_events_type; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_clerk_events_type ON public.clerk_webhook_events USING btree (event_type, created_at DESC);
-
-
---
--- Name: idx_clerk_events_user; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_clerk_events_user ON public.clerk_webhook_events USING btree (clerk_user_id);
-
-
---
--- Name: idx_clerk_to_auth_auth; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_clerk_to_auth_auth ON public.clerk_to_auth_map USING btree (auth_user_id);
-
-
---
--- Name: idx_clerk_to_auth_clerk; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_clerk_to_auth_clerk ON public.clerk_to_auth_map USING btree (clerk_id);
-
-
---
--- Name: idx_clerk_to_auth_public; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_clerk_to_auth_public ON public.clerk_to_auth_map USING btree (public_user_id);
 
 
 --
@@ -3074,27 +2622,6 @@ CREATE INDEX idx_migration_alerts_type ON public.migration_alerts USING btree (a
 
 
 --
--- Name: idx_migration_events_created_at; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_migration_events_created_at ON public.migration_events USING btree (created_at DESC);
-
-
---
--- Name: idx_migration_events_type; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_migration_events_type ON public.migration_events USING btree (event_type);
-
-
---
--- Name: idx_migration_events_user; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_migration_events_user ON public.migration_events USING btree (user_id);
-
-
---
 -- Name: idx_migration_log_email; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3228,34 +2755,6 @@ CREATE INDEX idx_user_context_user_id ON public.user_context USING btree (user_i
 
 
 --
--- Name: idx_user_migration_clerk_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_user_migration_clerk_id ON public.user_migration USING btree (clerk_id);
-
-
---
--- Name: idx_user_migration_email; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_user_migration_email ON public.user_migration USING btree (email);
-
-
---
--- Name: idx_user_migration_migrated; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_user_migration_migrated ON public.user_migration USING btree (migrated);
-
-
---
--- Name: idx_user_migration_supabase_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_user_migration_supabase_id ON public.user_migration USING btree (supabase_id);
-
-
---
 -- Name: idx_user_onboarding_milestones_auth_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3302,27 +2801,6 @@ CREATE INDEX idx_user_preferences_user ON public.user_preferences USING btree (u
 --
 
 CREATE INDEX idx_users_auth_user_id ON public.users USING btree (auth_user_id);
-
-
---
--- Name: idx_users_clerk_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_users_clerk_id ON public.users USING btree (clerk_id);
-
-
---
--- Name: idx_users_clerk_ticket; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_users_clerk_ticket ON public.users USING btree (clerk_ticket);
-
-
---
--- Name: idx_users_clerk_user_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_users_clerk_user_id ON public.users USING btree (clerk_user_id);
 
 
 --
@@ -3396,13 +2874,6 @@ CREATE TRIGGER prevent_library_deletion BEFORE DELETE ON public.documents FOR EA
 
 
 --
--- Name: clerk_to_auth_map trigger_clerk_to_auth_map_updated_at; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trigger_clerk_to_auth_map_updated_at BEFORE UPDATE ON public.clerk_to_auth_map FOR EACH ROW EXECUTE FUNCTION public.update_clerk_to_auth_map_updated_at();
-
-
---
 -- Name: users trigger_create_quota_on_signup; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3410,24 +2881,10 @@ CREATE TRIGGER trigger_create_quota_on_signup AFTER INSERT ON public.users FOR E
 
 
 --
--- Name: users trigger_log_user_migration; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trigger_log_user_migration AFTER UPDATE OF auth_user_id ON public.users FOR EACH ROW WHEN ((old.auth_user_id IS DISTINCT FROM new.auth_user_id)) EXECUTE FUNCTION public.log_user_migration_event();
-
-
---
 -- Name: user_invitation_quotas trigger_quota_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER trigger_quota_updated_at BEFORE UPDATE ON public.user_invitation_quotas FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
-
---
--- Name: users trigger_sync_auth_user_id_on_clerk_change; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trigger_sync_auth_user_id_on_clerk_change BEFORE UPDATE OF clerk_id ON public.users FOR EACH ROW WHEN ((old.clerk_id IS DISTINCT FROM new.clerk_id)) EXECUTE FUNCTION public.sync_auth_user_id_on_clerk_change();
 
 
 --
@@ -3552,22 +3009,6 @@ ALTER TABLE ONLY public.documents
 
 ALTER TABLE ONLY public.chat_sessions
     ADD CONSTRAINT fk_chat_sessions_auth_user_id FOREIGN KEY (auth_user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
-
---
--- Name: clerk_to_auth_map fk_clerk_to_auth_map_auth_user_id; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.clerk_to_auth_map
-    ADD CONSTRAINT fk_clerk_to_auth_map_auth_user_id FOREIGN KEY (auth_user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
-
---
--- Name: clerk_to_auth_map fk_clerk_to_auth_map_public_user_id; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.clerk_to_auth_map
-    ADD CONSTRAINT fk_clerk_to_auth_map_public_user_id FOREIGN KEY (public_user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -3739,14 +3180,6 @@ ALTER TABLE ONLY public.user_invitation_quotas
 
 
 --
--- Name: user_migration user_migration_supabase_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_migration
-    ADD CONSTRAINT user_migration_supabase_id_fkey FOREIGN KEY (supabase_id) REFERENCES auth.users(id);
-
-
---
 -- Name: user_onboarding_milestones user_onboarding_milestones_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3892,7 +3325,7 @@ CREATE POLICY "Everyone can read documents" ON public.documents FOR SELECT USING
 
 CREATE POLICY "Onboarding milestones access policy" ON public.user_onboarding_milestones USING ((EXISTS ( SELECT 1
    FROM public.users
-  WHERE ((users.clerk_id = (( SELECT auth.uid() AS uid))::text) AND ((users.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role])) OR (users.id = user_onboarding_milestones.user_id))))));
+  WHERE ((users.auth_user_id = auth.uid()) AND ((users.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role])) OR (users.id = user_onboarding_milestones.user_id))))));
 
 
 --
@@ -3901,7 +3334,7 @@ CREATE POLICY "Onboarding milestones access policy" ON public.user_onboarding_mi
 
 CREATE POLICY "Only admins can delete documents" ON public.documents FOR DELETE USING ((EXISTS ( SELECT 1
    FROM public.users
-  WHERE ((users.clerk_id = (( SELECT auth.uid() AS uid))::text) AND (users.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role]))))));
+  WHERE ((users.auth_user_id = auth.uid()) AND (users.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role]))))));
 
 
 --
@@ -3910,7 +3343,7 @@ CREATE POLICY "Only admins can delete documents" ON public.documents FOR DELETE 
 
 CREATE POLICY "Only admins/contributors can manage documents" ON public.documents FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM public.users
-  WHERE ((users.clerk_id = (( SELECT auth.uid() AS uid))::text) AND (users.role = ANY (ARRAY['ADMIN'::public.user_role, 'CONTRIBUTOR'::public.user_role, 'SUPER_ADMIN'::public.user_role]))))));
+  WHERE ((users.auth_user_id = auth.uid()) AND (users.role = ANY (ARRAY['ADMIN'::public.user_role, 'CONTRIBUTOR'::public.user_role, 'SUPER_ADMIN'::public.user_role]))))));
 
 
 --
@@ -3919,7 +3352,7 @@ CREATE POLICY "Only admins/contributors can manage documents" ON public.document
 
 CREATE POLICY "Only admins/contributors can update documents" ON public.documents FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM public.users
-  WHERE ((users.clerk_id = (( SELECT auth.uid() AS uid))::text) AND (users.role = ANY (ARRAY['ADMIN'::public.user_role, 'CONTRIBUTOR'::public.user_role, 'SUPER_ADMIN'::public.user_role]))))));
+  WHERE ((users.auth_user_id = ( SELECT auth.uid() AS uid)) AND (users.role = ANY (ARRAY['ADMIN'::public.user_role, 'CONTRIBUTOR'::public.user_role, 'SUPER_ADMIN'::public.user_role]))))));
 
 
 --
@@ -3951,24 +3384,10 @@ CREATE POLICY "Service role full access" ON public.account_lockouts TO service_r
 
 
 --
--- Name: clerk_to_auth_map Service role full access; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Service role full access" ON public.clerk_to_auth_map TO service_role USING (true) WITH CHECK (true);
-
-
---
 -- Name: migration_alerts Service role full access; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "Service role full access" ON public.migration_alerts TO service_role USING (true) WITH CHECK (true);
-
-
---
--- Name: migration_events Service role full access; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Service role full access" ON public.migration_events TO service_role USING (true) WITH CHECK (true);
 
 
 --
@@ -3979,19 +3398,12 @@ CREATE POLICY "Service role full access" ON public.migration_log TO service_role
 
 
 --
--- Name: user_migration Service role full access; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Service role full access" ON public.user_migration TO service_role USING (true) WITH CHECK (true);
-
-
---
 -- Name: upload_sessions Upload sessions access policy; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "Upload sessions access policy" ON public.upload_sessions USING (((( SELECT auth.role() AS role) = 'service_role'::text) OR (user_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
    FROM public.users u
-  WHERE ((u.clerk_id = ( SELECT (auth.uid())::text AS uid)) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role])))))));
+  WHERE ((u.auth_user_id = auth.uid()) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role])))))));
 
 
 --
@@ -4084,9 +3496,9 @@ ALTER TABLE public.api_usage_internal_log ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY audit_log_combined_select ON public.privacy_audit_log FOR SELECT USING (((EXISTS ( SELECT 1
    FROM public.users u
-  WHERE ((u.id = privacy_audit_log.user_id) AND (u.clerk_user_id = (( SELECT auth.jwt() AS jwt) ->> 'sub'::text)) AND (u.deleted_at IS NULL)))) OR (EXISTS ( SELECT 1
+  WHERE ((u.id = privacy_audit_log.user_id) AND (u.auth_user_id = auth.uid()) AND (u.deleted_at IS NULL)))) OR (EXISTS ( SELECT 1
    FROM public.users u
-  WHERE ((u.clerk_user_id = (( SELECT auth.jwt() AS jwt) ->> 'sub'::text)) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role])) AND (u.deleted_at IS NULL))))));
+  WHERE ((u.auth_user_id = auth.uid()) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role])) AND (u.deleted_at IS NULL))))));
 
 
 --
@@ -4100,18 +3512,6 @@ ALTER TABLE public.chat_sessions ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.chunks ENABLE ROW LEVEL SECURITY;
-
---
--- Name: clerk_to_auth_map; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.clerk_to_auth_map ENABLE ROW LEVEL SECURITY;
-
---
--- Name: clerk_webhook_events; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.clerk_webhook_events ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: conversation_memory; Type: ROW SECURITY; Schema: public; Owner: -
@@ -4162,7 +3562,7 @@ ALTER TABLE public.idempotency_keys ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY idempotency_select ON public.idempotency_keys FOR SELECT USING ((EXISTS ( SELECT 1
    FROM public.users u
-  WHERE ((u.id = idempotency_keys.user_id) AND (u.clerk_user_id = (( SELECT auth.jwt() AS jwt) ->> 'sub'::text)) AND (u.deleted_at IS NULL)))));
+  WHERE ((u.id = idempotency_keys.user_id) AND (u.auth_user_id = auth.uid()) AND (u.deleted_at IS NULL)))));
 
 
 --
@@ -4182,12 +3582,6 @@ ALTER TABLE public.invitation_tokens ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.migration_alerts ENABLE ROW LEVEL SECURITY;
-
---
--- Name: migration_events; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.migration_events ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: migration_log; Type: ROW SECURITY; Schema: public; Owner: -
@@ -4237,12 +3631,6 @@ ALTER TABLE public.user_context ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.user_invitation_quotas ENABLE ROW LEVEL SECURITY;
-
---
--- Name: user_migration; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.user_migration ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: user_onboarding_milestones; Type: ROW SECURITY; Schema: public; Owner: -
@@ -4309,17 +3697,8 @@ CREATE POLICY view_sent_invitations ON public.user_sent_invitations_log FOR SELE
 ALTER TABLE public.waitlist_signups ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: clerk_webhook_events webhook_events_admin_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY webhook_events_admin_select ON public.clerk_webhook_events FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM public.users u
-  WHERE ((u.clerk_user_id = (( SELECT auth.jwt() AS jwt) ->> 'sub'::text)) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role])) AND (u.deleted_at IS NULL)))));
-
-
---
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 6E2Oh11K7GngXMBx4WS7yVvF5afx10p8HI2wnGKIkQ3cq6AbsYXq7qm7oQghGs4
+\unrestrict MIoNA2uAbuuwbzLOxbB233XbEMkcUNR5QnrgnUha0IEwmBQi6IGyBf4tuZtNnfg
 
