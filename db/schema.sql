@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict VKm4xge5I3eJGtaBrNmRJagd13BfJgaToe5uauEYq20TmmiyrTkaBj32Yd6lybZ
+\restrict 38WQuQQMvddCsnmNEZIJYsTcO1qGurRrP4j12KKhFvyeaBZbYj3Fk0pWWmo6rvW
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
@@ -502,6 +502,21 @@ CREATE FUNCTION public.is_admin() RETURNS boolean
       AND role IN ('ADMIN', 'SUPER_ADMIN')
       AND deleted_at IS NULL
   );
+$$;
+
+
+--
+-- Name: k12_set_updated_at(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.k12_set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+BEGIN
+  NEW.updated_at := now();
+  RETURN NEW;
+END
 $$;
 
 
@@ -1506,6 +1521,91 @@ COMMENT ON COLUMN public.invitation_tokens.name IS 'Optional name for the invite
 
 
 --
+-- Name: k12_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.k12_categories (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    batch_tag text DEFAULT 'k12-enur-test'::text NOT NULL,
+    parent_id uuid,
+    slug text NOT NULL,
+    name text NOT NULL,
+    description text,
+    sort_order integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    auth_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: k12_chunks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.k12_chunks (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    batch_tag text DEFAULT 'k12-enur-test'::text NOT NULL,
+    document_id uuid NOT NULL,
+    chunk_index integer NOT NULL,
+    content text NOT NULL,
+    pinecone_vector_id text,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: k12_document_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.k12_document_categories (
+    document_id uuid NOT NULL,
+    category_id uuid NOT NULL,
+    batch_tag text DEFAULT 'k12-enur-test'::text NOT NULL,
+    source text DEFAULT 'llm'::text NOT NULL,
+    confidence double precision,
+    auth_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT k12_doc_cat_source_chk CHECK ((source = ANY (ARRAY['manual'::text, 'llm'::text, 'imported'::text])))
+);
+
+
+--
+-- Name: k12_documents; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.k12_documents (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    batch_tag text DEFAULT 'k12-enur-test'::text NOT NULL,
+    content_group_id text NOT NULL,
+    document_kind text NOT NULL,
+    language text NOT NULL,
+    origin text DEFAULT 'k12'::text NOT NULL,
+    origin_ref text,
+    source_document_id uuid,
+    title text,
+    content text,
+    collection text,
+    grade_level text,
+    subject text,
+    file_name text,
+    file_type text,
+    storage_path text,
+    media_path text,
+    is_machine_translated boolean DEFAULT false NOT NULL,
+    translation_unreviewed boolean DEFAULT false NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    auth_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT k12_documents_kind_chk CHECK ((document_kind = ANY (ARRAY['source'::text, 'transcript'::text, 'lesson_plan_parent'::text, 'lesson_plan_kids'::text, 'exercise'::text, 'html5'::text, 'library_doc'::text]))),
+    CONSTRAINT k12_documents_lang_chk CHECK ((language = ANY (ARRAY['en'::text, 'ur'::text]))),
+    CONSTRAINT k12_documents_origin_chk CHECK ((origin = ANY (ARRAY['k12'::text, 'library'::text])))
+);
+
+
+--
 -- Name: migration_alerts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2033,6 +2133,54 @@ ALTER TABLE ONLY public.invitation_tokens
 
 ALTER TABLE ONLY public.invitation_tokens
     ADD CONSTRAINT invitation_tokens_token_key UNIQUE (token);
+
+
+--
+-- Name: k12_categories k12_categories_batch_tag_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.k12_categories
+    ADD CONSTRAINT k12_categories_batch_tag_slug_key UNIQUE (batch_tag, slug);
+
+
+--
+-- Name: k12_categories k12_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.k12_categories
+    ADD CONSTRAINT k12_categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: k12_chunks k12_chunks_document_id_chunk_index_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.k12_chunks
+    ADD CONSTRAINT k12_chunks_document_id_chunk_index_key UNIQUE (document_id, chunk_index);
+
+
+--
+-- Name: k12_chunks k12_chunks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.k12_chunks
+    ADD CONSTRAINT k12_chunks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: k12_document_categories k12_document_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.k12_document_categories
+    ADD CONSTRAINT k12_document_categories_pkey PRIMARY KEY (document_id, category_id);
+
+
+--
+-- Name: k12_documents k12_documents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.k12_documents
+    ADD CONSTRAINT k12_documents_pkey PRIMARY KEY (id);
 
 
 --
@@ -2608,6 +2756,69 @@ CREATE INDEX idx_invitations_token_id ON public.user_sent_invitations_log USING 
 
 
 --
+-- Name: idx_k12_categories_parent; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_k12_categories_parent ON public.k12_categories USING btree (parent_id);
+
+
+--
+-- Name: idx_k12_chunks_batch; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_k12_chunks_batch ON public.k12_chunks USING btree (batch_tag);
+
+
+--
+-- Name: idx_k12_chunks_document; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_k12_chunks_document ON public.k12_chunks USING btree (document_id);
+
+
+--
+-- Name: idx_k12_doccat_category; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_k12_doccat_category ON public.k12_document_categories USING btree (category_id);
+
+
+--
+-- Name: idx_k12_documents_batch; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_k12_documents_batch ON public.k12_documents USING btree (batch_tag);
+
+
+--
+-- Name: idx_k12_documents_group_lang; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_k12_documents_group_lang ON public.k12_documents USING btree (content_group_id, language);
+
+
+--
+-- Name: idx_k12_documents_kind_lang; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_k12_documents_kind_lang ON public.k12_documents USING btree (document_kind, language);
+
+
+--
+-- Name: idx_k12_documents_origin; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_k12_documents_origin ON public.k12_documents USING btree (origin);
+
+
+--
+-- Name: idx_k12_documents_subjectgrade; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_k12_documents_subjectgrade ON public.k12_documents USING btree (subject, grade_level);
+
+
+--
 -- Name: idx_migration_alerts_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2874,6 +3085,20 @@ CREATE TRIGGER prevent_library_deletion BEFORE DELETE ON public.documents FOR EA
 
 
 --
+-- Name: k12_categories trg_k12_categories_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_k12_categories_updated_at BEFORE UPDATE ON public.k12_categories FOR EACH ROW EXECUTE FUNCTION public.k12_set_updated_at();
+
+
+--
+-- Name: k12_documents trg_k12_documents_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_k12_documents_updated_at BEFORE UPDATE ON public.k12_documents FOR EACH ROW EXECUTE FUNCTION public.k12_set_updated_at();
+
+
+--
 -- Name: users trigger_create_quota_on_signup; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -3121,6 +3346,46 @@ ALTER TABLE ONLY public.ingest_jobs
 
 ALTER TABLE ONLY public.invitation_tokens
     ADD CONSTRAINT invitation_tokens_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: k12_categories k12_categories_parent_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.k12_categories
+    ADD CONSTRAINT k12_categories_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.k12_categories(id) ON DELETE CASCADE;
+
+
+--
+-- Name: k12_chunks k12_chunks_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.k12_chunks
+    ADD CONSTRAINT k12_chunks_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.k12_documents(id) ON DELETE CASCADE;
+
+
+--
+-- Name: k12_document_categories k12_document_categories_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.k12_document_categories
+    ADD CONSTRAINT k12_document_categories_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.k12_categories(id) ON DELETE CASCADE;
+
+
+--
+-- Name: k12_document_categories k12_document_categories_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.k12_document_categories
+    ADD CONSTRAINT k12_document_categories_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.k12_documents(id) ON DELETE CASCADE;
+
+
+--
+-- Name: k12_documents k12_documents_source_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.k12_documents
+    ADD CONSTRAINT k12_documents_source_document_id_fkey FOREIGN KEY (source_document_id) REFERENCES public.k12_documents(id) ON DELETE SET NULL;
 
 
 --
@@ -3578,6 +3843,102 @@ ALTER TABLE public.ingest_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invitation_tokens ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: k12_categories; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.k12_categories ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: k12_categories k12_categories_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY k12_categories_select ON public.k12_categories FOR SELECT USING ((auth.uid() IS NOT NULL));
+
+
+--
+-- Name: k12_categories k12_categories_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY k12_categories_write ON public.k12_categories USING ((EXISTS ( SELECT 1
+   FROM public.users u
+  WHERE ((u.auth_user_id = auth.uid()) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role])))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM public.users u
+  WHERE ((u.auth_user_id = auth.uid()) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role]))))));
+
+
+--
+-- Name: k12_chunks; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.k12_chunks ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: k12_chunks k12_chunks_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY k12_chunks_select ON public.k12_chunks FOR SELECT USING ((auth.uid() IS NOT NULL));
+
+
+--
+-- Name: k12_chunks k12_chunks_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY k12_chunks_write ON public.k12_chunks USING ((EXISTS ( SELECT 1
+   FROM public.users u
+  WHERE ((u.auth_user_id = auth.uid()) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role])))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM public.users u
+  WHERE ((u.auth_user_id = auth.uid()) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role]))))));
+
+
+--
+-- Name: k12_document_categories; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.k12_document_categories ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: k12_document_categories k12_document_categories_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY k12_document_categories_select ON public.k12_document_categories FOR SELECT USING ((auth.uid() IS NOT NULL));
+
+
+--
+-- Name: k12_document_categories k12_document_categories_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY k12_document_categories_write ON public.k12_document_categories USING ((EXISTS ( SELECT 1
+   FROM public.users u
+  WHERE ((u.auth_user_id = auth.uid()) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role])))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM public.users u
+  WHERE ((u.auth_user_id = auth.uid()) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role]))))));
+
+
+--
+-- Name: k12_documents; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.k12_documents ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: k12_documents k12_documents_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY k12_documents_select ON public.k12_documents FOR SELECT USING ((auth.uid() IS NOT NULL));
+
+
+--
+-- Name: k12_documents k12_documents_write; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY k12_documents_write ON public.k12_documents USING ((EXISTS ( SELECT 1
+   FROM public.users u
+  WHERE ((u.auth_user_id = auth.uid()) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role])))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM public.users u
+  WHERE ((u.auth_user_id = auth.uid()) AND (u.role = ANY (ARRAY['ADMIN'::public.user_role, 'SUPER_ADMIN'::public.user_role]))))));
+
+
+--
 -- Name: migration_alerts; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -3700,5 +4061,5 @@ ALTER TABLE public.waitlist_signups ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict VKm4xge5I3eJGtaBrNmRJagd13BfJgaToe5uauEYq20TmmiyrTkaBj32Yd6lybZ
+\unrestrict 38WQuQQMvddCsnmNEZIJYsTcO1qGurRrP4j12KKhFvyeaBZbYj3Fk0pWWmo6rvW
 
