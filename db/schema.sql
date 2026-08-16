@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict RKaWI67st4XmLmtIrqaTcN8KfmLeEVWV1a4VrMGt2io9neTkeGFZyHyhXQdPbJ5
+\restrict 6Kx1LXdcjoazZQ9etjPjTQYjZc7eNzdkFsabLbldeDnXc5Mm6hvYAvCrEjSvF9X
 
 -- Dumped from database version 17.6
--- Dumped by pg_dump version 17.10 (Ubuntu 17.10-1.pgdg24.04+1)
+-- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -4061,5 +4061,5 @@ ALTER TABLE public.waitlist_signups ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict RKaWI67st4XmLmtIrqaTcN8KfmLeEVWV1a4VrMGt2io9neTkeGFZyHyhXQdPbJ5
+\unrestrict 6Kx1LXdcjoazZQ9etjPjTQYjZc7eNzdkFsabLbldeDnXc5Mm6hvYAvCrEjSvF9X
 
