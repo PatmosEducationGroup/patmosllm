@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict aXp1DUcwDcVdI3nnqO0MiTguHmtqcEKgv0fZ32bUqqjyJ7thkbYH7LjveEY0w0j
+\restrict dVZjFhxxBGooPF1sIANmu982CXoAnEjT1xAFkRP1e3iUna2QZvt4IKa3BPLNJlW
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -4061,5 +4061,5 @@ ALTER TABLE public.waitlist_signups ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict aXp1DUcwDcVdI3nnqO0MiTguHmtqcEKgv0fZ32bUqqjyJ7thkbYH7LjveEY0w0j
+\unrestrict dVZjFhxxBGooPF1sIANmu982CXoAnEjT1xAFkRP1e3iUna2QZvt4IKa3BPLNJlW
 
